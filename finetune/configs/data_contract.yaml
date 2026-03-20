@@ -1,0 +1,30 @@
+version: "1.0.0"
+task: "sentiment_finetune_stage_a"
+description: "Data contract for Stage A sentiment finetune pipeline."
+
+required_columns:
+  - id
+  - platform
+  - product_id
+  - raw_text
+  - analysis_input_en
+  - lang
+  - created_at
+  - source
+  - label_sentiment
+
+label_mapping:
+  negative: 0
+  neutral: 1
+  positive: 2
+
+cleaning:
+  min_text_length: 5
+  max_text_length: 1024
+  drop_duplicates_on:
+    - id
+  drop_empty_text: true
+
+paths:
+  raw_input: "finetune/data/raw/reviews.csv"
+  cleaned_output: "finetune/data/processed/reviews_cleaned.csv"

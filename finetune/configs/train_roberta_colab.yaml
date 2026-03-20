@@ -1,0 +1,38 @@
+version: "1.0.0"
+experiment_name: "roberta-sentiment-v0-colab"
+
+model:
+  pretrained_name: "roberta-base"
+  num_labels: 3
+  max_length: 256
+
+data:
+  cleaned_csv: "finetune/data/processed/reviews_cleaned.csv"
+  train_csv: "finetune/data/splits/train.csv"
+  val_csv: "finetune/data/splits/val.csv"
+  test_csv: "finetune/data/splits/test.csv"
+  text_column: "analysis_input_en"
+  label_column: "label_sentiment"
+  split:
+    train_size: 0.8
+    val_size: 0.1
+    test_size: 0.1
+    random_seed: 42
+
+training:
+  output_dir: "finetune/artifacts/roberta-sentiment-v0-colab"
+  learning_rate: 2e-5
+  num_train_epochs: 1
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  weight_decay: 0.01
+  logging_steps: 100
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  metric_for_best_model: "accuracy"
+  greater_is_better: true
+  seed: 42
+
+evaluation:
+  report_output: "finetune/reports/sentiment_eval_v0_colab.json"
+
