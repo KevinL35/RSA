@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth.store'
@@ -42,6 +42,8 @@ const rememberPassword = ref(true)
 const loading = ref(false)
 const router = useRouter()
 const auth = useAuthStore()
+const REMEMBER_KEY = 'rsa_login_remember'
+const CRED_KEY = 'rsa_login_credentials'
 const userSvg =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path fill="currentColor" d="M512 512a192 192 0 1 0 0-384 192 192 0 0 0 0 384m0 64a256 256 0 1 1 0-512 256 256 0 0 1 0 512m320 320v-96a96 96 0 0 0-96-96H288a96 96 0 0 0-96 96v96a32 32 0 1 1-64 0v-96a160 160 0 0 1 160-160h448a160 160 0 0 1 160 160v96a32 32 0 1 1-64 0"></path></svg>'
 const passwordSvg =
@@ -51,6 +53,19 @@ async function onSubmit() {
   loading.value = true
   try {
     await auth.login(username.value, password.value)
+    if (rememberPassword.value) {
+      localStorage.setItem(REMEMBER_KEY, '1')
+      localStorage.setItem(
+        CRED_KEY,
+        JSON.stringify({
+          username: username.value,
+          password: password.value,
+        }),
+      )
+    } else {
+      localStorage.removeItem(REMEMBER_KEY)
+      localStorage.removeItem(CRED_KEY)
+    }
     router.replace('/insight-analysis')
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '登录失败')
@@ -58,6 +73,21 @@ async function onSubmit() {
     loading.value = false
   }
 }
+
+onMounted(() => {
+  const remember = localStorage.getItem(REMEMBER_KEY) === '1'
+  rememberPassword.value = remember
+  if (!remember) return
+  const raw = localStorage.getItem(CRED_KEY)
+  if (!raw) return
+  try {
+    const parsed = JSON.parse(raw) as { username?: string; password?: string }
+    username.value = parsed.username ?? ''
+    password.value = parsed.password ?? ''
+  } catch {
+    localStorage.removeItem(CRED_KEY)
+  }
+})
 </script>
 
 <style scoped>

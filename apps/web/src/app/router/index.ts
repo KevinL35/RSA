@@ -8,7 +8,6 @@ import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
 import TaskCenterPage from '../../modules/tasks/pages/TaskCenterPage.vue'
 import ApiConfigPage from '../../modules/settings/pages/ApiConfigPage.vue'
 import AccountPermissionsPage from '../../modules/settings/pages/AccountPermissionsPage.vue'
-import { useAuthStore } from '../../modules/auth/store/auth.store'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -31,11 +30,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  const auth = useAuthStore()
-  if (to.path !== '/login' && !auth.isLogin()) return '/login'
-  if (to.path === '/login' && auth.isLogin()) return '/insight-analysis'
-  return true
-})
+// 开发阶段临时关闭登录守卫；联调鉴权时再恢复。
+router.beforeEach(() => true)
 
 export default router
