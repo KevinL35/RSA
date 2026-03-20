@@ -1,13 +1,38 @@
 .DS_Store
 *.log
 
+# Environment / secrets
+.env
+.env.local
+apps/api/.env
+apps/web/.env
+
 # Python virtual environments
 .venv/
 venv/
+apps/api/.venv/
 
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Frontend dependencies/build caches
+node_modules/
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/tsconfig.tsbuildinfo
+
+# ML artifacts/data (local large files)
+ml/data/
+ml/artifacts/
+ml/reports/
+
+# IDE
+.idea/
+.vscode/
 
 # macOS metadata
 .AppleDouble
