@@ -1,0 +1,33 @@
+:root {
+  --rsa-primary: #4a67f5;
+  --rsa-primary-hover: #3f5ae0;
+  --rsa-primary-soft: #eef2ff;
+  --rsa-text-main: #2f3137;
+  --rsa-text-secondary: #70757f;
+  --rsa-border: #e6e8ee;
+  --rsa-bg: #f4f6fb;
+
+  color: var(--rsa-text-main);
+  background-color: var(--rsa-bg);
+  font-family:
+    'PingFang SC',
+    'Microsoft YaHei',
+    'Helvetica Neue',
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
