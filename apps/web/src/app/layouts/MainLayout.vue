@@ -6,8 +6,19 @@
           <span class="menu-icon" v-html="menuActionSvg" />
         </el-button>
         <div v-show="!collapsed" class="brand-text">
-          <strong>RSA平台</strong>
+          <strong>{{ t('brand.full') }}</strong>
         </div>
+        <el-select
+          v-show="!collapsed"
+          v-model="locale"
+          size="small"
+          class="locale-select"
+          :teleported="false"
+          @change="onLocaleChange"
+        >
+          <el-option label="English" value="en" />
+          <el-option label="简体中文" value="zh-CN" />
+        </el-select>
       </div>
 
       <el-scrollbar class="menu-wrap">
@@ -23,16 +34,16 @@
             <el-sub-menu v-if="item.children?.length && !collapsed" :index="item.key">
               <template #title>
                 <span class="menu-icon" v-html="item.icon" />
-                <span class="menu-label">{{ item.label }}</span>
+                <span class="menu-label">{{ t(item.labelKey) }}</span>
               </template>
               <el-menu-item v-for="child in item.children" :key="child.key" :index="child.path">
-                {{ child.label }}
+                {{ t(child.labelKey) }}
               </el-menu-item>
             </el-sub-menu>
             <el-menu-item v-else :index="item.path">
               <span class="menu-icon" v-html="item.icon" />
               <template #title>
-                <span class="menu-label">{{ item.label }}</span>
+                <span class="menu-label">{{ t(item.labelKey) }}</span>
               </template>
             </el-menu-item>
           </template>
@@ -56,10 +67,18 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { APP_MENUS, type MenuItem } from '../config/menu.config'
 import { useAuthStore } from '../../modules/auth/store/auth.store'
+import { persistLocale, type AppLocale } from '../i18n'
+
+const { t, locale } = useI18n()
+
+function onLocaleChange(v: string) {
+  persistLocale(v as AppLocale)
+}
 
 const collapsed = ref(false)
 const route = useRoute()
@@ -94,7 +113,7 @@ function onSelect(path: string) {
 }
 
 async function onLogout() {
-  await ElMessageBox.confirm('确认退出登录？', '提示', { type: 'warning' })
+  await ElMessageBox.confirm(t('layout.logoutConfirm'), t('layout.logoutTitle'), { type: 'warning' })
   auth.logout()
   router.replace('/login')
 }
@@ -134,6 +153,12 @@ async function onLogout() {
   justify-content: flex-start;
   gap: 10px;
   padding: 0 8px;
+  flex-wrap: wrap;
+}
+
+.locale-select {
+  width: 118px;
+  margin-left: auto;
 }
 
 .brand-text {

@@ -36,6 +36,17 @@ export type {
 } from './insight-dashboard'
 
 export type {
+  CompareConclusionCard,
+  CompareKeywordEntry,
+  CompareMissingReason,
+  ComparePrerequisiteErrorDetail,
+  CompareProductPrerequisite,
+  CompareProductsResponse,
+  CompareProductRef,
+  CompareSentimentBucket,
+} from './compare'
+
+export type {
   InsightTaskListFiltersApplied,
   InsightTaskListWithFiltersResponse,
   InsightTaskRetryResponse,

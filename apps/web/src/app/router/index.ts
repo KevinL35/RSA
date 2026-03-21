@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { i18n } from '../i18n'
 import LoginPage from '../../modules/auth/pages/LoginPage.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import { useAuthStore } from '../../modules/auth/store/auth.store'
@@ -43,7 +44,7 @@ router.beforeEach((to: RouteLocationNormalized) => {
   if (!auth.isLogin()) return { path: '/login', query: { redirect: to.fullPath } }
   const roles = to.meta.allowedRoles
   if (roles?.length && !roles.includes(auth.role.value)) {
-    ElMessage.warning('当前角色无权访问该页面')
+    ElMessage.warning(i18n.global.t('router.noPermission'))
     return { path: '/insight-analysis', replace: true }
   }
   return true

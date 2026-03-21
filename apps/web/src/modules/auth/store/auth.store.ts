@@ -6,12 +6,12 @@ const ROLE_KEY = 'rsa_user_role'
 export type UserRole = 'admin' | 'operator' | 'readonly'
 
 const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
-const role = ref<UserRole>((localStorage.getItem(ROLE_KEY) as UserRole) || 'operator')
+const role = ref<UserRole>((localStorage.getItem(ROLE_KEY) as UserRole) || 'readonly')
 
 export function useAuthStore() {
   const isLogin = () => !!token.value
 
-  const login = async (username: string, password: string, userRole: UserRole = 'operator') => {
+  const login = async (username: string, password: string, userRole: UserRole = 'admin') => {
     if (!username || !password) throw new Error('请输入账号和密码')
     token.value = `token_${Date.now()}`
     localStorage.setItem(TOKEN_KEY, token.value)
@@ -22,7 +22,7 @@ export function useAuthStore() {
   const logout = () => {
     token.value = ''
     localStorage.removeItem(TOKEN_KEY)
-    role.value = 'operator'
+    role.value = 'readonly'
     localStorage.removeItem(ROLE_KEY)
   }
 

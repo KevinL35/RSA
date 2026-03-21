@@ -2,9 +2,9 @@
   <el-card class="view-card" v-loading="loading">
     <template #header>
       <div class="card-head">
-        <span>任务中心</span>
+        <span>{{ t('taskCenter.title') }}</span>
         <div class="actions">
-          <el-button type="primary" :loading="loading" @click="load">刷新</el-button>
+          <el-button type="primary" :loading="loading" @click="load">{{ t('taskCenter.refresh') }}</el-button>
         </div>
       </div>
     </template>
@@ -14,7 +14,7 @@
       type="info"
       :closable="false"
       show-icon
-      title="当前为只读角色：可查看任务与失败原因，不可执行重试。"
+      :title="t('taskCenter.readOnlyHint')"
       style="margin-bottom: 12px"
     />
 
@@ -24,28 +24,28 @@
         multiple
         collapse-tags
         collapse-tags-tooltip
-        placeholder="状态筛选"
+        :placeholder="t('taskCenter.statusFilter')"
         clearable
         style="width: 260px"
       >
-        <el-option label="pending" value="pending" />
-        <el-option label="running" value="running" />
-        <el-option label="success" value="success" />
-        <el-option label="failed" value="failed" />
-        <el-option label="cancelled" value="cancelled" />
+        <el-option :label="t('taskCenter.statusPending')" value="pending" />
+        <el-option :label="t('taskCenter.statusRunning')" value="running" />
+        <el-option :label="t('taskCenter.statusSuccess')" value="success" />
+        <el-option :label="t('taskCenter.statusFailed')" value="failed" />
+        <el-option :label="t('taskCenter.statusCancelled')" value="cancelled" />
       </el-select>
       <el-date-picker
         v-model="dateRange"
         type="datetimerange"
-        range-separator="至"
-        start-placeholder="创建起"
-        end-placeholder="创建止"
+        :range-separator="t('taskCenter.rangeSep')"
+        :start-placeholder="t('taskCenter.dateStart')"
+        :end-placeholder="t('taskCenter.dateEnd')"
         value-format="YYYY-MM-DDTHH:mm:ss"
         style="max-width: 380px"
       />
       <el-input-number v-model="pageLimit" :min="1" :max="200" />
-      <span class="hint">条/页</span>
-      <el-button type="primary" plain @click="load">应用筛选</el-button>
+      <span class="hint">{{ t('taskCenter.perPage') }}</span>
+      <el-button type="primary" plain @click="load">{{ t('taskCenter.applyFilter') }}</el-button>
     </div>
 
     <el-alert
@@ -57,36 +57,48 @@
       style="margin: 14px 0"
     />
 
-    <el-table :data="items" stripe style="width: 100%" empty-text="暂无任务数据">
-      <el-table-column prop="platform" label="平台" width="110" />
-      <el-table-column prop="product_id" label="商品 ID" min-width="140" show-overflow-tooltip />
-      <el-table-column label="状态" width="118">
+    <el-table :data="items" stripe style="width: 100%" :empty-text="t('taskCenter.empty')">
+      <el-table-column prop="platform" :label="t('taskCenter.platform')" width="110" />
+      <el-table-column
+        prop="product_id"
+        :label="t('taskCenter.productId')"
+        min-width="140"
+        show-overflow-tooltip
+      />
+      <el-table-column :label="t('taskCenter.status')" width="118">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="耗时" width="100">
+      <el-table-column :label="t('taskCenter.duration')" width="100">
         <template #default="{ row }">
           {{ formatDuration(row.created_at, row.updated_at, row.status) }}
         </template>
       </el-table-column>
-      <el-table-column prop="analysis_provider_id" label="分析源" min-width="120" show-overflow-tooltip />
-      <el-table-column label="失败信息" min-width="220">
+      <el-table-column
+        prop="analysis_provider_id"
+        :label="t('taskCenter.analysisProvider')"
+        min-width="120"
+        show-overflow-tooltip
+      />
+      <el-table-column :label="t('taskCenter.failureInfo')" min-width="220">
         <template #default="{ row }">
           <template v-if="row.status === 'failed'">
             <div class="fail-line">
-              <span class="muted">阶段</span> {{ row.error?.stage ?? row.failure_stage ?? '—' }}
+              <span class="muted">{{ t('taskCenter.failureStage') }}</span>
+              {{ row.error?.stage ?? row.failure_stage ?? '—' }}
             </div>
             <div class="fail-line">
-              <span class="muted">代码</span> {{ row.error?.code ?? row.error_code ?? '—' }}
+              <span class="muted">{{ t('taskCenter.failureCode') }}</span>
+              {{ row.error?.code ?? row.error_code ?? '—' }}
             </div>
             <div class="fail-msg">{{ row.error?.message ?? row.error_message ?? '—' }}</div>
           </template>
           <span v-else class="muted">—</span>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="178" />
-      <el-table-column label="操作" width="112" fixed="right">
+      <el-table-column prop="created_at" :label="t('taskCenter.createdAt')" width="178" />
+      <el-table-column :label="t('taskCenter.actions')" width="112" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 'failed'"
@@ -96,7 +108,7 @@
             :loading="retryingId === row.id"
             @click="onRetry(row)"
           >
-            重试
+            {{ t('taskCenter.retry') }}
           </el-button>
           <span v-else class="muted">—</span>
         </template>
@@ -107,11 +119,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { fetchInsightTasks, postInsightTaskRetry } from '../api'
 import type { InsightTaskRow } from '../types'
 import { useAuthStore } from '../../auth/store/auth.store'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const canRetryTasks = computed(() => auth.canRetryInsightTasks.value)
 const loading = ref(false)
@@ -151,8 +165,7 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const status =
-      filterStatus.value.length > 0 ? filterStatus.value.join(',') : undefined
+    const status = filterStatus.value.length > 0 ? filterStatus.value.join(',') : undefined
     let created_after: string | undefined
     let created_before: string | undefined
     if (dateRange.value?.length === 2) {
@@ -179,7 +192,7 @@ async function onRetry(row: InsightTaskRow) {
   retryingId.value = row.id
   try {
     const res = await postInsightTaskRetry(row.id)
-    ElMessage.success(res.message || '已重置')
+    ElMessage.success(res.message || t('taskCenter.resetOk'))
     await load()
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e))

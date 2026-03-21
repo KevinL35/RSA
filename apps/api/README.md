@@ -47,6 +47,7 @@ pytest
 - `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
 - `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因
 - `POST /api/v1/insight-tasks/{id}/retry`：TB-6 **幂等**重试：`failed→pending` 并清空错误；已为 `pending` 则 `idempotent: true`；`running`/`success`/`cancelled` 返回 409
+- `GET /api/v1/compare/products?platform_a=&product_id_a=&platform_b=&product_id_b=`：TB-9 双商品对比；按各自最近一次 `success` 任务聚合情感分布、`dimensions` 六维计数、关键词 Top 与相对偏多侧、`conclusion_cards`（规则模板）。**TB-10 前置校验**：任一侧无 `success` 任务、或任务成功但 `review_analysis` 为空（无落库分析）时 **400**，响应体 `{"detail": { ... }}` 内含 `code: MISSING_INSIGHT_DATA`、`messages.zh_CN` / `messages.en`、`guidance`、`next_step`（引导至任务中心）、`reasons`（`no_success_task` | `empty_analysis`）、`products`（含 `insight_task_id`）
 
 **评论抓取（TB-2）环境变量**（`apps/api/.env`）：
 
@@ -72,8 +73,27 @@ pytest
 
 **分析源响应**：顶层数组或 `reviews`/`results`/`items` 数组；元素含 `review_id`、`sentiment`（`label` + `confidence`）、`dimensions`（`dimension` 为 TA-1 六维 key：`pros`|`cons`|`return_reasons`|`purchase_motivation`|`user_expectation`|`usage_scenario`，及 `keywords`、`evidence_quote`、`highlight_spans`）。未匹配行将补 `neutral` 与空维度。
 
+**翻译代理（TB-11）环境变量**：
+
+- `TRANSLATION_API_URL`：可选，LibreTranslate 兼容 `POST`（JSON：`q`, `source`, `target`, `format`），返回 JSON 含 `translatedText`（或 `translated`/`data` 字符串）
+- `TRANSLATION_API_KEY`：可选 `Authorization: Bearer …`
+- 未配置时：`POST /api/v1/translate` 仍返回 **200**，`{"configured":false,"translated":null}`，前端仅展示英文主文，不阻断
+
 前端开发：在 `apps/web` 运行 `npm run dev`，Vite 会将 `/api` 代理到 `http://127.0.0.1:8000`。
+
+## RBAC（TB-13）
+
+所有 `/api/v1/**` 业务接口（除文档中另有说明外）需在 HTTP 头中携带：
+
+- **`X-RSA-Role`**：`admin` | `operator` | `readonly`
+
+- **只读（`readonly`）**：仅允许 **GET** 类查询（任务列表、单条任务、dashboard、analysis、compare、translate 等）。
+- **变更（`admin` / `operator`）**：可 **POST**（创建任务、拉取评论、分析、重试）与 **PATCH** 任务。
+
+缺少或非法角色返回 **401**；只读角色调用变更类接口返回 **403**，`detail.code=RBAC_FORBIDDEN`，并写入日志 `rsa.audit`（WARNING）。
+
+前端 `apps/web` 从登录所选角色写入 `localStorage`（`rsa_user_role`），`fetch` 自动带 `X-RSA-Role`。
 
 ## 安全说明
 
-当前接口未接 JWT 校验；上线前应在 `app/core` 中校验 Supabase 用户令牌，并与 RBAC 对齐。
+当前为 **演示级** RBAC（请求头角色 + 审计日志），未接 JWT；上线前应改为签名校验（如 Supabase Auth JWT）并与 RBAC 对齐。

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from uuid import UUID
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.rbac import get_rsa_role
 from app.integrations.supabase import require_supabase
 
 _DIMS = frozenset(
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/api/v1/analysis", tags=["analysis-results"])
 
 @router.get("/by-product")
 def list_dimension_hits_by_product(
+    _rbac: Annotated[str, Depends(get_rsa_role)],
     platform: str = Query(min_length=1, max_length=64),
     product_id: str = Query(min_length=1, max_length=256),
     dimension: str | None = Query(

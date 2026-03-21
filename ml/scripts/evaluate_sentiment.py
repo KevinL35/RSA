@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import sys
 from pathlib import Path
 
@@ -18,6 +19,23 @@ from csv_splits import read_split_csv
 def load_yaml(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def _minimal_eval_training_args() -> TrainingArguments:
+    """仅用于 Trainer.evaluate，兼容 transformers 4/5。"""
+    params = inspect.signature(TrainingArguments.__init__).parameters
+    kwargs: dict = {
+        "output_dir": "tmp-eval",
+        "per_device_eval_batch_size": 32,
+        "report_to": [],
+    }
+    if "eval_strategy" in params:
+        kwargs["eval_strategy"] = "no"
+    elif "evaluation_strategy" in params:
+        kwargs["evaluation_strategy"] = "no"
+    allowed = set(params.keys()) - {"self", "kwargs"}
+    filtered = {k: v for k, v in kwargs.items() if k in allowed}
+    return TrainingArguments(**filtered)
 
 
 def main() -> None:
@@ -64,20 +82,22 @@ def main() -> None:
         acc = accuracy_metric.compute(predictions=preds, references=labels)
         return {"accuracy": acc["accuracy"]}
 
-    training_args = TrainingArguments(
-        output_dir="tmp-eval",
-        per_device_eval_batch_size=32,
-        report_to=[],
-    )
+    training_args = _minimal_eval_training_args()
 
-    trainer = Trainer(
+    _tc = inspect.signature(Trainer.__init__).parameters
+    _trainer_kw = dict(
         model=model,
         args=training_args,
         eval_dataset=ds_test,
-        tokenizer=tokenizer,
         data_collator=collator,
         compute_metrics=compute_metrics,
     )
+    if "processing_class" in _tc:
+        _trainer_kw["processing_class"] = tokenizer
+    else:
+        _trainer_kw["tokenizer"] = tokenizer
+
+    trainer = Trainer(**_trainer_kw)
 
     metrics = trainer.evaluate()
     report_path = Path(eval_cfg.get("report_output", "reports/sentiment_eval.json"))

@@ -1,5 +1,6 @@
 import argparse
 import glob
+import inspect
 import sys
 from pathlib import Path
 
@@ -89,6 +90,41 @@ def _narrow_for_training(df: pd.DataFrame, text_col: str, label_col: str) -> pd.
     return df[[text_col, label_col]].copy()
 
 
+def build_training_arguments(train_cfg: dict, output_dir: Path) -> TrainingArguments:
+    """兼容 transformers 4.x（evaluation_strategy）与 5.x（eval_strategy）。"""
+    params = inspect.signature(TrainingArguments.__init__).parameters
+    kwargs: dict = {
+        "output_dir": str(output_dir),
+        "learning_rate": train_cfg["learning_rate"],
+        "num_train_epochs": train_cfg["num_train_epochs"],
+        "per_device_train_batch_size": train_cfg["per_device_train_batch_size"],
+        "per_device_eval_batch_size": train_cfg["per_device_eval_batch_size"],
+        "weight_decay": train_cfg["weight_decay"],
+        "logging_steps": train_cfg["logging_steps"],
+        "save_strategy": train_cfg["save_strategy"],
+        "metric_for_best_model": train_cfg["metric_for_best_model"],
+        "greater_is_better": train_cfg["greater_is_better"],
+        "seed": train_cfg["seed"],
+        "load_best_model_at_end": True,
+        "report_to": [],
+    }
+    ev = train_cfg["eval_strategy"]
+    if "eval_strategy" in params:
+        kwargs["eval_strategy"] = ev
+    elif "evaluation_strategy" in params:
+        kwargs["evaluation_strategy"] = ev
+    else:
+        raise RuntimeError(
+            "TrainingArguments 不支持 eval_strategy / evaluation_strategy，请升级或降级 transformers。"
+        )
+    allowed = set(params.keys()) - {"self", "kwargs"}
+    filtered = {k: v for k, v in kwargs.items() if k in allowed}
+    unknown = set(kwargs) - set(filtered)
+    if unknown:
+        print(f"Warning: TrainingArguments 忽略未知参数: {sorted(unknown)}")
+    return TrainingArguments(**filtered)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fine-tune RoBERTa for sentiment.")
     parser.add_argument("--config", required=True, help="Path to train_roberta yaml.")
@@ -110,6 +146,17 @@ def main() -> None:
         default=None,
         help="Debug/Colab: only use first N test rows.",
     )
+    parser.add_argument(
+        "--tokenized-cache-dir",
+        type=str,
+        default=None,
+        help="若目录下已有 train/val/test 子目录则直接加载，跳过耗时的 map；否则在 tokenize 后写入，下次秒开。换数据后请删该目录或加 --force-refresh-tokenized-cache。",
+    )
+    parser.add_argument(
+        "--force-refresh-tokenized-cache",
+        action="store_true",
+        help="忽略已有 tokenized 缓存，重新 map。",
+    )
     args = parser.parse_args()
 
     cfg = load_yaml(Path(args.config))
@@ -121,58 +168,94 @@ def main() -> None:
     val_csv = Path(data_cfg["val_csv"])
     test_csv = Path(data_cfg["test_csv"])
 
-    for p in (val_csv, test_csv):
-        if not p.exists():
-            raise FileNotFoundError(f"Missing split file: {p}. Run split_dataset.py first.")
-
-    df_train = load_train_dataframe(data_cfg)
-    df_val = read_split_csv(val_csv)
-    df_test = read_split_csv(test_csv)
-
     text_col = data_cfg["text_column"]
     label_col = data_cfg["label_column"]
 
-    if args.max_train_rows is not None:
-        df_train = df_train.head(args.max_train_rows)
-        print(f"--max-train-rows: using {len(df_train)} train rows")
-    if args.max_val_rows is not None:
-        df_val = df_val.head(args.max_val_rows)
-        print(f"--max-val-rows: using {len(df_val)} val rows")
-    if args.max_test_rows is not None:
-        df_test = df_test.head(args.max_test_rows)
-        print(f"--max-test-rows: using {len(df_test)} test rows")
-
-    df_train = _narrow_for_training(df_train, text_col, label_col)
-    df_val = _narrow_for_training(df_val, text_col, label_col)
-    df_test = _narrow_for_training(df_test, text_col, label_col)
-
-    tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_cfg["pretrained_name"],
-        num_labels=model_cfg["num_labels"],
+    cache_root = Path(args.tokenized_cache_dir) if args.tokenized_cache_dir else None
+    cache_train = cache_root / "train" if cache_root else None
+    cache_val = cache_root / "val" if cache_root else None
+    cache_test = cache_root / "test" if cache_root else None
+    cache_hit = (
+        cache_root
+        and not args.force_refresh_tokenized_cache
+        and cache_train.is_dir()
+        and cache_val.is_dir()
+        and cache_test.is_dir()
     )
 
-    ds_train = Dataset.from_pandas(df_train)
-    ds_val = Dataset.from_pandas(df_val)
-    ds_test = Dataset.from_pandas(df_test)
+    if cache_hit:
+        print(f"使用 tokenized 缓存（跳过 map）：{cache_root}")
+        ds_train = Dataset.load_from_disk(str(cache_train))
+        ds_val = Dataset.load_from_disk(str(cache_val))
+        ds_test = Dataset.load_from_disk(str(cache_test))
+    else:
+        for p in (val_csv, test_csv):
+            if not p.exists():
+                raise FileNotFoundError(f"Missing split file: {p}. Run split_dataset.py first.")
 
-    def _tokenize(batch):
-        return tokenize_fn(batch, tokenizer, text_col, model_cfg["max_length"])
+        df_train = load_train_dataframe(data_cfg)
+        df_val = read_split_csv(val_csv)
+        df_test = read_split_csv(test_csv)
 
-    # num_proc=1 降低 Colab 上多进程 map 的内存峰值
-    _map_kw = {"batched": True, "num_proc": 1}
-    ds_train = ds_train.map(_tokenize, **_map_kw)
-    ds_val = ds_val.map(_tokenize, **_map_kw)
-    ds_test = ds_test.map(_tokenize, **_map_kw)
+        if args.max_train_rows is not None:
+            df_train = df_train.head(args.max_train_rows)
+            print(f"--max-train-rows: using {len(df_train)} train rows")
+        if args.max_val_rows is not None:
+            df_val = df_val.head(args.max_val_rows)
+            print(f"--max-val-rows: using {len(df_val)} val rows")
+        if args.max_test_rows is not None:
+            df_test = df_test.head(args.max_test_rows)
+            print(f"--max-test-rows: using {len(df_test)} test rows")
 
-    # Trainer expects "labels"
-    ds_train = ds_train.rename_column(label_col, "labels")
-    ds_val = ds_val.rename_column(label_col, "labels")
-    ds_test = ds_test.rename_column(label_col, "labels")
+        df_train = _narrow_for_training(df_train, text_col, label_col)
+        df_val = _narrow_for_training(df_val, text_col, label_col)
+        df_test = _narrow_for_training(df_test, text_col, label_col)
 
-    ds_train = ds_train.remove_columns([c for c in ds_train.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]])
-    ds_val = ds_val.remove_columns([c for c in ds_val.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]])
-    ds_test = ds_test.remove_columns([c for c in ds_test.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]])
+        tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_cfg["pretrained_name"],
+            num_labels=model_cfg["num_labels"],
+        )
+
+        ds_train = Dataset.from_pandas(df_train)
+        ds_val = Dataset.from_pandas(df_val)
+        ds_test = Dataset.from_pandas(df_test)
+
+        def _tokenize(batch):
+            return tokenize_fn(batch, tokenizer, text_col, model_cfg["max_length"])
+
+        _map_kw = {"batched": True, "num_proc": 1}
+        ds_train = ds_train.map(_tokenize, **_map_kw)
+        ds_val = ds_val.map(_tokenize, **_map_kw)
+        ds_test = ds_test.map(_tokenize, **_map_kw)
+
+        ds_train = ds_train.rename_column(label_col, "labels")
+        ds_val = ds_val.rename_column(label_col, "labels")
+        ds_test = ds_test.rename_column(label_col, "labels")
+
+        ds_train = ds_train.remove_columns(
+            [c for c in ds_train.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]]
+        )
+        ds_val = ds_val.remove_columns(
+            [c for c in ds_val.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]]
+        )
+        ds_test = ds_test.remove_columns(
+            [c for c in ds_test.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]]
+        )
+
+        if cache_root:
+            cache_root.mkdir(parents=True, exist_ok=True)
+            ds_train.save_to_disk(str(cache_train))
+            ds_val.save_to_disk(str(cache_val))
+            ds_test.save_to_disk(str(cache_test))
+            print(f"已写入 tokenized 缓存，下次可加同一参数跳过 map：{cache_root}")
+
+    if cache_hit:
+        tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_cfg["pretrained_name"],
+            num_labels=model_cfg["num_labels"],
+        )
 
     collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
@@ -187,32 +270,23 @@ def main() -> None:
     output_dir = Path(train_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    training_args = TrainingArguments(
-        output_dir=str(output_dir),
-        learning_rate=train_cfg["learning_rate"],
-        num_train_epochs=train_cfg["num_train_epochs"],
-        per_device_train_batch_size=train_cfg["per_device_train_batch_size"],
-        per_device_eval_batch_size=train_cfg["per_device_eval_batch_size"],
-        weight_decay=train_cfg["weight_decay"],
-        logging_steps=train_cfg["logging_steps"],
-        eval_strategy=train_cfg["eval_strategy"],
-        save_strategy=train_cfg["save_strategy"],
-        metric_for_best_model=train_cfg["metric_for_best_model"],
-        greater_is_better=train_cfg["greater_is_better"],
-        seed=train_cfg["seed"],
-        load_best_model_at_end=True,
-        report_to=[],
-    )
+    training_args = build_training_arguments(train_cfg, output_dir)
 
-    trainer = Trainer(
+    _tc = inspect.signature(Trainer.__init__).parameters
+    _trainer_kw = dict(
         model=model,
         args=training_args,
         train_dataset=ds_train,
         eval_dataset=ds_val,
-        tokenizer=tokenizer,
         data_collator=collator,
         compute_metrics=compute_metrics,
     )
+    if "processing_class" in _tc:
+        _trainer_kw["processing_class"] = tokenizer
+    else:
+        _trainer_kw["tokenizer"] = tokenizer
+
+    trainer = Trainer(**_trainer_kw)
 
     trainer.train()
 

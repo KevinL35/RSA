@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.core.rbac import get_rsa_role, require_mutator_role
 from app.integrations.supabase import require_supabase
 from app.modules.insight_dashboard.service import build_insight_dashboard
 
@@ -24,6 +27,7 @@ def _utc_now_iso() -> str:
 
 @router.get("")
 def list_insight_tasks(
+    _rbac: Annotated[str, Depends(get_rsa_role)],
     task_type: str | None = Query(
         default=None,
         description="任务类型，当前仅 insight（可省略）",
@@ -66,7 +70,10 @@ def list_insight_tasks(
 
 
 @router.post("")
-def create_insight_task(body: InsightTaskCreate) -> dict:
+def create_insight_task(
+    body: InsightTaskCreate,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
     try:
         sb = require_supabase()
     except RuntimeError as e:
@@ -91,7 +98,10 @@ def create_insight_task(body: InsightTaskCreate) -> dict:
 
 
 @router.post("/{task_id}/fetch-reviews")
-def post_fetch_reviews(task_id: UUID) -> dict:
+def post_fetch_reviews(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
     """TB-2：按任务 platform/product_id 调用评论抓取 API 并写入 reviews。"""
     try:
         sb = require_supabase()
@@ -111,6 +121,7 @@ def post_fetch_reviews(task_id: UUID) -> dict:
 @router.get("/{task_id}/dashboard")
 def get_insight_dashboard(
     task_id: UUID,
+    _rbac: Annotated[str, Depends(get_rsa_role)],
     evidence_limit: int = Query(default=50, ge=1, le=200),
     evidence_offset: int = Query(default=0, ge=0),
     evidence_dimension: str | None = Query(
@@ -149,7 +160,10 @@ def get_insight_dashboard(
 
 
 @router.post("/{task_id}/retry")
-def post_insight_task_retry(task_id: UUID) -> dict:
+def post_insight_task_retry(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
     """TB-6：幂等重试（failed→pending；已为 pending 则 no-op）。"""
     try:
         sb = require_supabase()
@@ -167,7 +181,10 @@ def post_insight_task_retry(task_id: UUID) -> dict:
 
 
 @router.get("/{task_id}/analysis")
-def get_stored_task_analysis(task_id: UUID) -> dict:
+def get_stored_task_analysis(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(get_rsa_role)],
+) -> dict:
     """TB-4：读取已落库的分析结果（按任务），含原评论正文便于证据反查。"""
     try:
         sb = require_supabase()
@@ -271,7 +288,10 @@ def get_stored_task_analysis(task_id: UUID) -> dict:
 
 
 @router.post("/{task_id}/analyze")
-def post_analyze_insight_task(task_id: UUID) -> dict:
+def post_analyze_insight_task(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
     """TB-3：对已抓取评论调用分析源，返回情感/六维/证据结构；成功将任务标为 success。"""
     try:
         sb = require_supabase()
@@ -289,7 +309,10 @@ def post_analyze_insight_task(task_id: UUID) -> dict:
 
 
 @router.get("/{task_id}")
-def get_insight_task(task_id: UUID) -> dict:
+def get_insight_task(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(get_rsa_role)],
+) -> dict:
     try:
         sb = require_supabase()
     except RuntimeError as e:
@@ -314,7 +337,11 @@ def get_insight_task(task_id: UUID) -> dict:
 
 
 @router.patch("/{task_id}")
-def patch_insight_task(task_id: UUID, body: InsightTaskPatch) -> dict:
+def patch_insight_task(
+    task_id: UUID,
+    body: InsightTaskPatch,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
     try:
         sb = require_supabase()
     except RuntimeError as e:

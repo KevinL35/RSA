@@ -138,6 +138,20 @@ else:
 
 ### 4）训练
 
+**首次**会完整 `map`（行数很大时可能要十几分钟）。**第二次起**建议把 **tokenized 缓存**放到 **Drive**（换 Colab 会话也不丢），可跳过漫长 map：
+
+```bash
+%cd /content/RSA
+!python ml/scripts/train_sentiment.py --config ml/configs/train_roberta_colab.yaml \
+  --tokenized-cache-dir "/content/drive/MyDrive/RSA/ml_tokenized_cache"
+```
+
+- 第一次跑完后会自动在 Drive 写入 `train/`、`val/`、`test/`。  
+- **以后**只要该目录还在，会**直接加载**。  
+- **换了 CSV** 后：在 Drive 里删掉 `ml_tokenized_cache`，或加 `--force-refresh-tokenized-cache`。
+
+不配缓存（与旧行为相同，每次全量 map）：
+
 ```bash
 %cd /content/RSA
 !python ml/scripts/train_sentiment.py --config ml/configs/train_roberta_colab.yaml

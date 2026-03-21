@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.modules.analysis_results.router import router as analysis_results_router
+from app.modules.compare.router import router as compare_router
 from app.modules.tasks.router import router as tasks_router
 from app.routers import health
+from app.routers.translate import router as translate_router
 
 settings = get_settings()
 
@@ -20,8 +22,10 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(translate_router)
 app.include_router(tasks_router)
 app.include_router(analysis_results_router)
+app.include_router(compare_router)
 
 
 @app.get("/")

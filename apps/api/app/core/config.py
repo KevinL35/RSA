@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     analysis_max_retries: int = 2
     analysis_provider_mock: bool = False
 
+    # TB-11：可选翻译代理（LibreTranslate 兼容：POST JSON q/source/target/format）
+    translation_api_url: str | None = None
+    translation_api_key: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

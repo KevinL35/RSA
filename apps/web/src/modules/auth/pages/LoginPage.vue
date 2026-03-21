@@ -1,36 +1,48 @@
 <template>
   <div class="login-page">
+    <div class="login-lang">
+      <el-select v-model="locale" size="small" style="width: 130px" @change="onLocaleChange">
+        <el-option label="English" value="en" />
+        <el-option label="简体中文" value="zh-CN" />
+      </el-select>
+    </div>
     <div class="login-bg-orb orb-a" />
     <div class="login-bg-orb orb-b" />
     <el-card class="card" shadow="never">
-      <div class="card-title">RSA平台</div>
+      <div class="card-title">{{ t('login.title') }}</div>
       <el-form @submit.prevent="onSubmit">
         <el-form-item class="form-item">
-          <el-input v-model="username" size="large" placeholder="账号">
+          <el-input v-model="username" size="large" :placeholder="t('login.username')">
             <template #prefix>
               <span class="input-icon" v-html="userSvg" />
             </template>
           </el-input>
         </el-form-item>
         <el-form-item class="form-item">
-          <el-input v-model="password" size="large" type="password" show-password placeholder="密码">
+          <el-input
+            v-model="password"
+            size="large"
+            type="password"
+            show-password
+            :placeholder="t('login.password')"
+          >
             <template #prefix>
               <span class="input-icon" v-html="passwordSvg" />
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item class="form-item">
-          <el-select v-model="role" size="large" placeholder="角色（演示 RBAC）" style="width: 100%">
-            <el-option label="管理员" value="admin" />
-            <el-option label="运营" value="operator" />
-            <el-option label="只读" value="readonly" />
+        <el-form-item class="form-item" :label="t('login.role')">
+          <el-select v-model="selectedRole" size="large" style="width: 100%">
+            <el-option :label="t('login.roleAdmin')" value="admin" />
+            <el-option :label="t('login.roleOperator')" value="operator" />
+            <el-option :label="t('login.roleReadonly')" value="readonly" />
           </el-select>
         </el-form-item>
         <el-form-item class="remember-item">
-          <el-checkbox v-model="rememberPassword">记住密码</el-checkbox>
+          <el-checkbox v-model="rememberPassword">{{ t('login.remember') }}</el-checkbox>
         </el-form-item>
         <el-button class="submit-btn" type="primary" size="large" :loading="loading" @click="onSubmit">
-          登录
+          {{ t('login.submit') }}
         </el-button>
       </el-form>
     </el-card>
@@ -39,13 +51,24 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { persistLocale, type AppLocale } from '../../../app/i18n'
 import { useAuthStore, type UserRole } from '../store/auth.store'
 
-const username = ref('')
-const password = ref('')
-const role = ref<UserRole>('operator')
+const { t, locale } = useI18n()
+
+function onLocaleChange(v: string) {
+  persistLocale(v as AppLocale)
+}
+
+const DEMO_USER = 'admin'
+const DEMO_PASS = 'admin'
+
+const username = ref(DEMO_USER)
+const password = ref(DEMO_PASS)
+const selectedRole = ref<UserRole>('admin')
 const rememberPassword = ref(true)
 const loading = ref(false)
 const route = useRoute()
@@ -61,7 +84,7 @@ const passwordSvg =
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.login(username.value, password.value, role.value)
+    await auth.login(username.value, password.value, selectedRole.value)
     if (rememberPassword.value) {
       localStorage.setItem(REMEMBER_KEY, '1')
       localStorage.setItem(
@@ -78,13 +101,17 @@ async function onSubmit() {
     const redir = route.query.redirect
     router.replace(typeof redir === 'string' && redir.startsWith('/') ? redir : '/insight-analysis')
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '登录失败')
+    ElMessage.error(e instanceof Error ? e.message : t('login.failed'))
   } finally {
     loading.value = false
   }
 }
 
 onMounted(() => {
+  const r = localStorage.getItem('rsa_user_role')
+  if (r === 'admin' || r === 'operator' || r === 'readonly') {
+    selectedRole.value = r
+  }
   const remember = localStorage.getItem(REMEMBER_KEY) === '1'
   rememberPassword.value = remember
   if (!remember) return
@@ -92,8 +119,8 @@ onMounted(() => {
   if (!raw) return
   try {
     const parsed = JSON.parse(raw) as { username?: string; password?: string }
-    username.value = parsed.username ?? ''
-    password.value = parsed.password ?? ''
+    username.value = parsed.username ?? DEMO_USER
+    password.value = parsed.password ?? DEMO_PASS
   } catch {
     localStorage.removeItem(CRED_KEY)
   }
@@ -101,19 +128,96 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.login-page { position: relative; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 12% 20%, #e0ecff 0%, #ecf3ff 36%, #f2f6ff 56%, #f7f9fc 100%); overflow: hidden; }
-.login-bg-orb { position: absolute; border-radius: 999px; filter: blur(1px); }
-.orb-a { width: 420px; height: 420px; top: -120px; left: -140px; background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, rgba(56, 189, 248, 0) 70%); }
-.orb-b { width: 460px; height: 460px; right: -140px; bottom: -180px; background: radial-gradient(circle, rgba(59, 130, 246, 0.24) 0%, rgba(59, 130, 246, 0) 70%); }
-.card { width: 378px; padding: 14px 12px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1); backdrop-filter: blur(6px); z-index: 1; }
-.card-title { margin-bottom: 22px; font-size: 29px; line-height: 1.2; font-weight: 700; color: rgb(97, 98, 102); text-align: center; }
-.form-item { margin-bottom: 18px; }
-.remember-item { margin-top: 3px; margin-bottom: 18px; }
-.submit-btn { width: 100%; margin-top: 3px; height: 44px; border: none; background: var(--rsa-primary); font-size: 19px; font-weight: 700; letter-spacing: 1px; }
-.input-icon { width: 16px; height: 16px; display: inline-flex; align-items: center; color: #9ca3af; }
-.input-icon :deep(svg) { width: 16px; height: 16px; display: block; }
-:deep(.form-item .el-input__wrapper) { min-height: 42px; }
-:deep(.remember-item .el-checkbox__label) { color: #111111; }
-:deep(.remember-item .el-checkbox__input.is-checked .el-checkbox__inner) { background-color: var(--rsa-primary); border-color: var(--rsa-primary); }
-:deep(.remember-item .el-checkbox__inner:hover) { border-color: var(--rsa-primary); }
+.login-lang {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 2;
+}
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 12% 20%, #e0ecff 0%, #ecf3ff 36%, #f2f6ff 56%, #f7f9fc 100%);
+  overflow: hidden;
+}
+.login-bg-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(1px);
+}
+.orb-a {
+  width: 420px;
+  height: 420px;
+  top: -120px;
+  left: -140px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, rgba(56, 189, 248, 0) 70%);
+}
+.orb-b {
+  width: 460px;
+  height: 460px;
+  right: -140px;
+  bottom: -180px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.24) 0%, rgba(59, 130, 246, 0) 70%);
+}
+.card {
+  width: 378px;
+  padding: 14px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(6px);
+  z-index: 1;
+}
+.card-title {
+  margin-bottom: 22px;
+  font-size: 29px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: rgb(97, 98, 102);
+  text-align: center;
+}
+.form-item {
+  margin-bottom: 18px;
+}
+.remember-item {
+  margin-top: 3px;
+  margin-bottom: 18px;
+}
+.submit-btn {
+  width: 100%;
+  margin-top: 3px;
+  height: 44px;
+  border: none;
+  background: var(--rsa-primary);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.input-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  color: #9ca3af;
+}
+.input-icon :deep(svg) {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+:deep(.form-item .el-input__wrapper) {
+  min-height: 42px;
+}
+:deep(.remember-item .el-checkbox__label) {
+  color: #111111;
+}
+:deep(.remember-item .el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: var(--rsa-primary);
+  border-color: var(--rsa-primary);
+}
+:deep(.remember-item .el-checkbox__inner:hover) {
+  border-color: var(--rsa-primary);
+}
 </style>

@@ -14,6 +14,10 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def _headers_mutator() -> dict[str, str]:
+    return {"X-RSA-Role": "operator"}
+
+
 def test_retry_success_task_returns_409() -> None:
     sb = MagicMock()
     exec_ok = MagicMock(
@@ -40,7 +44,7 @@ def test_retry_success_task_returns_409() -> None:
     chain.execute.return_value = exec_ok
 
     with patch("app.modules.tasks.router.require_supabase", return_value=sb):
-        r = _client().post(f"/api/v1/insight-tasks/{TID}/retry")
+        r = _client().post(f"/api/v1/insight-tasks/{TID}/retry", headers=_headers_mutator())
     assert r.status_code == 409
 
 
@@ -74,7 +78,7 @@ def test_retry_failed_resets_to_pending() -> None:
     ]
 
     with patch("app.modules.tasks.router.require_supabase", return_value=sb):
-        r = _client().post(f"/api/v1/insight-tasks/{TID}/retry")
+        r = _client().post(f"/api/v1/insight-tasks/{TID}/retry", headers=_headers_mutator())
     assert r.status_code == 200
     body = r.json()
     assert body["action"] == "reset_to_pending"

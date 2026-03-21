@@ -2,7 +2,7 @@
 
 > 基于 `docs/prd/ecommerce-review-insights-v1-prd.md`、`docs/specs/ecommerce-review-insights-v1-spec.md` 与 `docs/plans/ecommerce-review-insights-v1-plan.md`（v1.2 起含**毕设周次 W0–W5**与论文章节，见该文档「毕业论文专项」）  
 > 本文件只管**可执行拆解（TA/TB）**；学期节奏不对在此处重复维护。  
-> 当前状态：**Stage B 执行中**（TB-1 已完成；TB-2 起按里程碑推进）
+> 当前状态：**Stage B 执行中**（M1 闭环 TB-1～TB-8；**TB-9～TB-14** 对比、i18n、RBAC 与回归测试已交付；TB-15 起按 M3 推进）
 
 ## Task Rules
 
@@ -106,23 +106,29 @@
 
 ## Phase 2 - 对比、翻译、权限（M2）
 
-- [ ] **TB-9 对比分析聚合接口**（P0）  
-  - DoD：输出情感分布差异、六维差异、关键词差异、结论卡片。
+- [x] **TB-9 对比分析聚合接口**（P0，status: done）  
+  - DoD：输出情感分布差异、六维差异、关键词差异、结论卡片。  
+  - 交付：`GET /api/v1/compare/products`（按两商品各自**最近一次成功**洞察任务聚合 `review_analysis` / `review_dimension_analysis`）；`packages/contracts/src/compare.ts`；`tests/test_compare_service.py`。
 
-- [ ] **TB-10 对比前置校验与引导**（P0）  
-  - DoD：任一商品缺失分析数据时，返回可读提示并引导先做洞察。
+- [x] **TB-10 对比前置校验与引导**（P0，status: done）  
+  - DoD：任一商品缺失分析数据时，返回可读提示并引导先做洞察。  
+  - 交付：区分 `no_success_task` 与 `empty_analysis`；400 `detail` 含双语 `messages`/`guidance`/`next_step`；`apps/api/app/modules/compare/guidance.py`；`tests/test_compare_guidance.py`；Web `compare/api.ts` + 对比页展示引导；`packages/contracts` 补充 `ComparePrerequisiteErrorDetail`。
 
-- [ ] **TB-11 翻译展示策略实现**（P0）  
-  - DoD：UI 非 English 时展示英文+译文；证据句始终原文；未配翻译 API 时不阻断。
+- [x] **TB-11 翻译展示策略实现**（P0，status: done）  
+  - DoD：UI 非 English 时展示英文+译文；证据句始终原文；未配翻译 API 时不阻断。  
+  - 交付：`POST /api/v1/translate`（LibreTranslate 兼容 JSON；未配置 `TRANSLATION_API_URL` 时 `configured=false`）；`translateApi.ts` + `BilingualBlock.vue`；对比结论在中文界面下英文主文+可选译文+机器翻译提示；证据句说明文案；`apps/api/.env.example`。
 
-- [ ] **TB-12 双语 UI 文案覆盖（en/zh-CN）**（P0）  
-  - DoD：所有新增用户可见文案均提供 en 与 zh-CN。
+- [x] **TB-12 双语 UI 文案覆盖（en/zh-CN）**（P0，status: done）  
+  - DoD：所有新增用户可见文案均提供 en 与 zh-CN。  
+  - 交付：`vue-i18n` + `app/i18n/locales/en.ts` & `zh-CN.ts`；登录/侧栏/任务中心/对比/洞察/治理占位/设置演示表；`ElConfigProvider` 对齐 Element Plus 语言；`localStorage rsa_locale`。
 
-- [ ] **TB-13 固定模板 RBAC（管理员/运营/只读）**（P0）  
-  - DoD：前后端权限一致；越权访问被拒绝并可审计。
+- [x] **TB-13 固定模板 RBAC（管理员/运营/只读）**（P0，status: done）  
+  - DoD：前后端权限一致；越权访问被拒绝并可审计。  
+  - 交付：请求头 `X-RSA-Role`（`admin`|`operator`|`readonly`）；变更类接口 `require_mutator_role`；`rsa.audit` 记录 403；前端 `api.ts` / 登录角色选择；与菜单、任务重试能力对齐。
 
-- [ ] **TB-14 权限回归测试**（P0）  
-  - DoD：3 角色关键路径与负路径（越权）测试通过。
+- [x] **TB-14 权限回归测试**（P0，status: done）  
+  - DoD：3 角色关键路径与负路径（越权）测试通过。  
+  - 交付：`apps/api/tests/test_rbac.py`（401/403/operator/admin 正路径）；`apps/web` `npm run test`（`api.test.ts` 角色头契约）；既有 `test_retry_router` 已带 mutator 头。
 
 ## Phase 3 - 稳定性与上线准备（M3）
 
