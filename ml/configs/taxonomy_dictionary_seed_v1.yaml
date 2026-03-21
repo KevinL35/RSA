@@ -1,0 +1,130 @@
+# TA-6：六维词典种子（v1）。词条含 dimension_6way、canonical、aliases、weight、priority。
+# 匹配规则见 docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md
+version: "1.0.0"
+taxonomy_id: "taxonomy-seed-v1"
+description: "E-commerce review seed phrases for six-dimension attribution (English, analysis_input_en)."
+
+bertopic_candidate_import:
+  required_json_fields:
+    - suggested_canonical
+    - dimension_6way
+    - source_topic_id
+    - batch_id
+  optional_json_fields:
+    - aliases
+    - quality_score
+    - evidence_snippets
+    - reviewer_notes
+
+entries:
+  # pros
+  - dimension_6way: pros
+    canonical: great quality
+    aliases: ["excellent quality", "good quality", "high quality", "well made", "solid build"]
+    weight: 1.0
+    priority: 70
+  - dimension_6way: pros
+    canonical: love it
+    aliases: ["love this", "highly recommend", "would buy again", "five stars", "amazing product"]
+    weight: 1.0
+    priority: 65
+  - dimension_6way: pros
+    canonical: fast shipping
+    aliases: ["arrived quickly", "quick delivery", "on time delivery"]
+    weight: 1.0
+    priority: 60
+  - dimension_6way: pros
+    canonical: easy to use
+    aliases: ["user friendly", "simple to use", "intuitive"]
+    weight: 1.0
+    priority: 55
+  - dimension_6way: pros
+    canonical: worth the price
+    aliases: ["good value", "great value for money", "bang for the buck"]
+    weight: 1.0
+    priority: 50
+
+  # cons
+  - dimension_6way: cons
+    canonical: poor quality
+    aliases: ["bad quality", "low quality", "cheaply made", "flimsy", "falls apart"]
+    weight: 1.0
+    priority: 70
+  - dimension_6way: cons
+    canonical: broke quickly
+    aliases: ["stopped working", "broke after", "died after", "defective", "not working"]
+    weight: 1.0
+    priority: 68
+  - dimension_6way: cons
+    canonical: terrible experience
+    aliases: ["waste of money", "do not buy", "worst purchase", "horrible", "awful"]
+    weight: 1.0
+    priority: 65
+  - dimension_6way: cons
+    canonical: noisy
+    aliases: ["too loud", "loud fan", "rattling noise"]
+    weight: 1.0
+    priority: 45
+
+  # return_reasons
+  - dimension_6way: return_reasons
+    canonical: returned item
+    aliases: ["had to return", "requested a refund", "sent it back", "returning this"]
+    weight: 1.0
+    priority: 75
+  - dimension_6way: return_reasons
+    canonical: not as described
+    aliases: ["misleading description", "false advertising", "wrong color", "wrong size shipped"]
+    weight: 1.0
+    priority: 72
+  - dimension_6way: return_reasons
+    canonical: arrived damaged
+    aliases: ["damaged in shipping", "broken on arrival", "package was crushed"]
+    weight: 1.0
+    priority: 70
+
+  # purchase_motivation
+  - dimension_6way: purchase_motivation
+    canonical: on sale
+    aliases: ["good deal", "discounted", "black friday", "on promotion", "coupon"]
+    weight: 1.0
+    priority: 55
+  - dimension_6way: purchase_motivation
+    canonical: gift purchase
+    aliases: ["bought as a gift", "gift for", "present for"]
+    weight: 1.0
+    priority: 50
+  - dimension_6way: purchase_motivation
+    canonical: needed for work
+    aliases: ["needed for my job", "for work", "for the office"]
+    weight: 1.0
+    priority: 48
+
+  # user_expectation
+  - dimension_6way: user_expectation
+    canonical: expected better
+    aliases: ["thought it would be", "expected more", "not what I expected", "disappointed"]
+    weight: 1.0
+    priority: 65
+  - dimension_6way: user_expectation
+    canonical: misleading
+    aliases: ["not as advertised", "looks different in person"]
+    weight: 1.0
+    priority: 62
+
+  # usage_scenario
+  - dimension_6way: usage_scenario
+    canonical: daily use
+    aliases: ["use it every day", "daily driver", "for everyday"]
+    weight: 1.0
+    priority: 50
+  - dimension_6way: usage_scenario
+    canonical: travel
+    aliases: ["for travel", "on the go", "portable for trips"]
+    weight: 1.0
+    priority: 48
+  - dimension_6way: usage_scenario
+    canonical: for kids
+    aliases: ["for my child", "for children", "kid friendly"]
+    weight: 1.0
+    priority: 45

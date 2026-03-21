@@ -30,6 +30,14 @@
 | **`data/`** | 放置 `raw` / `processed` / `splits`（大文件勿提交 Git，见仓库 `.gitignore`）。 |
 | **`artifacts/`** | 训练产出的模型与 checkpoint（勿提交 Git）。 |
 | **`reports/`** | 清洗报告、评估 JSON 等输出（勿提交 Git）。 |
+| **`configs/taxonomy_dictionary_seed_v1.yaml`** | TA-6：六维词典种子（`dimension_6way`、别名、`weight`/`priority`）。 |
+| **`fixtures/attribution_eval_sample.csv`** | TA-7：抽检样例（可选列 `expected_dimensions`）。 |
+| **`scripts/attribution_engine.py`** | TA-7：对 `analysis_input_en` 做词典匹配，产出与 `packages/contracts` 对齐的 `dimensions`（含 `evidence_quote` / `highlight_spans`）。 |
+| **`scripts/evaluate_attribution.py`** | TA-7：批量跑抽检 CSV → `ml/reports/attribution_eval_v1.json`（可追溯率、双次运行确定性摘要）。 |
+
+规则说明见 **`docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md`**。
+
+在线 **`apps/api` → `analyze`** 调用该归因引擎时，请运行 **`apps/analysis-service`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
 
 ## 本地流水线（概要）
 

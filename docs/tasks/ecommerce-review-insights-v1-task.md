@@ -44,10 +44,10 @@
 - [ ] **TA-5 RoBERTa 总体情感微调与评估（HuggingFace）**（P0）  
   - DoD：情感准确率 >= 85%；输出正/中/负标签与置信度，评估报告可复现。
 
-- [ ] **TA-6 六维词典种子与归因匹配规则冻结**（P0）  
+- [x] **TA-6 六维词典种子与归因匹配规则冻结**（P0，status: done）  
   - DoD：词条含 `dimension_6way`、别名、权重/优先级；匹配规则（长词优先、大小写/词形策略）与多命中冲突处理文档化；BERTopic 主题→词典字段格式约定。
 
-- [ ] **TA-7 归因引擎实现与抽检评估**（P0）  
+- [x] **TA-7 归因引擎实现与抽检评估**（P0，status: done）  
   - DoD：对 `analysis_input_en` 产出六维标签、痛点关键词、证据片段（`raw_text` 可追溯）、`highlight_spans`；抽检集上证据可追溯率与冲突处理结果可复现。
 
 - [ ] **TA-8 准备 BERTopic 离线语料与批次策略**（P0）  
@@ -59,8 +59,9 @@
 - [ ] **TA-10 词典回灌机制（含版本化）**（P0）  
   - DoD：支持“候选词 -> 人工复核 -> 词典发布/回滚”，并记录版本与操作日志。
 
-- [ ] **TA-11 封装推理服务与统一协议**（P0）  
-  - DoD：RoBERTa 情感 + 六维归因引擎（词典/规则）在线链路提供统一请求/响应契约，可作为 `analysis_provider_id` 被调用。
+- [x] **TA-11 封装推理服务与统一协议**（P0，status: done）  
+  - DoD：RoBERTa 情感 + 六维归因引擎（词典/规则）在线链路提供统一请求/响应契约，可作为 `analysis_provider_id` 被调用。  
+  - 交付：`apps/analysis-service`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/analysis-service/README.md` 与 `apps/api/.env.example`。
 
 - [ ] **TA-12a 模型版本临时基线发布（无回灌）**（P0）  
   - DoD：形成可追踪版本号、评估报告与发布说明（明确“未接入 BERTopic 回灌”），供 Stage B 先行接入与联调。

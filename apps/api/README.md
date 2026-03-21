@@ -74,6 +74,7 @@ pytest
 - `ANALYSIS_PROVIDER_TIMEOUT_SECONDS`：默认 120
 - `ANALYSIS_MAX_RETRIES`：默认 2（429/5xx/超时等退避重试）
 - `ANALYSIS_PROVIDER_MOCK=true`：不请求外网，返回占位情感+六维结果；**无需**配置 `ANALYSIS_PROVIDER_URL` / `ROUTES_JSON`
+- **本地闭环（自建情感+词典归因）**：另起进程运行 `apps/analysis-service`（见该目录 `README.md`），并在 `ANALYSIS_PROVIDER_ROUTES_JSON` 中为前端默认的 `ins_builtin` 配置 `http://127.0.0.1:8089/analyze`（详见 `apps/api/.env.example` 注释）
 
 **分析源请求体（本系统 POST）**：`insight_task_id`, `platform`, `product_id`, `analysis_provider_id`（解析后的生效 id）, `reviews`（`id`, `raw_text`, …）。
 
