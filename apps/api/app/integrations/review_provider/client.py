@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+import time
+from typing import Any
+
+import httpx
+
+from app.core.config import Settings, get_settings
+
+from .normalize import extract_review_list, normalize_provider_item
+
+
+class ReviewProviderError(Exception):
+    """业务可映射为 insight_tasks.error_code / error_message。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+def _mock_payload(platform: str, product_id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "external_review_id": "mock-1",
+            "raw_text": f"[mock] Solid purchase on {platform} for {product_id}.",
+            "title": "Good",
+            "rating": 5.0,
+            "lang": "en",
+        },
+        {
+            "external_review_id": "mock-2",
+            "raw_text": "[mock] Packaging could be better.",
+            "title": "Mixed",
+            "rating": 3.0,
+            "lang": "en",
+        },
+    ]
+
+
+def fetch_reviews_normalized(
+    platform: str,
+    product_id: str,
+    *,
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    """
+    调用配置的评论抓取 API，返回已规范化的行字典列表（不含 task 维度字段）。
+    含 HTTP 重试（429、5xx、连接/超时类错误）。
+    """
+    cfg = settings or get_settings()
+    if cfg.review_provider_mock:
+        out: list[dict[str, Any]] = []
+        for x in _mock_payload(platform, product_id):
+            row = normalize_provider_item(x)
+            if row:
+                out.append(row)
+        return out
+
+    url = (cfg.review_provider_url or "").strip()
+    if not url:
+        raise ReviewProviderError(
+            "REVIEW_PROVIDER_NOT_CONFIGURED",
+            "未配置 REVIEW_PROVIDER_URL（或在 .env 设置 REVIEW_PROVIDER_MOCK=true 联调）",
+        )
+
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    key = (cfg.review_provider_api_key or "").strip()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+
+    body = {"platform": platform, "product_id": product_id}
+    attempts = max(1, cfg.review_fetch_max_retries)
+    timeout = cfg.review_provider_timeout_seconds
+    last_detail = ""
+
+    for attempt in range(attempts):
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(url, json=body, headers=headers)
+            if resp.status_code in (429, 500, 502, 503, 504):
+                last_detail = f"HTTP {resp.status_code}: {resp.text[:500]}"
+                raise ReviewProviderError("REVIEW_PROVIDER_TRANSIENT", last_detail)
+            if resp.status_code >= 400:
+                raise ReviewProviderError(
+                    "REVIEW_PROVIDER_HTTP_ERROR",
+                    f"HTTP {resp.status_code}: {resp.text[:800]}",
+                )
+            try:
+                payload = resp.json()
+            except ValueError as e:
+                raise ReviewProviderError(
+                    "REVIEW_PROVIDER_PARSE_ERROR",
+                    f"响应非 JSON：{e!s}",
+                ) from e
+            raw_list = extract_review_list(payload)
+            normalized: list[dict[str, Any]] = []
+            for item in raw_list:
+                row = normalize_provider_item(item)
+                if row:
+                    normalized.append(row)
+            return normalized
+        except ReviewProviderError as e:
+            if e.code == "REVIEW_PROVIDER_TRANSIENT" and attempt < attempts - 1:
+                time.sleep(0.4 * (2**attempt))
+                continue
+            raise
+        except httpx.TimeoutException as e:
+            last_detail = str(e)
+            if attempt < attempts - 1:
+                time.sleep(0.4 * (2**attempt))
+                continue
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_TIMEOUT",
+                last_detail or "请求超时",
+            ) from e
+        except httpx.RequestError as e:
+            last_detail = str(e)
+            if attempt < attempts - 1:
+                time.sleep(0.4 * (2**attempt))
+                continue
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_HTTP_ERROR",
+                last_detail or "网络请求失败",
+            ) from e

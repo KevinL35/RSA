@@ -2,7 +2,7 @@
 
 > 基于 `docs/prd/ecommerce-review-insights-v1-prd.md`、`docs/specs/ecommerce-review-insights-v1-spec.md` 与 `docs/plans/ecommerce-review-insights-v1-plan.md`（v1.2 起含**毕设周次 W0–W5**与论文章节，见该文档「毕业论文专项」）  
 > 本文件只管**可执行拆解（TA/TB）**；学期节奏不对在此处重复维护。  
-> 当前状态：**仅拆解，不执行**
+> 当前状态：**Stage B 执行中**（TB-1 已完成；TB-2 起按里程碑推进）
 
 ## Task Rules
 
@@ -73,10 +73,12 @@
 ### Phase 1 - 基础链路（M1）
 
 - [x] **TB-1 建立洞察任务模型与状态机**（P0，status: done）  
-  - DoD：支持 `pending/running/success/failed`；可查询任务状态与错误信息。（实现：`insight_tasks` 表 + `GET` 列表/单条 + `PATCH` 合法迁移；另含 `cancelled` 与 `failed→pending` 重试。）
+  - DoD：支持 `pending/running/success/failed`；可查询任务状态与错误信息。  
+  - 交付：`insight_tasks` 表（迁移已应用 Supabase）+ `GET`/`POST`/`PATCH`；状态机含 `cancelled`、`failed→pending`；错误字段 `error_code` / `error_message` / `failure_stage`。
 
-- [ ] **TB-2 接入评论抓取 API 适配器**（P0）  
-  - DoD：输入 `platform + product_id` 可拉取评论并落库；失败可重试并记录错误码。
+- [x] **TB-2 接入评论抓取 API 适配器**（P0，status: done）  
+  - DoD：输入 `platform + product_id` 可拉取评论并落库；失败可重试并记录错误码。  
+  - 交付：`reviews` 表 + `review_provider`（HTTP + 可配置重试 + `REVIEW_PROVIDER_MOCK` 联调）；`POST /api/v1/insight-tasks/{id}/fetch-reviews`；失败时任务 `failed` 且 `failure_stage=fetch` 与结构化 `error_code`。
 
 - [ ] **TB-3 接入分析源调用链路（对接 Stage A 模型）**（P0）  
   - DoD：支持 `analysis_provider_id` 显式选择与默认回退；返回情感/六维/证据句结构。
@@ -166,4 +168,4 @@
 
 **Task Version**: 1.2.1（与 Plan v1.2 对齐；补 Stage A 与「清洗→微调」叙事；归因：词典+规则+BERTopic 审核回灌）  
 **Status**: Review Required  
-**Execution**: Not Started
+**Execution**: Stage B 进行中（TB-1、TB-2 已交付）

@@ -11,3 +11,5 @@ export type {
   InsightTaskRow,
   InsightTaskStatus,
 } from './insight-tasks'
+
+export type { FetchReviewsResponse, ReviewRow } from './reviews'

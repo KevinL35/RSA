@@ -9,9 +9,10 @@
 
 ## 数据库
 
-在 **你的 Supabase 项目**（任意区域，含新加坡）打开 **SQL Editor**，执行：
+在 **你的 Supabase 项目**（任意区域，含新加坡）打开 **SQL Editor**，依次执行：
 
 - `infra/migrations/001_insight_tasks.sql`
+- `infra/migrations/002_reviews.sql`（TB-2 评论落库）
 
 然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/api/.env`。
 
@@ -31,6 +32,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `GET /api/v1/insight-tasks/{id}`：单条查询（状态与 `error_*` / `failure_stage`）
 - `POST /api/v1/insight-tasks`：创建一条 `pending` 任务（用于联调）
 - `PATCH /api/v1/insight-tasks/{id}`：状态迁移（TB-1 状态机：`pending→running→success|failed|cancelled`，`failed→pending` 重试）；迁到 `failed` 时须带 `failure_stage` 与 `error_message`
+- `POST /api/v1/insight-tasks/{id}/fetch-reviews`：TB-2 按任务的 `platform`/`product_id` 调用配置的评论抓取 API，写入 `reviews`；成功则任务保持 `running`（待 TB-3 分析后再标 `success`）；失败则 `failed` 且 `failure_stage=fetch` 与 `error_code`
+
+**评论抓取（TB-2）环境变量**（`apps/api/.env`）：
+
+- `REVIEW_PROVIDER_URL`：第三方抓取接口完整 URL（`POST`，JSON body：`platform`, `product_id`；可配 `Authorization: Bearer`）
+- `REVIEW_PROVIDER_API_KEY`：可选
+- `REVIEW_PROVIDER_TIMEOUT_SECONDS`：默认 30
+- `REVIEW_FETCH_MAX_RETRIES`：默认 3（429/5xx/超时/连接错误重试）
+- `REVIEW_PROVIDER_MOCK=true`：无真实 API 时返回两条占位评论，便于联调
+
+响应 JSON 支持顶层数组，或 `reviews` / `items` / `data` / `results` / `records` 数组；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等。
 
 前端开发：在 `apps/web` 运行 `npm run dev`，Vite 会将 `/api` 代理到 `http://127.0.0.1:8000`。
 

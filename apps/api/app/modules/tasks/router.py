@@ -7,8 +7,9 @@ from fastapi import APIRouter, HTTPException
 
 from app.integrations.supabase import require_supabase
 
-from .schema import InsightTaskCreate, InsightTaskPatch
 from . import state_machine
+from .fetch_reviews import run_fetch_reviews_for_task
+from .schema import InsightTaskCreate, InsightTaskPatch
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
 
@@ -62,6 +63,24 @@ def create_insight_task(body: InsightTaskCreate) -> dict:
     if not data:
         raise HTTPException(status_code=500, detail="插入成功但未返回数据，请检查 RLS/策略")
     return data[0]
+
+
+@router.post("/{task_id}/fetch-reviews")
+def post_fetch_reviews(task_id: UUID) -> dict:
+    """TB-2：按任务 platform/product_id 调用评论抓取 API 并写入 reviews。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        return run_fetch_reviews_for_task(sb, task_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"抓取流程异常：{e!s}",
+        ) from e
 
 
 @router.get("/{task_id}")
