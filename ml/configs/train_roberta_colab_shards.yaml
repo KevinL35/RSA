@@ -1,7 +1,6 @@
-# Colab / Drive：训练集拆成多份上传时使用本配置（TA-5）。
-# 当前 glob 对应 splits 下：train.csv.part5-000 … train.csv.part5-004（split 工具常见命名）。
-# 若你用其它命名，改 train_csv_shard_glob 或改用 train_csv_shards 列表。
-# val / test 仍为各一份完整 CSV。
+# 可选：仅当 train 因体积过大被拆成多个 CSV 时使用（TA-5）。
+# 默认请用 train_roberta_colab.yaml + 单个 train.csv。
+# glob 示例：train.csv.part5-000 … 004；可改 train_csv_shard_glob 或 train_csv_shards。
 
 version: "1.0.0"
 experiment_name: "roberta-sentiment-v0-colab"

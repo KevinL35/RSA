@@ -1,4 +1,5 @@
-# 单文件 train.csv 用本配置；训练集拆成多份上传见 train_roberta_colab_shards.yaml
+# Colab 默认：train.csv / val.csv / test.csv 放在 ml/data/splits/。
+# 若 train 仅拆成多文件上传，见 train_roberta_colab_shards.yaml 与 scripts/merge_train_shards.py。
 version: "1.0.0"
 experiment_name: "roberta-sentiment-v0-colab"
 

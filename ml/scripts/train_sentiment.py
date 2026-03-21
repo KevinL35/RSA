@@ -1,5 +1,6 @@
 import argparse
 import glob
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,11 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from csv_splits import read_split_csv
 
 
 def load_yaml(path: Path) -> dict:
@@ -39,9 +45,19 @@ def resolve_train_csv_paths(data_cfg: dict) -> list[Path]:
         return [Path(p) for p in shards]
     if glob_pat:
         paths = sorted(Path(p) for p in glob.glob(glob_pat))
-        if not paths:
-            raise FileNotFoundError(f"No files matched train_csv_shard_glob: {glob_pat!r}")
-        return paths
+        if paths:
+            return paths
+        # e.g. merged to train.csv and removed shards — fall back to single train_csv
+        tc = Path(data_cfg["train_csv"])
+        if tc.exists():
+            print(
+                f"Warning: train_csv_shard_glob matched no files ({glob_pat!r}); "
+                f"using train_csv: {tc}"
+            )
+            return [tc]
+        raise FileNotFoundError(
+            f"No files matched train_csv_shard_glob: {glob_pat!r} and train_csv not found: {tc}"
+        )
     return [Path(data_cfg["train_csv"])]
 
 
@@ -50,7 +66,7 @@ def load_train_dataframe(data_cfg: dict) -> pd.DataFrame:
     for p in paths:
         if not p.exists():
             raise FileNotFoundError(f"Missing train file: {p}")
-    dfs = [pd.read_csv(p) for p in paths]
+    dfs = [read_split_csv(p) for p in paths]
     df = pd.concat(dfs, ignore_index=True)
     if data_cfg.get("dedupe_train_on_id") and "id" in df.columns:
         n0 = len(df)
@@ -80,8 +96,8 @@ def main() -> None:
             raise FileNotFoundError(f"Missing split file: {p}. Run split_dataset.py first.")
 
     df_train = load_train_dataframe(data_cfg)
-    df_val = pd.read_csv(val_csv)
-    df_test = pd.read_csv(test_csv)
+    df_val = read_split_csv(val_csv)
+    df_test = read_split_csv(test_csv)
 
     text_col = data_cfg["text_column"]
     label_col = data_cfg["label_column"]

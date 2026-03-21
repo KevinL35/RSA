@@ -1,4 +1,5 @@
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,11 @@ import yaml
 import evaluate
 from datasets import Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, DataCollatorWithPadding, Trainer, TrainingArguments
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from csv_splits import read_split_csv
 
 
 def load_yaml(path: Path) -> dict:
@@ -29,7 +35,7 @@ def main() -> None:
     if not test_csv.exists():
         raise FileNotFoundError(f"Missing split file: {test_csv}")
 
-    df_test = pd.read_csv(test_csv)
+    df_test = read_split_csv(test_csv)
     text_col = data_cfg["text_column"]
     label_col = data_cfg["label_column"]
 
