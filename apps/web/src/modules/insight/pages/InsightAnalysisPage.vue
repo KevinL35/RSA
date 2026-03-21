@@ -308,8 +308,9 @@ async function loadTasks() {
   try {
     const res = await fetchInsightTasks({ limit: 50 })
     rows.value = (res.items ?? []).map(mapTaskToRow)
-  } catch {
-    ElMessage.warning(t('insight.listLoadFailed'))
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
     rows.value = buildDefaultRows(locale.value === 'zh-CN')
   } finally {
     loading.value = false
