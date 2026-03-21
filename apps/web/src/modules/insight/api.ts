@@ -11,6 +11,7 @@ export type InsightTaskReviewRow = {
   sku?: string | null
   reviewed_at?: string | null
   lang?: string | null
+  extra?: Record<string, unknown> | null
   created_at?: string
 }
 

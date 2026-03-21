@@ -57,7 +57,6 @@ def retry_insight_task(sb: Client, task_id: UUID) -> dict:
                 }
             )
             .eq("id", str(task_id))
-            .select("*")
             .execute()
         )
         if not up.data:

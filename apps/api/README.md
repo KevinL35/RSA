@@ -50,6 +50,7 @@ pytest
 - `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
 - `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因
 - `POST /api/v1/insight-tasks/{id}/retry`：TB-6 **幂等**重试：`failed→pending` 并清空错误；已为 `pending` 则 `idempotent: true`；`running`/`success`/`cancelled` 返回 409
+- `DELETE /api/v1/insight-tasks/{id}`：删除任务（`admin`/`operator`）；关联 `reviews` / `review_analysis` / `review_dimension_analysis` 随库级 `ON DELETE CASCADE` 清理；不存在返回 404
 - `GET /api/v1/compare/products?platform_a=&product_id_a=&platform_b=&product_id_b=`：TB-9 双商品对比；按各自最近一次 `success` 任务聚合情感分布、`dimensions` 六维计数、关键词 Top 与相对偏多侧、`conclusion_cards`（规则模板）。**TB-10 前置校验**：任一侧无 `success` 任务、或任务成功但 `review_analysis` 为空（无落库分析）时 **400**，响应体 `{"detail": { ... }}` 内含 `code: MISSING_INSIGHT_DATA`、`messages.zh_CN` / `messages.en`、`guidance`、`next_step`（引导至任务中心）、`reasons`（`no_success_task` | `empty_analysis`）、`products`（含 `insight_task_id`）
 
 **评论抓取（TB-2）环境变量**（`apps/api/.env`）：
@@ -72,7 +73,7 @@ pytest
 - `ANALYSIS_PROVIDER_API_KEY`：可选 Bearer
 - `ANALYSIS_PROVIDER_TIMEOUT_SECONDS`：默认 120
 - `ANALYSIS_MAX_RETRIES`：默认 2（429/5xx/超时等退避重试）
-- `ANALYSIS_PROVIDER_MOCK=true`：不请求外网，返回占位情感+六维结果
+- `ANALYSIS_PROVIDER_MOCK=true`：不请求外网，返回占位情感+六维结果；**无需**配置 `ANALYSIS_PROVIDER_URL` / `ROUTES_JSON`
 
 **分析源请求体（本系统 POST）**：`insight_task_id`, `platform`, `product_id`, `analysis_provider_id`（解析后的生效 id）, `reviews`（`id`, `raw_text`, …）。
 

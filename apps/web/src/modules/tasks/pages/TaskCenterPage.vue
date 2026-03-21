@@ -75,12 +75,11 @@
           {{ formatDuration(row.created_at, row.updated_at, row.status) }}
         </template>
       </el-table-column>
-      <el-table-column
-        prop="analysis_provider_id"
-        :label="t('taskCenter.analysisProvider')"
-        min-width="120"
-        show-overflow-tooltip
-      />
+      <el-table-column :label="t('taskCenter.analysisProvider')" min-width="200" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ analysisProviderDisplay(row.analysis_provider_id) }}
+        </template>
+      </el-table-column>
       <el-table-column :label="t('taskCenter.failureInfo')" min-width="220">
         <template #default="{ row }">
           <template v-if="row.status === 'failed'">
@@ -124,6 +123,8 @@ import { ElMessage } from 'element-plus'
 import { fetchInsightTasks, postInsightTaskRetry } from '../api'
 import type { InsightTaskRow } from '../types'
 import { useAuthStore } from '../../auth/store/auth.store'
+import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import { formatInsightModelLineByProviderId } from '../../../shared/utils/insightModelLabel'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -135,6 +136,10 @@ const filterStatus = ref<string[]>([])
 const dateRange = ref<[string, string] | null>(null)
 const pageLimit = ref(100)
 const retryingId = ref<string | null>(null)
+
+function analysisProviderDisplay(id: string | null): string {
+  return formatInsightModelLineByProviderId(id, insightApiConfigRows.value, t)
+}
 
 function statusTagType(s: string): 'info' | 'success' | 'warning' | 'danger' {
   if (s === 'success') return 'success'

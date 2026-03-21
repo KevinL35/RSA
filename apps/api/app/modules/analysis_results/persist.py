@@ -49,7 +49,7 @@ def replace_task_analysis(
             }
         )
 
-    ins = sb.table("review_analysis").insert(ra_rows).select("id,review_id").execute()
+    ins = sb.table("review_analysis").insert(ra_rows).execute()
     inserted = ins.data or []
     if len(inserted) != len(ra_rows):
         raise RuntimeError("review_analysis 插入数量与预期不符")

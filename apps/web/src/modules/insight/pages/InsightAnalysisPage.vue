@@ -29,58 +29,48 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column
-        prop="title"
-        :label="t('insight.colTitle')"
-        min-width="200"
-        show-overflow-tooltip
-      />
-      <el-table-column prop="countryLabel" :label="t('insight.colCountry')" width="100" />
-      <el-table-column prop="priceLabel" :label="t('insight.colPrice')" width="100" />
-      <el-table-column :label="t('insight.colRating')" width="168">
+      <el-table-column :label="t('insight.colReviewStatus')" width="112">
         <template #default="{ row }">
-          <el-rate
-            v-if="row.rating > 0"
-            :model-value="row.rating"
-            disabled
-            allow-half
-            show-score
-            text-color="#f7ba2a"
-          />
-          <span v-else class="muted-rating">—</span>
+          <span class="status-text">{{ row.reviewStatusLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="reviewCount" :label="t('insight.colReviewCount')" width="110" align="right" />
-      <el-table-column prop="creator" :label="t('insight.colCreator')" width="120" show-overflow-tooltip />
-      <el-table-column prop="createdAt" :label="t('insight.colCreatedAt')" width="168" />
-      <el-table-column prop="aiModel" :label="t('insight.colInsightModel')" width="120" show-overflow-tooltip />
-      <el-table-column :label="t('insight.colStatus')" width="112">
+      <el-table-column :label="t('insight.colInsightModel')" width="132">
+        <template #default="{ row }">
+          <el-tooltip :content="row.aiModel" placement="top" :show-after="400">
+            <span class="insight-model-cell">{{ row.aiModelList }}</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('insight.colInsightStatus')" width="112">
         <template #default="{ row }">
           <span class="status-text">{{ row.statusLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('insight.colActions')" min-width="300" fixed="right">
+      <el-table-column prop="creator" :label="t('insight.colCreator')" width="120" show-overflow-tooltip />
+      <el-table-column prop="createdAt" :label="t('insight.colCreatedAt')" width="168" />
+      <el-table-column :label="t('insight.colActions')" min-width="260" fixed="right" align="left" header-align="left">
         <template #default="{ row }">
-          <el-button
-            type="primary"
-            link
-            :disabled="fetchReviewsDisabled(row)"
-            :loading="fetchReviewingId === row.taskId"
-            @click="onFetchReviews(row)"
-          >
-            {{ t('insight.grabReviews') }}
-          </el-button>
-          <el-button
-            type="primary"
-            link
-            :disabled="downloadReviewsDisabled(row)"
-            :loading="downloadReviewingId === row.taskId"
-            @click="onDownloadReviews(row)"
-          >
-            {{ t('insight.downloadReviews') }}
-          </el-button>
-          <el-button type="primary" link @click="onViewResults(row)">{{ t('insight.viewResults') }}</el-button>
-          <el-button type="primary" link @click="onRegenerate(row)">{{ t('insight.regenerate') }}</el-button>
+          <div class="insight-actions-row">
+            <el-button
+              type="primary"
+              link
+              :disabled="downloadReviewsDisabled(row)"
+              :loading="downloadReviewingId === row.taskId"
+              @click="onDownloadReviews(row)"
+            >
+              {{ t('insight.downloadReviews') }}
+            </el-button>
+            <el-button type="primary" link @click="onViewResults(row)">{{ t('insight.viewResults') }}</el-button>
+            <el-button
+              type="danger"
+              link
+              :disabled="deleteInsightDisabled(row)"
+              :loading="deletingTaskId === row.taskId"
+              @click="onDeleteInsight(row)"
+            >
+              {{ t('insight.delete') }}
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -150,7 +140,6 @@
             class="insight-model-select"
             clearable
             :teleported="false"
-            :placeholder="t('insight.formInsightModelPh')"
           >
             <el-option
               v-for="opt in insightModelOptions"
@@ -175,13 +164,18 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentCopy, Plus, Refresh } from '@element-plus/icons-vue'
 import type { ApiConfigRow } from '../../settings/apiConfig.shared'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
-import { fetchInsightTasks } from '../../tasks/api'
+import { deleteInsightTask, fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import { extractAsinFromAmazonUrl, looksLikeAmazonProductUrl } from '../../../shared/utils/amazonAsin'
+import {
+  formatInsightModelLine,
+  formatInsightModelLineByProviderId,
+  formatInsightModelShort,
+} from '../../../shared/utils/insightModelLabel'
 import { downloadReviewsExcel } from '../../../shared/utils/excelDownload'
 import {
   createInsightTask,
@@ -194,7 +188,7 @@ import { useAuthStore } from '../../auth/store/auth.store'
 const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
-const canFetchReviews = computed(() => auth.canRetryInsightTasks.value)
+const canMutateInsightTasks = computed(() => auth.canRetryInsightTasks.value)
 
 type InsightProductRow = {
   imageUrl: string
@@ -206,7 +200,12 @@ type InsightProductRow = {
   reviewCount: number
   creator: string
   createdAt: string
+  /** 完整「名称：模型」，用于结果页与 tooltip */
   aiModel: string
+  /** 列表紧凑展示（多为模型 id） */
+  aiModelList: string
+  reviewStatus: 'fetching' | 'completed'
+  reviewStatusLabel: string
   statusLabel: string
   /** insight_tasks.status，用于操作按钮禁用逻辑 */
   taskStatus?: string
@@ -221,35 +220,23 @@ const pageSizeOptions = [10, 20, 50] as const
 
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
-const insightModelId = ref<string>('')
+const insightModelId = ref<string>('ins_builtin')
 const dialogSubmitting = ref(false)
-const fetchReviewingId = ref<string | null>(null)
 const downloadReviewingId = ref<string | null>(null)
+const deletingTaskId = ref<string | null>(null)
 
-const REVIEW_CSV_COLUMNS = [
-  'platform',
-  'product_id',
-  'id',
-  'external_review_id',
-  'title',
-  'rating',
-  'reviewed_at',
-  'lang',
-  'sku',
-  'raw_text',
-  'created_at',
+const REVIEW_EXPORT_COLUMNS = [
+  { label: '平台', key: 'platform' },
+  { label: 'ASIN', key: 'product_id' },
+  { label: '发布时间', key: 'reviewed_at' },
+  { label: '标题', key: 'title' },
+  { label: '评论', key: 'raw_text' },
 ] as const
-
-function insightOptionLabel(row: ApiConfigRow) {
-  const name = row.builtin ? t('settings.insightBuiltinModelName') : row.name
-  const m = row.model?.trim()
-  return m ? `${name}-${m}` : name
-}
 
 const insightModelOptions = computed(() =>
   insightApiConfigRows.value.map((row) => ({
     id: row.id,
-    label: insightOptionLabel(row),
+    label: formatInsightModelLine(row, t),
   })),
 )
 
@@ -259,10 +246,15 @@ function appendLinkRow() {
 
 function resetAddForm() {
   linkInputs.value = ['']
-  insightModelId.value = ''
+  insightModelId.value = 'ins_builtin'
 }
 
 function buildDefaultRows(zh: boolean): InsightProductRow[] {
+  const demoLine = formatInsightModelLine(
+    { name: t('insight.demoInsightProviderName'), model: 'deepseek-chat' },
+    t,
+  )
+  const demoList = 'deepseek-chat'
   return [
     {
       imageUrl: 'https://picsum.photos/seed/insight1/96/96',
@@ -276,7 +268,10 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewCount: 12840,
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-18 14:22',
-      aiModel: 'DeepSeek',
+      aiModel: demoLine,
+      aiModelList: demoList,
+      reviewStatus: 'completed',
+      reviewStatusLabel: zh ? '已完成' : 'Completed',
       statusLabel: zh ? '分析成功' : 'Done',
       taskId: 'demo',
     },
@@ -290,7 +285,10 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewCount: 3201,
       creator: zh ? '分析师' : 'Analyst',
       createdAt: '2026-03-17 09:05',
-      aiModel: 'DeepSeek',
+      aiModel: demoLine,
+      aiModelList: demoList,
+      reviewStatus: 'completed',
+      reviewStatusLabel: zh ? '已完成' : 'Completed',
       statusLabel: zh ? '分析成功' : 'Done',
       taskId: 'demo',
     },
@@ -304,7 +302,10 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewCount: 892,
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-16 18:40',
-      aiModel: 'DeepSeek',
+      aiModel: demoLine,
+      aiModelList: demoList,
+      reviewStatus: 'fetching',
+      reviewStatusLabel: zh ? '获取中' : 'Fetching',
       statusLabel: zh ? '分析中' : 'Running',
       taskId: 'demo',
     },
@@ -322,9 +323,7 @@ function taskStatusLabel(status: string) {
 }
 
 function displayProviderLabel(providerId: string | null) {
-  if (!providerId) return t('insight.defaultAnalysisProvider')
-  const cfg = insightApiConfigRows.value.find((r) => r.id === providerId)
-  return cfg ? insightOptionLabel(cfg) : providerId
+  return formatInsightModelLineByProviderId(providerId, insightApiConfigRows.value, t)
 }
 
 function formatTaskTime(iso: string) {
@@ -333,28 +332,151 @@ function formatTaskTime(iso: string) {
 }
 
 function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
+  const reviewStatus: 'fetching' | 'completed' = task.status === 'success' ? 'completed' : 'fetching'
+  const full = displayProviderLabel(task.analysis_provider_id)
   return {
-    imageUrl: `https://picsum.photos/seed/${encodeURIComponent(task.id)}/96/96`,
+    imageUrl: `https://images-na.ssl-images-amazon.com/images/P/${encodeURIComponent(task.product_id)}.01._SX80_.jpg`,
     asin: task.product_id,
-    title: `${task.platform} · ${task.product_id}`,
+    title: task.product_id,
     countryLabel: '—',
     priceLabel: '—',
     rating: 0,
     reviewCount: 0,
-    creator: '—',
+    creator: currentCreatorLabel(),
     createdAt: formatTaskTime(task.created_at),
-    aiModel: displayProviderLabel(task.analysis_provider_id),
+    aiModel: full,
+    aiModelList: formatInsightModelShort(task.analysis_provider_id, insightApiConfigRows.value, t),
+    reviewStatus,
+    reviewStatusLabel: reviewStatusLabel(reviewStatus),
     statusLabel: taskStatusLabel(task.status),
     taskStatus: task.status,
     taskId: task.id,
   }
 }
 
+function currentCreatorLabel(): string {
+  const zh = locale.value === 'zh-CN'
+  try {
+    const raw = localStorage.getItem('rsa_login_credentials')
+    if (raw) {
+      const u = (JSON.parse(raw) as { username?: string }).username
+      if (u) return String(u)
+    }
+  } catch {
+    /* ignore */
+  }
+  const role = localStorage.getItem('rsa_user_role') || 'readonly'
+  if (zh) {
+    if (role === 'admin') return '超级管理员'
+    if (role === 'operator') return '分析师'
+    return '只读'
+  }
+  if (role === 'admin') return 'Admin'
+  if (role === 'operator') return 'Operator'
+  return 'Read-only'
+}
+
+function reviewStatusLabel(status: 'fetching' | 'completed') {
+  return t(`insight.reviewStatus.${status}`)
+}
+
+function pickFirstString(items: Array<unknown>): string | null {
+  for (const x of items) {
+    if (typeof x === 'string') {
+      const s = x.trim()
+      if (s) return s
+    }
+  }
+  return null
+}
+
+function parseCountryLabel(raw: string | null): string {
+  if (!raw) return '—'
+  const v = raw.trim()
+  if (!v) return '—'
+  const low = v.toLowerCase()
+  if (low === 'us' || low === 'usa') return 'United States'
+  if (low === 'uk' || low === 'gb') return 'United Kingdom'
+  return v
+}
+
+function parsePriceLabel(raw: string | null): string {
+  if (!raw) return '—'
+  const s = raw.trim()
+  return s || '—'
+}
+
+function avgRating(items: Array<{ rating?: number | null }>): number {
+  const nums = items.map((x) => x.rating).filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+  if (nums.length === 0) return 0
+  const val = nums.reduce((a, b) => a + b, 0) / nums.length
+  return Math.round(val * 10) / 10
+}
+
+type ReviewExtra = Record<string, unknown>
+
+function pickFromExtra(extraList: ReviewExtra[], keys: string[]): string | null {
+  for (const extra of extraList) {
+    const found = pickFirstString(keys.map((k) => (extra[k] as string | undefined) ?? ''))
+    if (found) return found
+  }
+  return null
+}
+
+async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
+  const byId = new Map<string, InsightProductRow>()
+  for (const r of rows.value) {
+    if (r.taskId) byId.set(r.taskId, r)
+  }
+  await Promise.all(
+    taskRows.map(async (task) => {
+      try {
+        const res = await fetchInsightTaskReviews(task.id, 20000)
+        const row = byId.get(task.id)
+        if (!row) return
+        const items = res.items ?? []
+        const extras = items
+          .map((x) => ((x as unknown as { extra?: ReviewExtra | null }).extra ?? null))
+          .filter((x): x is ReviewExtra => !!x && typeof x === 'object')
+
+        const title = pickFirstString([
+          pickFromExtra(extras, ['productTitle', 'product_title', 'title', 'name']) ?? '',
+          row.title,
+        ])
+        const image = pickFirstString([
+          pickFromExtra(extras, ['productImage', 'product_image', 'image', 'imageUrl', 'image_url']) ?? '',
+          row.imageUrl,
+        ])
+        const country = parseCountryLabel(
+          pickFromExtra(extras, ['country', 'marketplace', 'site', 'region']) ??
+            (task.platform === 'amazon' ? 'United States' : ''),
+        )
+        const price = parsePriceLabel(
+          pickFromExtra(extras, ['price', 'productPrice', 'product_price', 'finalPrice']) ?? '',
+        )
+
+        row.title = title ?? row.title
+        row.imageUrl = image ?? row.imageUrl
+        row.countryLabel = country
+        row.priceLabel = price
+        row.rating = avgRating(items)
+        row.reviewCount = items.length
+        row.reviewStatus = items.length > 0 ? 'completed' : 'fetching'
+        row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
+      } catch {
+        // Ignore per-row hydration errors to keep list render resilient.
+      }
+    }),
+  )
+}
+
 async function loadTasks() {
   loading.value = true
   try {
     const res = await fetchInsightTasks({ limit: 50 })
-    rows.value = (res.items ?? []).map(mapTaskToRow)
+    const taskRows = res.items ?? []
+    rows.value = taskRows.map(mapTaskToRow)
+    await hydrateRowsWithReviewStats(taskRows)
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
@@ -376,45 +498,38 @@ function onPageSizeChange() {
   page.value = 1
 }
 
-function fetchReviewsDisabled(row: InsightProductRow): boolean {
-  if (!canFetchReviews.value) return true
-  const tid = row.taskId
-  if (!tid || tid === 'demo') return true
-  const s = row.taskStatus
-  if (s === 'success' || s === 'cancelled') return true
-  return false
-}
-
 function downloadReviewsDisabled(row: InsightProductRow): boolean {
   const tid = row.taskId
-  return !tid || tid === 'demo'
+  return !tid || tid === 'demo' || row.reviewStatus !== 'completed'
 }
 
-async function onFetchReviews(row: InsightProductRow) {
+function deleteInsightDisabled(row: InsightProductRow): boolean {
   const tid = row.taskId
-  if (!tid || tid === 'demo') {
-    ElMessage.warning(t('insight.grabReviewsNoTask'))
-    return
-  }
-  if (!canFetchReviews.value) {
-    ElMessage.warning(t('insight.grabReviewsReadOnly'))
-    return
-  }
-  if (row.taskStatus === 'success' || row.taskStatus === 'cancelled') {
-    ElMessage.warning(t('insight.grabReviewsDisabledSuccess'))
-    return
-  }
-  fetchReviewingId.value = tid
+  return !canMutateInsightTasks.value || !tid || tid === 'demo'
+}
+
+async function onDeleteInsight(row: InsightProductRow) {
+  const tid = row.taskId
+  if (!tid || tid === 'demo' || !canMutateInsightTasks.value) return
   try {
-    const res = await postInsightTaskFetchReviews(tid)
-    const n = typeof res.reviews_inserted === 'number' ? res.reviews_inserted : 0
-    ElMessage.success(t('insight.grabReviewsOk', { n }))
+    await ElMessageBox.confirm(t('insight.deleteConfirm'), t('insight.deleteTitle'), {
+      type: 'warning',
+      confirmButtonText: t('insight.dialogConfirm'),
+      cancelButtonText: t('insight.dialogCancel'),
+    })
+  } catch {
+    return
+  }
+  deletingTaskId.value = tid
+  try {
+    await deleteInsightTask(tid)
+    ElMessage.success(t('insight.deleteOk'))
     await loadTasks()
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    ElMessage.error(`${t('insight.grabReviewsFail')}: ${msg}`)
+    ElMessage.error(`${t('insight.deleteFail')}: ${msg}`)
   } finally {
-    fetchReviewingId.value = null
+    deletingTaskId.value = null
   }
 }
 
@@ -435,10 +550,17 @@ async function onDownloadReviews(row: InsightProductRow) {
     const asin = (res.product_id || row.asin || 'product').replace(/[^\w-]/g, '_')
     const shortId = tid.slice(0, 8)
     const filename = `reviews_${asin}_${shortId}.xlsx`
+    const exportRows = items.map((item) => {
+      const row: Record<string, unknown> = {}
+      for (const col of REVIEW_EXPORT_COLUMNS) {
+        row[col.label] = (item as Record<string, unknown>)[col.key] ?? ''
+      }
+      return row
+    })
     await downloadReviewsExcel(
       filename,
-      items as unknown as Record<string, unknown>[],
-      REVIEW_CSV_COLUMNS,
+      exportRows,
+      REVIEW_EXPORT_COLUMNS.map((c) => c.label),
     )
     ElMessage.success(t('insight.downloadReviewsOk', { n: items.length }))
   } catch (e) {
@@ -468,6 +590,7 @@ async function submitAddProduct() {
 
   dialogSubmitting.value = true
   let ok = 0
+  const createdTaskIds: string[] = []
   try {
     for (const link of links) {
       const trimmed = link.trim()
@@ -486,8 +609,7 @@ async function submitAddProduct() {
         product_id: productId,
         analysis_provider_id: id,
       })
-      await postInsightTaskFetchReviews(task.id)
-      await postInsightTaskAnalyze(task.id)
+      createdTaskIds.push(task.id)
       ok++
     }
     if (ok === 0) {
@@ -498,6 +620,20 @@ async function submitAddProduct() {
     page.value = 1
     ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
     await loadTasks()
+    for (const taskId of createdTaskIds) {
+      void (async () => {
+        try {
+          await postInsightTaskFetchReviews(taskId)
+          await loadTasks()
+          await postInsightTaskAnalyze(taskId)
+          await loadTasks()
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          ElMessage.warning(`${t('insight.addProductPipelineFailed')}: ${msg}`)
+          await loadTasks()
+        }
+      })()
+    }
   } catch (e) {
     ElMessage.error(
       e instanceof Error ? `${t('insight.addProductPipelineFailed')}: ${e.message}` : t('insight.addProductPipelineFailed'),
@@ -547,9 +683,6 @@ function onViewResults(row: InsightProductRow) {
   })
 }
 
-function onRegenerate(_row: InsightProductRow) {
-  ElMessage.info(t('insight.regenerateSoon'))
-}
 </script>
 
 <style scoped>
@@ -588,6 +721,35 @@ function onRegenerate(_row: InsightProductRow) {
 
 .insight-table {
   width: 100%;
+}
+
+.insight-model-cell {
+  display: inline-block;
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* 下载 / 查看 / 删除：从左起排，不靠表格右缘 */
+.insight-actions-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  column-gap: 2px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.insight-actions-row :deep(.el-button) {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 6px;
+  padding-right: 6px;
+  flex-shrink: 0;
 }
 
 .thumb {

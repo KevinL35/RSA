@@ -84,6 +84,36 @@ def test_operator_post_retry_reaches_handler() -> None:
     assert r.status_code == 409
 
 
+def test_readonly_delete_insight_task_forbidden() -> None:
+    r = _client().delete(
+        f"/api/v1/insight-tasks/{TID}",
+        headers={"X-RSA-Role": "readonly"},
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "RBAC_FORBIDDEN"
+
+
+def test_operator_delete_insight_task_reaches_handler() -> None:
+    sb = MagicMock()
+    chain = MagicMock()
+    sb.table.return_value = chain
+    chain.select.return_value = chain
+    chain.delete.return_value = chain
+    chain.eq.return_value = chain
+    chain.limit.return_value = chain
+    chain.execute.side_effect = [
+        MagicMock(data=[{"id": str(TID)}]),
+        MagicMock(data=[]),
+    ]
+    with patch("app.modules.tasks.router.require_supabase", return_value=sb):
+        r = _client().delete(
+            f"/api/v1/insight-tasks/{TID}",
+            headers={"X-RSA-Role": "operator"},
+        )
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+
 def test_admin_post_retry_same_as_operator() -> None:
     sb = MagicMock()
     chain = MagicMock()

@@ -23,7 +23,7 @@ const defaultInsightRows = (): ApiConfigRow[] => [
     name: '',
     baseUrl: 'https://api.rsa.internal/v1/insight',
     apiKey: '',
-    model: 'rsa-platform-v1',
+    model: 'rsa-v1',
     createdAt: '2026-01-01 00:00:00',
   },
 ]
@@ -39,10 +39,23 @@ const defaultAgentRows = (): ApiConfigRow[] => [
   },
 ]
 
+const defaultReviewFetchRows = (): ApiConfigRow[] => [
+  {
+    id: 'rf_pangolin',
+    builtin: true,
+    name: '',
+    baseUrl: 'https://scrapeapi.pangolinfo.com',
+    apiKey: '',
+    model: 'amzReviewV2',
+    createdAt: '2026-03-10 09:30:00',
+  },
+]
+
 const defaultTranslateRows = (): ApiConfigRow[] => [
   {
-    id: 'tr_1',
-    name: 'LibreTranslate 兼容端点',
+    id: 'tr_default',
+    builtin: true,
+    name: '',
     baseUrl: 'https://libretranslate.com/translate',
     apiKey: '',
     model: '',
@@ -56,7 +69,11 @@ function hasBuiltinInsight(rows: ApiConfigRow[]) {
 
 function normalizeInsightRows(rows: unknown): ApiConfigRow[] {
   if (!Array.isArray(rows) || rows.length === 0) return defaultInsightRows()
-  const list = rows as ApiConfigRow[]
+  const list = (rows as ApiConfigRow[]).map((r) =>
+    r.id === 'ins_builtin' && r.builtin && r.model === 'rsa-platform-v1'
+      ? { ...r, model: 'rsa-v1' }
+      : r,
+  )
   if (hasBuiltinInsight(list)) return list
   return [...defaultInsightRows(), ...list.filter((r) => r.id !== 'ins_builtin')]
 }
@@ -66,14 +83,26 @@ function normalizeAgentRows(rows: unknown): ApiConfigRow[] {
   return rows as ApiConfigRow[]
 }
 
+function hasBuiltinReviewFetch(rows: ApiConfigRow[]) {
+  return rows.some((r) => r.builtin === true && r.id === 'rf_pangolin')
+}
+
+function hasBuiltinTranslate(rows: ApiConfigRow[]) {
+  return rows.some((r) => r.builtin === true && r.id === 'tr_default')
+}
+
 function normalizeTranslateRows(rows: unknown): ApiConfigRow[] {
   if (!Array.isArray(rows) || rows.length === 0) return defaultTranslateRows()
-  return rows as ApiConfigRow[]
+  const list = rows as ApiConfigRow[]
+  if (hasBuiltinTranslate(list)) return list
+  return [...defaultTranslateRows(), ...list.filter((r) => r.id !== 'tr_default')]
 }
 
 function normalizeReviewFetchRows(rows: unknown): ApiConfigRow[] {
-  if (!Array.isArray(rows)) return []
-  return rows as ApiConfigRow[]
+  if (!Array.isArray(rows) || rows.length === 0) return defaultReviewFetchRows()
+  const list = rows as ApiConfigRow[]
+  if (hasBuiltinReviewFetch(list)) return list
+  return [...defaultReviewFetchRows(), ...list.filter((r) => r.id !== 'rf_pangolin')]
 }
 
 type Bundle = {
@@ -109,7 +138,7 @@ function loadBundle(): Bundle {
         const bundle: Bundle = {
           insight: normalizeInsightRows(parsed),
           agent: defaultAgentRows(),
-          reviewFetch: [],
+          reviewFetch: defaultReviewFetchRows(),
           translate: defaultTranslateRows(),
         }
         persistBundle(bundle)
@@ -128,7 +157,7 @@ function loadBundle(): Bundle {
   return {
     insight: defaultInsightRows(),
     agent: defaultAgentRows(),
-    reviewFetch: [],
+    reviewFetch: defaultReviewFetchRows(),
     translate: defaultTranslateRows(),
   }
 }

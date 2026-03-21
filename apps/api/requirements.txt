@@ -3,6 +3,7 @@ uvicorn[standard]
 pydantic
 pydantic-settings
 python-dotenv
-supabase
+# postgrest 2.x：insert()/update() 后不可再链式 .select()，依赖 Prefer: return=representation（库默认）
+supabase>=2.0.0,<3
 httpx
 pytest

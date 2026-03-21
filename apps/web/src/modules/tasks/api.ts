@@ -1,4 +1,4 @@
-import { apiGetJson, apiPostJson } from '../../shared/services/api'
+import { apiDeleteJson, apiGetJson, apiPostJson } from '../../shared/services/api'
 import type { InsightTaskListResponse, InsightTaskRetryResponse } from './types'
 
 export type TaskListQuery = {
@@ -20,4 +20,10 @@ export function fetchInsightTasks(params?: TaskListQuery) {
 
 export function postInsightTaskRetry(taskId: string) {
   return apiPostJson<InsightTaskRetryResponse>(`/api/v1/insight-tasks/${taskId}/retry`, {})
+}
+
+export function deleteInsightTask(taskId: string) {
+  return apiDeleteJson<{ ok?: boolean; id?: string }>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}`,
+  )
 }

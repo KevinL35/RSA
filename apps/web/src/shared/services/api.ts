@@ -59,3 +59,25 @@ export async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   }
   return (await res.json()) as T
 }
+
+export async function apiDeleteJson<T>(path: string): Promise<T> {
+  const base = apiBaseUrl()
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) {
+    return {} as T
+  }
+  const text = await res.text()
+  if (!text.trim()) {
+    return {} as T
+  }
+  return JSON.parse(text) as T
+}

@@ -85,7 +85,7 @@ def create_insight_task(
         "analysis_provider_id": body.analysis_provider_id,
     }
     try:
-        res = sb.table("insight_tasks").insert(row).select("*").execute()
+        res = sb.table("insight_tasks").insert(row).execute()
     except Exception as e:  # noqa: BLE001
         raise HTTPException(
             status_code=502,
@@ -147,7 +147,7 @@ def get_insight_task_reviews(
         rv = (
             sb.table("reviews")
             .select(
-                "id,external_review_id,raw_text,title,rating,sku,reviewed_at,lang,created_at",
+                "id,external_review_id,raw_text,title,rating,sku,reviewed_at,lang,extra,created_at",
             )
             .eq("insight_task_id", str(task_id))
             .order("created_at", desc=False)
@@ -444,7 +444,6 @@ def patch_insight_task(
             sb.table("insight_tasks")
             .update(update)
             .eq("id", str(task_id))
-            .select("*")
             .execute()
         )
     except Exception as e:  # noqa: BLE001
@@ -456,3 +455,38 @@ def patch_insight_task(
     if not data:
         raise HTTPException(status_code=500, detail="更新成功但未返回数据，请检查 RLS/策略")
     return enrich_task_for_task_center(data[0])
+
+
+@router.delete("/{task_id}")
+def delete_insight_task(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+) -> dict:
+    """删除任务；关联 reviews / review_analysis / review_dimension_analysis 由库级 ON DELETE CASCADE 清理。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        cur = (
+            sb.table("insight_tasks")
+            .select("id")
+            .eq("id", str(task_id))
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Supabase 查询失败：{e!s}",
+        ) from e
+    if not (cur.data or []):
+        raise HTTPException(status_code=404, detail="任务不存在")
+    try:
+        sb.table("insight_tasks").delete().eq("id", str(task_id)).execute()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Supabase 删除失败：{e!s}",
+        ) from e
+    return {"ok": True, "id": str(task_id)}

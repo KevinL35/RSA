@@ -44,7 +44,7 @@
 
     <section class="ai-bar">
       <span class="ai-label">{{ t('insightResult.aiAnalysis') }}</span>
-      <span class="ai-meta">{{ t('insightResult.model') }}：{{ modelDisplay }}</span>
+      <span class="ai-meta">{{ modelDisplay }}</span>
       <span class="ai-meta">{{ t('insightResult.analyzedAt') }}：{{ analyzedAtDisplay }}</span>
     </section>
 
@@ -173,6 +173,8 @@ import { useI18n } from 'vue-i18n'
 import { FullScreen } from '@element-plus/icons-vue'
 import { fetchInsightDashboard } from '../api'
 import type { Dimension6Key, InsightDashboardResponse, InsightEvidenceItem, PainRankItem } from '../dashboardTypes'
+import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import { formatInsightModelLine } from '../../../shared/utils/insightModelLabel'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -289,7 +291,19 @@ const reviewsDisplay = computed(() => {
   return n ? t('insightResult.reviewsCount', { n }) : ''
 })
 
-const modelDisplay = computed(() => (route.query.model as string) || 'DeepSeek')
+const modelDisplay = computed(() => {
+  const q = (route.query.model as string | undefined)?.trim()
+  if (q) return q
+  if (isDemo.value) {
+    return formatInsightModelLine(
+      { name: t('insight.demoInsightProviderName'), model: 'deepseek-chat' },
+      t,
+    )
+  }
+  const builtin = insightApiConfigRows.value.find((r) => r.id === 'ins_builtin')
+  if (builtin) return formatInsightModelLine(builtin, t)
+  return t('insight.defaultAnalysisProvider')
+})
 const analyzedAtDisplay = computed(() => {
   const q = route.query.analyzedAt as string
   if (q) return q

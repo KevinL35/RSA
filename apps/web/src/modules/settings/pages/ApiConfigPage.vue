@@ -5,6 +5,42 @@
       <p class="intro-text">{{ t('settings.apiPageIntro') }}</p>
     </section>
 
+    <section class="config-block config-block--lang">
+      <div class="system-row">
+        <h3 class="block-title">{{ t('settings.moduleSystemLang') }}</h3>
+        <el-select v-model="locale" class="system-select" :teleported="false" @change="onSystemLangChange">
+          <el-option :label="t('settings.langEnglish')" value="en" />
+          <el-option :label="t('settings.langZhCN')" value="zh-CN" />
+        </el-select>
+      </div>
+      <div class="system-row">
+        <h3 class="block-title">{{ t('settings.translateShort') }}</h3>
+        <el-select
+          v-model="selectedTranslateApiId"
+          class="system-select"
+          :teleported="false"
+          :placeholder="t('settings.selectTranslateApi')"
+          @change="onTranslateApiChange"
+        >
+          <el-option :label="t('settings.notSelected')" value="" />
+          <el-option v-for="opt in translateSelectOptions" :key="opt.id" :label="opt.label" :value="opt.id" />
+        </el-select>
+      </div>
+      <div class="system-row">
+        <h3 class="block-title">{{ t('settings.reviewFetchShort') }}</h3>
+        <el-select
+          v-model="selectedReviewFetchApiId"
+          class="system-select"
+          :teleported="false"
+          :placeholder="t('settings.selectReviewFetchApi')"
+          @change="onReviewFetchApiChange"
+        >
+          <el-option :label="t('settings.notSelected')" value="" />
+          <el-option v-for="opt in reviewFetchSelectOptions" :key="opt.id" :label="opt.label" :value="opt.id" />
+        </el-select>
+      </div>
+    </section>
+
     <section class="config-block">
       <div class="block-head">
         <h3 class="block-title">{{ t('settings.moduleInsightModel') }}</h3>
@@ -66,26 +102,39 @@
     </section>
 
     <section class="config-block">
-      <div class="block-head block-head--stack">
+      <div class="block-head">
         <div>
           <h3 class="block-title">{{ t('settings.moduleReviewFetchApi') }}</h3>
-          <p class="block-subhint">{{ t('settings.moduleReviewFetchApiHint') }}</p>
         </div>
         <el-button type="primary" class="block-head-add" @click="openAddDialog('reviewFetch')">
           {{ t('settings.apiAdd') }}
         </el-button>
       </div>
       <el-table :data="reviewFetchRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
-        <el-table-column :label="t('settings.apiColName')" min-width="160" prop="name" />
-        <el-table-column prop="baseUrl" :label="t('settings.apiColBaseUrl')" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="120" show-overflow-tooltip />
+        <el-table-column :label="t('settings.apiColName')" min-width="160">
+          <template #default="{ row }">
+            {{ row.builtin ? t('settings.defaultConfigLabel') : row.name }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
         <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
           <template #default="{ row, $index }">
-            <el-button type="primary" link @click="openEditDialog('reviewFetch', row, $index)">
+            <el-button
+              type="primary"
+              link
+              class="row-action-btn"
+              :disabled="row.builtin"
+              @click="openEditDialog('reviewFetch', row, $index)"
+            >
               {{ t('settings.edit') }}
             </el-button>
-            <el-button type="danger" link @click="onDelete('reviewFetch', $index)">
+            <el-button
+              type="danger"
+              link
+              class="row-action-btn"
+              :disabled="row.builtin"
+              @click="onDelete('reviewFetch', $index)"
+            >
               {{ t('settings.delete') }}
             </el-button>
           </template>
@@ -99,35 +148,35 @@
         <el-button type="primary" @click="openAddDialog('translate')">{{ t('settings.apiAdd') }}</el-button>
       </div>
       <el-table :data="translateRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
-        <el-table-column :label="t('settings.apiColName')" min-width="160" prop="name" />
-        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
+        <el-table-column :label="t('settings.apiColName')" min-width="160">
+          <template #default="{ row }">
+            {{ row.builtin ? t('settings.defaultConfigLabel') : row.name }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
         <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
           <template #default="{ row, $index }">
-            <el-button type="primary" link @click="openEditDialog('translate', row, $index)">
+            <el-button
+              type="primary"
+              link
+              class="row-action-btn"
+              :disabled="row.builtin"
+              @click="openEditDialog('translate', row, $index)"
+            >
               {{ t('settings.edit') }}
             </el-button>
-            <el-button type="danger" link @click="onDelete('translate', $index)">
+            <el-button
+              type="danger"
+              link
+              class="row-action-btn"
+              :disabled="row.builtin"
+              @click="onDelete('translate', $index)"
+            >
               {{ t('settings.delete') }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-    </section>
-
-    <section class="config-block config-block--lang">
-      <div class="block-head block-head--lang">
-        <h3 class="block-title">{{ t('settings.moduleSystemLang') }}</h3>
-        <el-select
-          v-model="locale"
-          class="lang-select"
-          :teleported="false"
-          @change="onSystemLangChange"
-        >
-          <el-option :label="t('settings.langEnglish')" value="en" />
-          <el-option :label="t('settings.langZhCN')" value="zh-CN" />
-        </el-select>
-      </div>
     </section>
 
     <el-dialog
@@ -160,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { persistLocale, type AppLocale } from '../../../app/i18n'
@@ -175,10 +224,29 @@ import {
 type ModuleKey = 'insight' | 'agent' | 'reviewFetch' | 'translate'
 
 const { t, locale } = useI18n()
+const TRANSLATE_SELECTED_KEY = 'rsa_settings_selected_translate_api_id'
+const REVIEW_FETCH_SELECTED_KEY = 'rsa_settings_selected_review_fetch_api_id'
+const DEFAULT_TRANSLATE_ID = 'tr_default'
+const DEFAULT_REVIEW_FETCH_ID = 'rf_pangolin'
+
+function initialTopSelectId(storageKey: string, defaultId: string): string {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw === null) {
+      localStorage.setItem(storageKey, defaultId)
+      return defaultId
+    }
+    return raw
+  } catch {
+    return defaultId
+  }
+}
 
 const dialogVisible = ref(false)
 const dialogModule = ref<ModuleKey>('insight')
 const dialogEditIndex = ref<number | null>(null)
+const selectedTranslateApiId = ref(initialTopSelectId(TRANSLATE_SELECTED_KEY, DEFAULT_TRANSLATE_ID))
+const selectedReviewFetchApiId = ref(initialTopSelectId(REVIEW_FETCH_SELECTED_KEY, DEFAULT_REVIEW_FETCH_ID))
 
 const form = reactive({
   name: '',
@@ -204,6 +272,60 @@ function rowList(key: ModuleKey) {
   return translateRows
 }
 
+const translateSelectOptions = computed(() =>
+  translateRows.value.map((row) => ({
+    id: row.id,
+    label: row.builtin
+      ? t('settings.defaultConfigLabel')
+      : row.model
+        ? `${row.name} · ${row.model}`
+        : row.name,
+  })),
+)
+
+const reviewFetchSelectOptions = computed(() =>
+  reviewFetchRows.value.map((row) => ({
+    id: row.id,
+    label: row.builtin
+      ? t('settings.defaultConfigLabel')
+      : row.model
+        ? `${row.name} · ${row.model}`
+        : row.name,
+  })),
+)
+
+function onTranslateApiChange(v: string) {
+  localStorage.setItem(TRANSLATE_SELECTED_KEY, v || '')
+}
+
+function onReviewFetchApiChange(v: string) {
+  localStorage.setItem(REVIEW_FETCH_SELECTED_KEY, v || '')
+}
+
+watch(
+  translateRows,
+  () => {
+    const sel = selectedTranslateApiId.value
+    if (sel && !translateRows.value.some((x) => x.id === sel)) {
+      selectedTranslateApiId.value = DEFAULT_TRANSLATE_ID
+      localStorage.setItem(TRANSLATE_SELECTED_KEY, DEFAULT_TRANSLATE_ID)
+    }
+  },
+  { deep: true },
+)
+
+watch(
+  reviewFetchRows,
+  () => {
+    const sel = selectedReviewFetchApiId.value
+    if (sel && !reviewFetchRows.value.some((x) => x.id === sel)) {
+      selectedReviewFetchApiId.value = DEFAULT_REVIEW_FETCH_ID
+      localStorage.setItem(REVIEW_FETCH_SELECTED_KEY, DEFAULT_REVIEW_FETCH_ID)
+    }
+  },
+  { deep: true },
+)
+
 function openAddDialog(key: ModuleKey) {
   dialogModule.value = key
   dialogEditIndex.value = null
@@ -215,7 +337,7 @@ function openAddDialog(key: ModuleKey) {
 }
 
 function openEditDialog(key: ModuleKey, row: ApiConfigRow, index: number) {
-  if (key === 'insight' && row.builtin) return
+  if (row.builtin && (key === 'insight' || key === 'reviewFetch' || key === 'translate')) return
   dialogModule.value = key
   dialogEditIndex.value = index
   form.name = row.name
@@ -250,7 +372,12 @@ function submitDialog() {
   } else {
     const i = dialogEditIndex.value
     const row = list.value[i]
-    if (dialogModule.value === 'insight' && row?.builtin) {
+    if (
+      row?.builtin &&
+      (dialogModule.value === 'insight' ||
+        dialogModule.value === 'reviewFetch' ||
+        dialogModule.value === 'translate')
+    ) {
       ElMessage.warning(t('settings.builtinNotEditable'))
       return
     }
@@ -265,14 +392,22 @@ function submitDialog() {
   dialogVisible.value = false
 }
 
+function rowDisplayName(key: ModuleKey, row: ApiConfigRow): string {
+  if (row.builtin) {
+    if (key === 'insight') return t('settings.insightBuiltinModelName')
+    if (key === 'reviewFetch' || key === 'translate') return t('settings.defaultConfigLabel')
+  }
+  return row.name
+}
+
 async function onDelete(key: ModuleKey, index: number) {
   const list = rowList(key)
   const row = list.value[index]
   if (!row) return
-  if (key === 'insight' && row.builtin) return
+  if (row.builtin && (key === 'insight' || key === 'reviewFetch' || key === 'translate')) return
   try {
     await ElMessageBox.confirm(
-      t('settings.deleteConfirm', { name: row.name }),
+      t('settings.deleteConfirm', { name: rowDisplayName(key, row) }),
       t('layout.logoutTitle'),
       { type: 'warning' },
     )
@@ -334,17 +469,9 @@ function onSystemLangChange(v: string) {
   margin-bottom: 14px;
 }
 
-.block-head--stack {
-  align-items: flex-start;
-}
-
 .block-head-add {
   flex-shrink: 0;
   margin-top: 2px;
-}
-
-.block-head--lang {
-  margin-bottom: 0;
 }
 
 .block-title {
@@ -354,19 +481,22 @@ function onSystemLangChange(v: string) {
   color: var(--el-text-color-primary);
 }
 
-.block-subhint {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--el-text-color-secondary);
-  max-width: 560px;
-}
-
 .block-table {
   width: 100%;
 }
 
-.lang-select {
+.system-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.system-row + .system-row {
+  margin-top: 14px;
+}
+
+.system-select {
   width: 148px;
   flex-shrink: 0;
 }

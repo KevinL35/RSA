@@ -41,7 +41,7 @@ def require_mutator_role(
     request: Request,
     role: Annotated[str, Depends(get_rsa_role)],
 ) -> str:
-    """仅 admin / operator 可创建任务、拉取评论、分析、重试、PATCH 任务。"""
+    """仅 admin / operator 可创建任务、拉取评论、分析、重试、PATCH、删除任务。"""
     if role == "readonly":
         audit_log.warning(
             "rbac_denied method=%s path=%s role=%s required=mutator",

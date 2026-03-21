@@ -131,8 +131,11 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import type { ApiConfigRow } from '../../settings/apiConfig.shared'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import {
+  formatInsightModelLine,
+  formatInsightModelLineByProviderId,
+} from '../../../shared/utils/insightModelLabel'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import { ComparePrerequisiteError, fetchCompareProducts } from '../api'
@@ -179,12 +182,6 @@ const dialogSubmitting = ref(false)
 const regeneratingId = ref<string | null>(null)
 
 const rows = ref<CompareTableRow[]>([])
-
-function insightOptionLabel(row: ApiConfigRow) {
-  const name = row.builtin ? t('settings.insightBuiltinModelName') : row.name
-  const m = row.model?.trim()
-  return m ? `${name}-${m}` : name
-}
 
 function formatTaskTime(iso: string) {
   if (!iso) return '—'
@@ -234,6 +231,10 @@ function mapStoredToRow(s: StoredCompareRun): CompareTableRow {
 
 function buildDefaultRows(): CompareTableRow[] {
   const zh = locale.value === 'zh-CN'
+  const demoLine = formatInsightModelLine(
+    { name: t('insight.demoInsightProviderName'), model: 'deepseek-chat' },
+    t,
+  )
   return [
     {
       id: 'demo-1',
@@ -241,7 +242,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST2',
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-18 14:22',
-      smartModel: 'DeepSeek',
+      smartModel: demoLine,
       status: 'success',
       statusLabel: statusLabelFor('success'),
       platformA: 'amazon',
@@ -253,7 +254,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST4',
       creator: zh ? '分析师' : 'Analyst',
       createdAt: '2026-03-17 09:05',
-      smartModel: 'DeepSeek',
+      smartModel: demoLine,
       status: 'success',
       statusLabel: statusLabelFor('success'),
       platformA: 'amazon',
@@ -265,7 +266,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST6',
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-16 18:40',
-      smartModel: 'DeepSeek',
+      smartModel: demoLine,
       status: 'failed',
       statusLabel: statusLabelFor('failed'),
       platformA: 'amazon',
@@ -306,9 +307,7 @@ function resetAddForm() {
 }
 
 function displayProviderLabel(providerId: string | null) {
-  if (!providerId) return t('insight.defaultAnalysisProvider')
-  const cfg = insightApiConfigRows.value.find((r) => r.id === providerId)
-  return cfg ? insightOptionLabel(cfg) : providerId
+  return formatInsightModelLineByProviderId(providerId, insightApiConfigRows.value, t)
 }
 
 function optionByKey(key: string): InsightProductOption | undefined {

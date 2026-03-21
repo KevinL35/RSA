@@ -8,7 +8,7 @@ import httpx
 from app.core.config import Settings, get_settings
 
 from .normalize import build_canonical_response
-from .resolve import resolve_analysis_endpoint
+from .resolve import effective_analysis_provider_id, resolve_analysis_endpoint
 
 
 class AnalysisProviderError(Exception):
@@ -65,15 +65,17 @@ def analyze_reviews(
     if len(review_ids) != len(reviews):
         raise AnalysisProviderError("ANALYSIS_INPUT_INVALID", "评论行缺少 id")
 
-    try:
-        effective_id, url = resolve_analysis_endpoint(cfg, task_analysis_provider_id)
-    except ValueError as e:
-        raise AnalysisProviderError("ANALYSIS_PROVIDER_NOT_CONFIGURED", str(e)) from e
+    effective_id = effective_analysis_provider_id(cfg, task_analysis_provider_id)
 
     if cfg.analysis_provider_mock:
         raw = _mock_payload(effective_id, reviews)
         normalized = build_canonical_response(raw["reviews"], review_ids)
         return effective_id, normalized, raw
+
+    try:
+        _, url = resolve_analysis_endpoint(cfg, task_analysis_provider_id)
+    except ValueError as e:
+        raise AnalysisProviderError("ANALYSIS_PROVIDER_NOT_CONFIGURED", str(e)) from e
 
     headers: dict[str, str] = {
         "Content-Type": "application/json",

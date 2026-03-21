@@ -114,7 +114,6 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
             }
         )
         .eq("id", str(task_id))
-        .select("*")
         .execute()
     )
     if not up.data:
