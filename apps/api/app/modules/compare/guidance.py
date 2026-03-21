@@ -24,17 +24,17 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
         pid = f"{p['platform']}/{p['product_id']}"
         if r == "no_success_task":
             zh_lines.append(
-                f"{label_zh}（{pid}）尚无「成功」状态的洞察任务；"
-                "请先在「洞察分析」添加商品并完成拉取评论与分析。"
+                f"{label_zh}（{pid}）尚无「成功」状态的评论洞察任务；"
+                "请先在「评论洞察」添加商品并完成拉取评论与分析。"
             )
             en_lines.append(
                 f"{label_en} ({pid}) has no successful insight task. "
-                "In Insight analysis, add the product, fetch reviews, then run analysis."
+                "In Comment insights, add the product, fetch reviews, then run analysis."
             )
         elif r == "empty_analysis":
             tid = p.get("insight_task_id") or ""
             zh_lines.append(
-                f"{label_zh}（{pid}）的洞察任务已标记成功，但未落库评论分析结果（任务 {tid}）；"
+                f"{label_zh}（{pid}）的评论洞察任务已标记成功，但未落库评论分析结果（任务 {tid}）；"
                 "请重试「分析」或检查分析服务配置。"
             )
             en_lines.append(
@@ -43,11 +43,11 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
             )
 
     guidance_zh = (
-        "建议：前往「洞察分析」→ 添加商品 → 拉取评论 → 执行分析；"
+        "建议：前往「评论洞察」→ 添加商品 → 拉取评论 → 执行分析；"
         "两侧商品均具备可对比的分析数据后再回到本页。"
     )
     guidance_en = (
-        "Suggested: Insight analysis → add product → fetch reviews → analyze; "
+        "Suggested: Comment insights → add product → fetch reviews → analyze; "
         "return here when both products have comparable stored analysis."
     )
 
@@ -68,8 +68,8 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
         "guidance": {"zh_CN": guidance_zh, "en": guidance_en},
         "next_step": {
             "route": "/insight-analysis",
-            "label_zh": "打开洞察分析",
-            "label_en": "Open Insight analysis",
+            "label_zh": "打开评论洞察",
+            "label_en": "Open Comment insights",
         },
         "missing": missing,
         "reasons": reasons,

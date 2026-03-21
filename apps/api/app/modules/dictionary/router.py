@@ -5,7 +5,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.core.rbac import get_rsa_role, require_mutator_role
+from app.core.rbac import get_rsa_role, get_rsa_username_optional, require_mutator_role
+from app.integrations.supabase import require_supabase
+from app.modules.audit_log.service import audit_actor_name, try_record_audit
+from supabase import Client
 
 from .taxonomy_yaml import SIX_WAY_DIMENSION_ORDER, group_by_dimension, load_merged_entries_for_vertical
 from .verticals import DICTIONARY_VERTICALS, assert_valid_vertical_id
@@ -68,6 +71,8 @@ class RejectSynonymBody(BaseModel):
 def post_reject_synonym(
     body: RejectSynonymBody,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+    sb: Client = Depends(require_supabase),
 ) -> dict:
     """记录「同义词与关键词不匹配」的驳回意向，后续接入痛点审核队列与词典版本。"""
     try:
@@ -80,7 +85,18 @@ def post_reject_synonym(
             status_code=400,
             detail=f"无效 dimension_6way：{body.dimension_6way!r}",
         )
-    # TODO: 写入审核队列表 / 审计日志；当前仅占位成功，便于前端联调
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="dictionary",
+        message=f"驳回同义词：{body.canonical.strip()} ↔ {body.alias.strip()}",
+        detail={
+            "vertical_id": body.vertical_id.strip(),
+            "dimension_6way": dim,
+            "canonical": body.canonical.strip(),
+            "alias": body.alias.strip(),
+        },
+    )
     return {
         "ok": True,
         "queued": True,

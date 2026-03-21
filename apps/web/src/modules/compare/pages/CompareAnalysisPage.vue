@@ -1,37 +1,45 @@
 <template>
-  <el-card class="view-card">
+  <el-card class="view-card" v-loading="listLoading">
     <header class="page-header">
       <h2 class="page-title">{{ t('compare.title') }}</h2>
       <p class="page-subtitle">{{ t('compare.pageSubtitle') }}</p>
     </header>
     <div class="toolbar">
-      <el-button type="primary" @click="onAddCompare">{{ t('compare.addCompare') }}</el-button>
-      <el-button :icon="Refresh" @click="onRefresh" :title="t('compare.refresh')" />
+      <el-button type="primary" :disabled="!canMutateCompare" @click="onAddCompare">
+        {{ t('compare.addCompare') }}
+      </el-button>
+      <el-button
+        class="toolbar-refresh-square"
+        :icon="Refresh"
+        :loading="listLoading"
+        @click="onRefresh"
+        :title="t('compare.refresh')"
+      />
     </div>
 
     <el-table :data="pagedRows" stripe class="compare-table" :empty-text="t('compare.tableEmpty')">
-      <el-table-column :label="t('compare.colIndex')" width="64" align="center">
-        <template #default="{ $index }">
-          {{ (page - 1) * pageSize + $index + 1 }}
-        </template>
-      </el-table-column>
       <el-table-column prop="asin1" :label="t('compare.colAsin1')" min-width="132" show-overflow-tooltip />
       <el-table-column prop="asin2" :label="t('compare.colAsin2')" min-width="132" show-overflow-tooltip />
-      <el-table-column prop="creator" :label="t('compare.colCreator')" width="120" show-overflow-tooltip />
-      <el-table-column prop="createdAt" :label="t('compare.colCreatedAt')" width="168" />
-      <el-table-column prop="smartModel" :label="t('compare.colSmartModel')" width="128" show-overflow-tooltip />
-      <el-table-column :label="t('compare.colStatus')" width="112">
+      <el-table-column
+        prop="analysisModel"
+        :label="t('compare.colAnalysisModel')"
+        min-width="140"
+        show-overflow-tooltip
+      />
+      <el-table-column :label="t('compare.colAnalysisStatus')" width="112">
         <template #default="{ row }">
-          <span class="status-text">{{ row.statusLabel }}</span>
+          <span class="status-text">{{ compareFlowStatusLabel(row.status) }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('compare.colActions')" min-width="140" fixed="right">
+      <el-table-column prop="creator" :label="t('compare.colCreator')" width="120" show-overflow-tooltip />
+      <el-table-column prop="createdAt" :label="t('compare.colCreatedAt')" width="168" />
+      <el-table-column :label="t('compare.colActions')" min-width="160" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link @click="onViewResults(row)">{{ t('compare.viewResults') }}</el-button>
           <el-button
             type="danger"
             link
-            :disabled="row.id.startsWith('demo')"
+            :disabled="!canMutateCompare"
             @click="onDeleteCompare(row)"
           >
             {{ t('compare.delete') }}
@@ -131,33 +139,30 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import { useAuthStore } from '../../auth/store/auth.store'
 import { formatInsightModelLineByProviderId } from '../../../shared/utils/insightModelLabel'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
-import { getStoredUsername } from '../../auth/store/auth.store'
-import { ComparePrerequisiteError, fetchCompareProducts } from '../api'
 import {
-  deleteCompareRun,
-  loadCompareRuns,
-  upsertCompareRun,
-  type StoredCompareRun,
-} from '../compareRuns.storage'
-
-/** 列表「模型」列固定展示（与结果页分析源一致口径） */
-const COMPARE_LIST_MODEL_LABEL = 'rsa-v1'
+  createCompareRun,
+  deleteCompareRunRemote,
+  fetchCompareRunsList,
+  type CompareRunListItem,
+} from '../api'
 
 const { t, locale } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
+const canMutateCompare = computed(() => auth.canRetryInsightTasks.value)
 
 type CompareTableRow = {
   id: string
   asin1: string
   asin2: string
+  analysisModel: string
   creator: string
   createdAt: string
-  smartModel: string
   status: 'success' | 'failed'
-  statusLabel: string
   platformA: string
   platformB: string
 }
@@ -180,6 +185,7 @@ const asin2Key = ref('')
 const insightProductOptions = ref<InsightProductOption[]>([])
 const insightTasksLoading = ref(false)
 const dialogSubmitting = ref(false)
+const listLoading = ref(false)
 
 const rows = ref<CompareTableRow[]>([])
 
@@ -188,97 +194,47 @@ function formatTaskTime(iso: string) {
   return iso.slice(0, 19).replace('T', ' ')
 }
 
-function currentCreatorLabel(): string {
-  const u = getStoredUsername()
-  if (u) return u
-  const zh = locale.value === 'zh-CN'
-  const role = localStorage.getItem('rsa_user_role') || 'readonly'
-  if (zh) {
-    if (role === 'admin') return '超级管理员'
-    if (role === 'operator') return '分析师'
-    return '只读'
-  }
-  if (role === 'admin') return 'Admin'
-  if (role === 'operator') return 'Operator'
-  return 'Read-only'
+function compareFlowStatusLabel(status: 'success' | 'failed') {
+  if (status === 'success') return t('compare.flowStatus.done')
+  if (status === 'failed') return t('compare.flowStatus.failed')
+  return t('compare.flowStatus.analyzing')
 }
 
-function statusLabelFor(status: 'success' | 'failed') {
-  return status === 'success' ? t('compare.taskStatus.success') : t('compare.taskStatus.failed')
-}
-
-function mapStoredToRow(s: StoredCompareRun): CompareTableRow {
+function mapApiItemToRow(s: CompareRunListItem): CompareTableRow {
+  const label = (s.model_label || '').trim()
+  const mid = (s.model_id || '').trim()
   return {
     id: s.id,
     asin1: s.product_id_a,
     asin2: s.product_id_b,
-    creator: s.creator,
-    createdAt: formatTaskTime(s.created_at_iso),
-    smartModel: COMPARE_LIST_MODEL_LABEL,
+    analysisModel: label || mid || '—',
+    creator: s.creator || '—',
+    createdAt: formatTaskTime(s.created_at),
     status: s.status,
-    statusLabel: statusLabelFor(s.status),
     platformA: s.platform_a,
     platformB: s.platform_b,
   }
 }
 
-function buildDefaultRows(): CompareTableRow[] {
-  const zh = locale.value === 'zh-CN'
-  return [
-    {
-      id: 'demo-1',
-      asin1: 'B0XXXXTEST1',
-      asin2: 'B0XXXXTEST2',
-      creator: zh ? '超级管理员' : 'Super admin',
-      createdAt: '2026-03-18 14:22',
-      smartModel: COMPARE_LIST_MODEL_LABEL,
-      status: 'success',
-      statusLabel: statusLabelFor('success'),
-      platformA: 'amazon',
-      platformB: 'amazon',
-    },
-    {
-      id: 'demo-2',
-      asin1: 'B0XXXXTEST3',
-      asin2: 'B0XXXXTEST4',
-      creator: zh ? '分析师' : 'Analyst',
-      createdAt: '2026-03-17 09:05',
-      smartModel: COMPARE_LIST_MODEL_LABEL,
-      status: 'success',
-      statusLabel: statusLabelFor('success'),
-      platformA: 'amazon',
-      platformB: 'amazon',
-    },
-    {
-      id: 'demo-3',
-      asin1: 'B0XXXXTEST5',
-      asin2: 'B0XXXXTEST6',
-      creator: zh ? '超级管理员' : 'Super admin',
-      createdAt: '2026-03-16 18:40',
-      smartModel: COMPARE_LIST_MODEL_LABEL,
-      status: 'failed',
-      statusLabel: statusLabelFor('failed'),
-      platformA: 'amazon',
-      platformB: 'amazon',
-    },
-  ]
-}
-
-function loadRows() {
-  const stored = loadCompareRuns()
-  if (stored.length === 0) {
-    rows.value = buildDefaultRows()
-  } else {
-    rows.value = stored.map(mapStoredToRow)
+async function loadRows() {
+  listLoading.value = true
+  try {
+    const res = await fetchCompareRunsList(200)
+    rows.value = (res.items ?? []).map(mapApiItemToRow)
+  } catch {
+    rows.value = []
+    ElMessage.warning(t('compare.listLoadFailed'))
+  } finally {
+    listLoading.value = false
   }
 }
 
 onMounted(() => {
-  loadRows()
+  void loadRows()
 })
 
 watch(locale, () => {
-  loadRows()
+  void loadRows()
 })
 
 function onPageSizeChange() {
@@ -339,71 +295,7 @@ function onAddCompare() {
 }
 
 function onRefresh() {
-  loadRows()
-  ElMessage.success(t('compare.refreshed'))
-}
-
-type CompareRunPayload = {
-  platform_a: string
-  product_id_a: string
-  platform_b: string
-  product_id_b: string
-  model_id: string
-  model_label: string
-}
-
-async function runCompareAndPersist(payload: CompareRunPayload): Promise<boolean> {
-  const { platform_a: pa, product_id_a: ida, platform_b: pb, product_id_b: idb, model_id: mid, model_label: modelLabel } =
-    payload
-
-  const runId = crypto.randomUUID()
-  const createdIso = new Date().toISOString()
-
-  try {
-    const result = await fetchCompareProducts({
-      platform_a: pa,
-      product_id_a: ida,
-      platform_b: pb,
-      product_id_b: idb,
-    })
-    upsertCompareRun({
-      id: runId,
-      platform_a: pa,
-      product_id_a: ida,
-      platform_b: pb,
-      product_id_b: idb,
-      creator: currentCreatorLabel(),
-      created_at_iso: createdIso,
-      model_id: mid || undefined,
-      model_label: modelLabel,
-      status: 'success',
-      result,
-    })
-    return true
-  } catch (e) {
-    let errMsg = t('compare.compareFailed')
-    if (e instanceof ComparePrerequisiteError) {
-      const d = e.detail
-      errMsg = locale.value === 'zh-CN' ? d.messages.zh_CN : d.messages.en
-    } else if (e instanceof Error) {
-      errMsg = e.message
-    }
-    upsertCompareRun({
-      id: runId,
-      platform_a: pa,
-      product_id_a: ida,
-      platform_b: pb,
-      product_id_b: idb,
-      creator: currentCreatorLabel(),
-      created_at_iso: createdIso,
-      model_id: mid || undefined,
-      model_label: modelLabel,
-      status: 'failed',
-      error_message: errMsg,
-    })
-    ElMessage.warning(errMsg)
-    return false
-  }
+  void loadRows().then(() => ElMessage.success(t('compare.refreshed')))
 }
 
 async function submitAddCompare() {
@@ -428,25 +320,30 @@ async function submitAddCompare() {
   const mid = oa.analysis_provider_id ?? ''
   const modelLabel = displayProviderLabel(oa.analysis_provider_id)
 
-  const payload: CompareRunPayload = {
+  const payload = {
     platform_a: oa.platform,
     product_id_a: oa.product_id,
     platform_b: ob.platform,
     product_id_b: ob.product_id,
-    model_id: mid,
+    model_id: mid || null,
     model_label: modelLabel,
   }
 
   dialogSubmitting.value = true
   try {
-    const ok = await runCompareAndPersist(payload)
-    loadRows()
-    if (ok) {
+    const res = await createCompareRun(payload)
+    await loadRows()
+    if (res.status === 'success') {
       addDialogVisible.value = false
       resetAddForm()
       page.value = 1
       ElMessage.success(t('compare.compareSaved'))
+    } else {
+      const msg = res.error_message || t('compare.compareFailed')
+      ElMessage.warning(msg)
     }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : t('compare.compareFailed'))
   } finally {
     dialogSubmitting.value = false
   }
@@ -459,10 +356,6 @@ function onViewResults(row: CompareTableRow) {
 }
 
 async function onDeleteCompare(row: CompareTableRow) {
-  if (row.id.startsWith('demo')) {
-    ElMessage.info(t('compare.deleteDemo'))
-    return
-  }
   try {
     await ElMessageBox.confirm(t('compare.deleteConfirm'), t('layout.logoutTitle'), {
       type: 'warning',
@@ -470,11 +363,15 @@ async function onDeleteCompare(row: CompareTableRow) {
   } catch {
     return
   }
-  deleteCompareRun(row.id)
-  loadRows()
-  ElMessage.success(t('compare.deleteOk'))
-  if (pagedRows.value.length === 0 && page.value > 1) {
-    page.value = Math.max(1, page.value - 1)
+  try {
+    await deleteCompareRunRemote(row.id)
+    await loadRows()
+    ElMessage.success(t('compare.deleteOk'))
+    if (pagedRows.value.length === 0 && page.value > 1) {
+      page.value = Math.max(1, page.value - 1)
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : t('compare.deleteFail'))
   }
 }
 </script>
@@ -511,6 +408,13 @@ async function onDeleteCompare(row: CompareTableRow) {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.toolbar-refresh-square {
+  width: var(--el-component-size);
+  min-width: var(--el-component-size);
+  height: var(--el-component-size);
+  padding: 0;
 }
 
 .compare-table {

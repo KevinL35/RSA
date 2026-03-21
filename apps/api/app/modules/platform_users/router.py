@@ -5,8 +5,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.rbac import get_rsa_role
+from app.core.rbac import get_rsa_role, get_rsa_username_optional
 from app.integrations.supabase import get_supabase, require_supabase
+from app.modules.audit_log.service import audit_actor_name, try_record_audit
 from supabase import Client
 
 from .constants import derive_api_role, normalize_menu_keys
@@ -54,6 +55,13 @@ def platform_login(body: PlatformLoginBody) -> PlatformLoginResponse:
         )
     row, token = result
     role = derive_api_role(row.menu_keys)
+    try_record_audit(
+        sb,
+        username=row.username,
+        menu_key="login",
+        message="平台用户登录成功",
+        detail=None,
+    )
     return PlatformLoginResponse(
         username=row.username,
         role=role,
@@ -75,6 +83,7 @@ def list_platform_users(
 def create_platform_user(
     body: PlatformUserCreateBody,
     _admin: str = Depends(_require_admin),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> PlatformUserRow:
     if not normalize_menu_keys(body.menu_keys):
@@ -83,7 +92,7 @@ def create_platform_user(
             detail={"code": "MENU_KEYS_REQUIRED", "message": "Select at least one visible menu"},
         )
     try:
-        return create_user(
+        row = create_user(
             sb,
             username=body.username,
             password=body.password,
@@ -99,6 +108,14 @@ def create_platform_user(
             ) from e
         log.exception("create_platform_user failed")
         raise HTTPException(status_code=500, detail={"code": "CREATE_FAILED", "message": str(e)}) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="account-permissions",
+        message=f"创建平台账号 {row.username}",
+        detail={"target_user_id": row.id},
+    )
+    return row
 
 
 @users_router.patch("/{user_id}", response_model=PlatformUserRow)
@@ -106,6 +123,7 @@ def update_platform_user(
     user_id: str,
     body: PlatformUserUpdateBody,
     _admin: str = Depends(_require_admin),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> PlatformUserRow:
     uid = user_id.strip()
@@ -137,6 +155,13 @@ def update_platform_user(
         raise HTTPException(status_code=500, detail={"code": "UPDATE_FAILED", "message": str(e)}) from e
     if not row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "User not found"})
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="account-permissions",
+        message=f"更新平台账号 {row.username}",
+        detail={"target_user_id": row.id},
+    )
     return row
 
 
@@ -144,6 +169,7 @@ def update_platform_user(
 def delete_platform_user(
     user_id: str,
     _admin: str = Depends(_require_admin),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> dict[str, bool]:
     uid = user_id.strip()
@@ -152,4 +178,11 @@ def delete_platform_user(
     ok = delete_user(sb, uid)
     if not ok:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "User not found"})
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="account-permissions",
+        message=f"删除平台账号 id={uid}",
+        detail={"target_user_id": uid},
+    )
     return {"ok": True}

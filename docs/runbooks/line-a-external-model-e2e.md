@@ -16,7 +16,7 @@
 
 - 创建任务时可带 `analysis_provider_id`（见 `POST /api/v1/insight-tasks`）。
 - 后端用该 id 在 `ANALYSIS_PROVIDER_ROUTES_JSON` 里查 URL；查不到则回退 `ANALYSIS_PROVIDER_URL`。
-- **建议**：`ROUTES_JSON` 的 key 与前端 **洞悉模型** 配置行的 `id`（如 `ins_builtin`、`cfg_xxx`）一致，这样从「添加商品」创建的任务会打到预期端点。
+- **建议**：`ROUTES_JSON` 的 key 与前端 **洞察模型** 配置行的 `id`（如 `ins_builtin`、`cfg_xxx`）一致，这样从「添加商品」创建的任务会打到预期端点。
 
 示例：
 
@@ -36,7 +36,7 @@ ANALYSIS_PROVIDER_ROUTES_JSON={"ins_builtin":"https://your-llm-gateway/v1/analyz
 
 ## 4. 前端线 A 行为（已实现）
 
-- **洞察分析**列表：`GET /api/v1/insight-tasks` 拉取最近任务；失败时回退示例行并提示。
+- **评论洞察**列表：`GET /api/v1/insight-tasks` 拉取最近任务；失败时回退示例行并提示。
 - **添加商品**：对每条链接解析 ASIN（或截断为 `product_id`）→ 创建任务 → 抓评 → 分析；需 **operator/admin** 角色。
 - **查看结果**：成功任务跳转真实 `taskId`；仍可用 `demo` 看 UI 占位数据。
 

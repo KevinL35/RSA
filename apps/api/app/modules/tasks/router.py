@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.core.rbac import get_rsa_role, get_rsa_username_optional, require_mutator_role
 from app.integrations.supabase import require_supabase
+from app.modules.audit_log.service import audit_actor_name, try_record_audit
 from app.modules.insight_dashboard.service import build_insight_dashboard
 
 from . import state_machine
@@ -106,13 +107,23 @@ def create_insight_task(
     data = res.data
     if not data:
         raise HTTPException(status_code=500, detail="插入成功但未返回数据，请检查 RLS/策略")
-    return enrich_task_for_task_center(data[0])
+    tid = str(data[0]["id"])
+    out = enrich_task_for_task_center(data[0])
+    try_record_audit(
+        sb,
+        username=audit_actor_name(created_by),
+        menu_key="insight",
+        message=f"创建洞察任务 {body.platform.strip()}/{body.product_id.strip()}",
+        detail={"task_id": tid},
+    )
+    return out
 
 
 @router.post("/{task_id}/fetch-reviews")
 def post_fetch_reviews(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """TB-2：按任务 platform/product_id 调用评论抓取 API 并写入 reviews。"""
     try:
@@ -120,7 +131,7 @@ def post_fetch_reviews(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     try:
-        return run_fetch_reviews_for_task(sb, task_id)
+        payload = run_fetch_reviews_for_task(sb, task_id)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -128,12 +139,21 @@ def post_fetch_reviews(
             status_code=500,
             detail=f"抓取流程异常：{e!s}",
         ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"拉取评论 insight_task_id={task_id}",
+        detail={"task_id": str(task_id)},
+    )
+    return payload
 
 
 @router.post("/{task_id}/import-reviews")
 async def post_import_reviews(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     file: UploadFile = File(..., description="评论 Excel（.xlsx / .xls），表头含时间与评论列"),
 ) -> dict:
     """从 Excel 导入评论（仅时间与正文列），替换该任务已有 reviews；pending→running，与抓取后状态一致以便继续 analyze。"""
@@ -149,7 +169,7 @@ async def post_import_reviews(
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"读取上传文件失败：{e!s}") from e
     try:
-        return run_import_reviews_from_excel(
+        payload = run_import_reviews_from_excel(
             sb,
             task_id,
             content,
@@ -162,6 +182,14 @@ async def post_import_reviews(
             status_code=500,
             detail=f"导入评论异常：{e!s}",
         ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"导入评论 Excel insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "filename": (file.filename or "")[:512]},
+    )
+    return payload
 
 
 @router.get("/{task_id}/reviews")
@@ -261,6 +289,7 @@ def get_insight_dashboard(
 def post_insight_task_retry(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """TB-6：幂等重试（failed→pending；已为 pending 则 no-op）。"""
     try:
@@ -268,7 +297,7 @@ def post_insight_task_retry(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     try:
-        return retry_insight_task(sb, task_id)
+        payload = retry_insight_task(sb, task_id)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -276,6 +305,14 @@ def post_insight_task_retry(
             status_code=500,
             detail=f"重试异常：{e!s}",
         ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"重试洞察任务 insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "action": payload.get("action")},
+    )
+    return payload
 
 
 @router.get("/{task_id}/analysis")
@@ -389,6 +426,7 @@ def get_stored_task_analysis(
 def post_analyze_insight_task(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """TB-3：对已抓取评论调用分析源，返回情感/六维/证据结构；成功将任务标为 success。"""
     try:
@@ -396,7 +434,7 @@ def post_analyze_insight_task(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     try:
-        return run_analyze_for_task(sb, task_id)
+        payload = run_analyze_for_task(sb, task_id)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -404,6 +442,14 @@ def post_analyze_insight_task(
             status_code=500,
             detail=f"分析流程异常：{e!s}",
         ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"执行洞察分析 insight_task_id={task_id}",
+        detail={"task_id": str(task_id)},
+    )
+    return payload
 
 
 @router.get("/{task_id}")
@@ -439,6 +485,7 @@ def patch_insight_task(
     task_id: UUID,
     body: InsightTaskPatch,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     try:
         sb = require_supabase()
@@ -500,13 +547,22 @@ def patch_insight_task(
     data = res.data
     if not data:
         raise HTTPException(status_code=500, detail="更新成功但未返回数据，请检查 RLS/策略")
-    return enrich_task_for_task_center(data[0])
+    out = enrich_task_for_task_center(data[0])
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"更新洞察任务状态 → {body.status}（task_id={task_id}）",
+        detail={"task_id": str(task_id), "status": body.status},
+    )
+    return out
 
 
 @router.delete("/{task_id}")
 def delete_insight_task(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """删除任务；关联 reviews / review_analysis / review_dimension_analysis 由库级 ON DELETE CASCADE 清理。"""
     try:
@@ -535,4 +591,11 @@ def delete_insight_task(
             status_code=502,
             detail=f"Supabase 删除失败：{e!s}",
         ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"删除洞察任务 insight_task_id={task_id}",
+        detail={"task_id": str(task_id)},
+    )
     return {"ok": True, "id": str(task_id)}

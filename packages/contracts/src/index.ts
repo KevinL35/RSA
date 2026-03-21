@@ -8,6 +8,7 @@ export type {
   InsightTaskCreateBody,
   InsightTaskListResponse,
   InsightTaskPatchBody,
+  InsightTaskProductSnapshot,
   InsightTaskRow,
   InsightTaskStatus,
 } from './insight-tasks'
@@ -32,6 +33,7 @@ export type {
   InsightDashboardEmptyState,
   InsightDashboardResponse,
   InsightEvidenceItem,
+  InsightTaskProductSnapshot,
   PainRankItem,
 } from './insight-dashboard'
 

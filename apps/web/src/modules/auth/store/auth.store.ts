@@ -8,6 +8,24 @@ const USE_PLATFORM_AUTH_KEY = 'rsa_use_platform_auth'
 
 export type UserRole = 'admin' | 'operator' | 'readonly'
 
+/** 与 apps/api platform_users.constants ADMIN_MENU_KEYS 一致 */
+const ADMIN_MENU_KEYS = new Set([
+  'pain-audit',
+  'dictionary',
+  'api-config',
+  'audit-log',
+  'account-permissions',
+])
+
+export function deriveRoleFromMenuKeys(keys: string[]): UserRole {
+  const ks = new Set(keys.map((k) => k.trim()).filter(Boolean))
+  for (const k of ks) {
+    if (ADMIN_MENU_KEYS.has(k)) return 'admin'
+  }
+  if (ks.has('insight') || ks.has('compare')) return 'operator'
+  return 'readonly'
+}
+
 const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
 const role = ref<UserRole>((localStorage.getItem(ROLE_KEY) as UserRole) || 'readonly')
 const menuKeys = ref<string[]>(readMenuKeysFromStorage())
@@ -50,6 +68,23 @@ export function getStoredUsername(): string {
     return s ? s.trim() : ''
   } catch {
     return ''
+  }
+}
+
+/**
+ * 在「账号权限」中保存 menu_keys 后同步到当前会话，侧栏会立即更新（无需重新登录）。
+ */
+export function syncPlatformMenusFromRemote(keys: string[], usernameNext?: string) {
+  if (!isPlatformMenuAuth()) return
+  const next = [...keys]
+  menuKeys.value = next
+  localStorage.setItem(MENU_KEYS_KEY, JSON.stringify(next))
+  const nextRole = deriveRoleFromMenuKeys(next)
+  role.value = nextRole
+  localStorage.setItem(ROLE_KEY, nextRole)
+  if (usernameNext !== undefined && usernameNext.trim()) {
+    displayUsername.value = usernameNext.trim()
+    localStorage.setItem(USERNAME_KEY, usernameNext.trim())
   }
 }
 

@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     pangolin_sort_by: str = "recent"
     pangolin_parser_name: str = "amzReviewV2"
     pangolin_timeout_seconds: float = 180.0
+    # 拉评时额外调 amzProductDetail（1 积点/次）；失败不阻断评论抓取
+    pangolin_fetch_product_detail: bool = True
+    pangolin_product_zipcode: str = "10041"
+    pangolin_product_parser_name: str = "amzProductDetail"
 
     # TB-3：分析源（POST JSON：insight_task_id, platform, product_id, analysis_provider_id, reviews[]）
     analysis_provider_url: str | None = None

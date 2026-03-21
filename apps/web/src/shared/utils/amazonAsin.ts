@@ -19,6 +19,17 @@ export function looksLikeAmazonProductUrl(link: string): boolean {
 /** 与亚马逊 ASIN 相同的字符数量（10 位字母数字）。 */
 export const AMAZON_ASIN_LENGTH = 10
 
+/**
+ * 是否适合用亚马逊主图 URL 模板（列表缩略图等）。
+ * 排除上传评论生成的 RSAxxxxxxx 等非 ASIN 标识。
+ */
+export function isLikelyAmazonAsin(id: string): boolean {
+  const compact = id.trim().toUpperCase().replace(/\s+/g, '')
+  if (compact.length !== AMAZON_ASIN_LENGTH || !/^[A-Z0-9]{10}$/.test(compact)) return false
+  if (compact.startsWith('RSA')) return false
+  return true
+}
+
 export type ResolveUploadProductIdReason = 'url_no_asin' | 'invalid_format'
 
 const RSA_PREFIX = 'RSA'

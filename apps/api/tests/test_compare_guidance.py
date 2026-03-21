@@ -15,8 +15,8 @@ def test_format_prerequisite_one_side_no_task() -> None:
     d = format_compare_prerequisite_error(raw)
     assert d["code"] == "MISSING_INSIGHT_DATA"
     assert d["missing"] == {"a": True, "b": False}
-    assert "洞察分析" in d["messages"]["zh_CN"]
-    assert "Insight analysis" in d["messages"]["en"]
+    assert "评论洞察" in d["messages"]["zh_CN"]
+    assert "Comment insights" in d["messages"]["en"]
     assert d["next_step"]["route"] == "/insight-analysis"
     assert "guidance" in d
 

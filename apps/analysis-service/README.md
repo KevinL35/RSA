@@ -1,4 +1,4 @@
-# RSA 本地分析服务（评论洞悉 / TA-11）
+# RSA 本地分析服务（评论洞察 / TA-11）
 
 在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py` + `ml/configs/taxonomy_dictionary_seed_v1.yaml`）。
 

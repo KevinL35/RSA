@@ -127,7 +127,12 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '../../auth/store/auth.store'
+import {
+  getStoredUsername,
+  isPlatformMenuAuth,
+  syncPlatformMenusFromRemote,
+  useAuthStore,
+} from '../../auth/store/auth.store'
 import {
   createPlatformUser,
   deletePlatformUser,
@@ -145,6 +150,7 @@ const menuOptions = [
   { key: 'pain-audit', labelKey: 'menu.painAudit' },
   { key: 'dictionary', labelKey: 'menu.dictionary' },
   { key: 'api-config', labelKey: 'menu.apiConfig' },
+  { key: 'audit-log', labelKey: 'menu.auditLog' },
   { key: 'account-permissions', labelKey: 'menu.accountPermissions' },
 ] as const
 
@@ -162,6 +168,8 @@ const addForm = ref({
 
 const editVisible = ref(false)
 const editingId = ref<string | null>(null)
+/** 打开编辑弹窗时的用户名，用于判断是否在改「当前登录用户」的权限 */
+const editOpenedUsername = ref('')
 const editForm = ref({
   username: '',
   password: '',
@@ -222,11 +230,13 @@ function resetAddForm() {
 
 function resetEditForm() {
   editingId.value = null
+  editOpenedUsername.value = ''
   editForm.value = { username: '', password: '', status: 'active', menu_keys: [] }
 }
 
 function openEdit(row: PlatformUserRow) {
   editingId.value = row.id
+  editOpenedUsername.value = row.username.trim()
   editForm.value = {
     username: row.username,
     password: '',
@@ -294,7 +304,10 @@ async function submitEdit() {
     }
     const pw = editForm.value.password.trim()
     if (pw) body.password = pw
-    await updatePlatformUser(id, body)
+    const updated = await updatePlatformUser(id, body)
+    if (isPlatformMenuAuth() && editOpenedUsername.value === getStoredUsername()) {
+      syncPlatformMenusFromRemote(updated.menu_keys ?? [], updated.username)
+    }
     ElMessage.success(t('settings.accSaveOk'))
     editVisible.value = false
     await load()

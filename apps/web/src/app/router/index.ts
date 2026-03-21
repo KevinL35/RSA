@@ -4,7 +4,7 @@ import { i18n } from '../i18n'
 import LoginPage from '../../modules/auth/pages/LoginPage.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import { pathRequiredMenuKey, firstAllowedPath } from '../../modules/auth/routeMenu'
-import { getStoredMenuKeys, isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
+import { isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
 import InsightAnalysisPage from '../../modules/insight/pages/InsightAnalysisPage.vue'
 import InsightResultPage from '../../modules/insight/pages/InsightResultPage.vue'
 import CompareAnalysisPage from '../../modules/compare/pages/CompareAnalysisPage.vue'
@@ -12,6 +12,7 @@ import CompareResultPage from '../../modules/compare/pages/CompareResultPage.vue
 import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
 import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
 import ApiConfigPage from '../../modules/settings/pages/ApiConfigPage.vue'
+import AuditLogPage from '../../modules/settings/pages/AuditLogPage.vue'
 import AccountPermissionsPage from '../../modules/settings/pages/AccountPermissionsPage.vue'
 
 const router = createRouter({
@@ -31,6 +32,7 @@ const router = createRouter({
         { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
         { path: 'task-center', redirect: '/insight-analysis' },
         { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
+        { path: 'system-settings/audit-log', component: AuditLogPage, meta: { allowedRoles: ['admin'] } },
         {
           path: 'system-settings/account-permissions',
           component: AccountPermissionsPage,
@@ -48,7 +50,7 @@ router.beforeEach((to: RouteLocationNormalized) => {
   if (!auth.isLogin()) return { path: '/login', query: { redirect: to.fullPath } }
 
   if (isPlatformMenuAuth()) {
-    const keys = getStoredMenuKeys()
+    const keys = auth.menuKeys.value
     const need = pathRequiredMenuKey(to.path)
     if (need && !keys.includes(need)) {
       ElMessage.warning(i18n.global.t('router.noPermission'))

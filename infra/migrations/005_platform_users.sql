@@ -22,6 +22,6 @@ VALUES (
   'admin',
   '$2b$12$ogCVFZuYrlHwt7RAPTEkeeIEafK2Op96WwPTddzJ9AY3Q94L9kUTG',
   'active',
-  '["insight","compare","pain-audit","dictionary","api-config","account-permissions"]'::jsonb
+  '["insight","compare","pain-audit","dictionary","api-config","audit-log","account-permissions"]'::jsonb
 )
 ON CONFLICT (username) DO NOTHING;

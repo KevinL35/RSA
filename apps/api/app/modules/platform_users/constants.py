@@ -8,13 +8,14 @@ ALLOWED_MENU_KEYS: frozenset[str] = frozenset(
         "pain-audit",
         "dictionary",
         "api-config",
+        "audit-log",
         "account-permissions",
     }
 )
 
 # 任一为真则 API 层视为 admin（与 X-RSA-Role 对齐）
 ADMIN_MENU_KEYS: frozenset[str] = frozenset(
-    {"pain-audit", "dictionary", "api-config", "account-permissions"}
+    {"pain-audit", "dictionary", "api-config", "audit-log", "account-permissions"}
 )
 
 

@@ -15,13 +15,27 @@
           {{ t('insight.uploadReviews') }}
         </el-button>
       </div>
-      <el-button :icon="Refresh" @click="onRefresh" :loading="loading" :title="t('insight.refresh')" />
+      <el-button
+        class="toolbar-refresh-square"
+        :icon="Refresh"
+        @click="onRefresh"
+        :loading="loading"
+        :title="t('insight.refresh')"
+      />
     </div>
 
     <el-table :data="pagedRows" stripe class="insight-table" :empty-text="t('insight.tableEmpty')">
       <el-table-column :label="t('insight.colImage')" width="76" align="center">
         <template #default="{ row }">
-          <el-image :src="row.imageUrl" fit="cover" class="thumb">
+          <el-image
+            :key="`${row.taskId ?? row.asin}-${row.imageUrl}`"
+            :src="row.imageUrl"
+            fit="contain"
+            class="thumb"
+            referrerpolicy="no-referrer"
+            @load="insightThumbLoadHandler(row)"
+            @error="() => onProductImageError(row)"
+          >
             <template #error>
               <div class="thumb thumb--fallback" />
             </template>
@@ -36,6 +50,15 @@
               <el-icon><DocumentCopy /></el-icon>
             </el-button>
           </span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        :label="t('insight.colPrice')"
+        width="108"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">
+          <span class="status-text">{{ row.priceLabel }}</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -78,7 +101,15 @@
             >
               {{ t('insight.downloadReviews') }}
             </el-button>
-            <el-button type="primary" link @click="onViewResults(row)">{{ t('insight.viewResults') }}</el-button>
+            <el-button
+              type="primary"
+              link
+              :disabled="viewResultsDisabled(row)"
+              :title="viewResultsDisabled(row) ? t('insight.viewResultsDisabledHint') : undefined"
+              @click="onViewResults(row)"
+            >
+              {{ t('insight.viewResults') }}
+            </el-button>
             <el-button
               type="danger"
               link
@@ -312,6 +343,7 @@ import { deleteInsightTask, fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import {
   extractAsinFromAmazonUrl,
+  isLikelyAmazonAsin,
   looksLikeAmazonProductUrl,
   resolveProductIdForUploadReviews,
 } from '../../../shared/utils/amazonAsin'
@@ -351,11 +383,16 @@ type InsightProductRow = {
   aiModel: string
   /** 列表紧凑展示（多为模型 id） */
   aiModelList: string
-  reviewStatus: 'fetching' | 'completed'
+  reviewStatus: 'fetching' | 'completed' | 'failed'
   reviewStatusLabel: string
   statusLabel: string
   /** insight_tasks.status，用于操作按钮禁用逻辑 */
   taskStatus?: string
+  /**
+   * 列表缩略图重试阶段：extra 图 → 主 CDN → 备用 CDN → 占位。
+   * Amazon 对无效 ASIN 常返回 200 + 1×1 GIF，需配合 @load 尺寸判断。
+   */
+  imageThumbPhase?: 'extra' | 'amazon_primary' | 'amazon_fallback' | 'exhausted'
   /** 真实洞察任务 UUID；缺省则结果页使用 demo 数据 */
   taskId?: string
   dictionaryVerticalLabel: string
@@ -488,9 +525,11 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       aiModel: demoLine,
       aiModelList: demoList,
       reviewStatus: 'completed',
-      reviewStatusLabel: zh ? '已完成' : 'Completed',
-      statusLabel: zh ? '分析成功' : 'Done',
+      reviewStatusLabel: t('insight.reviewStatus.completed'),
+      statusLabel: t('insight.flowStatus.done'),
+      taskStatus: 'success',
       taskId: 'demo',
+      imageThumbPhase: 'exhausted',
       dictionaryVerticalLabel: zh ? '电子产品' : 'Electronics',
     },
     {
@@ -506,9 +545,11 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       aiModel: demoLine,
       aiModelList: demoList,
       reviewStatus: 'completed',
-      reviewStatusLabel: zh ? '已完成' : 'Completed',
-      statusLabel: zh ? '分析成功' : 'Done',
+      reviewStatusLabel: t('insight.reviewStatus.completed'),
+      statusLabel: t('insight.flowStatus.done'),
+      taskStatus: 'success',
       taskId: 'demo',
+      imageThumbPhase: 'exhausted',
       dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
     },
     {
@@ -524,9 +565,11 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       aiModel: demoLine,
       aiModelList: demoList,
       reviewStatus: 'fetching',
-      reviewStatusLabel: zh ? '获取中' : 'Fetching',
-      statusLabel: zh ? '分析中' : 'Running',
+      reviewStatusLabel: t('insight.reviewStatus.fetching'),
+      statusLabel: t('insight.flowStatus.analyzing'),
+      taskStatus: 'running',
       taskId: 'demo',
+      imageThumbPhase: 'exhausted',
       dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
     },
   ]
@@ -534,12 +577,85 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
 
 const rows = ref<InsightProductRow[]>([])
 
-function taskStatusLabel(status: string) {
-  const k = status as 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
-  if (k === 'pending' || k === 'running' || k === 'success' || k === 'failed' || k === 'cancelled') {
-    return t(`insight.taskStatus.${k}`)
+/** 非真实 ASIN 或双 CDN 均无效时的列表占位（避免 Amazon 200+1×1 GIF 看起来像「没图」） */
+const INSIGHT_LIST_IMAGE_PLACEHOLDER =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><rect fill="#ececec" width="80" height="80"/><g fill="#b0b0b0"><circle cx="40" cy="34" r="10"/><path d="M26 58c0-8 6-14 14-14s14 6 14 14v2H26v-2z"/></g></svg>',
+  )
+
+function isLikelyHttpImageUrl(s: string): boolean {
+  const t = s.trim().toLowerCase()
+  return t.startsWith('https://') || t.startsWith('http://') || t.startsWith('data:image/')
+}
+
+/** 美国站主图：先试 m.media-amazon，失败由 @error / 1×1 检测切 ssl-images-na */
+function amazonUsImageUrlPrimary(productId: string): string {
+  const asin = encodeURIComponent(productId.trim())
+  return `https://m.media-amazon.com/images/P/${asin}.01._AC_SL80_.jpg`
+}
+
+function amazonUsImageUrlFallback(productId: string): string {
+  const asin = encodeURIComponent(productId.trim())
+  return `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SX80_.jpg`
+}
+
+function bumpInsightListImage(row: InsightProductRow) {
+  const asin = row.asin.trim()
+  const phase = row.imageThumbPhase ?? 'exhausted'
+  switch (phase) {
+    case 'extra':
+      if (isLikelyAmazonAsin(asin)) {
+        row.imageUrl = amazonUsImageUrlPrimary(asin)
+        row.imageThumbPhase = 'amazon_primary'
+      } else {
+        row.imageUrl = INSIGHT_LIST_IMAGE_PLACEHOLDER
+        row.imageThumbPhase = 'exhausted'
+      }
+      break
+    case 'amazon_primary':
+      row.imageUrl = amazonUsImageUrlFallback(asin)
+      row.imageThumbPhase = 'amazon_fallback'
+      break
+    case 'amazon_fallback':
+      row.imageUrl = INSIGHT_LIST_IMAGE_PLACEHOLDER
+      row.imageThumbPhase = 'exhausted'
+      break
+    default:
+      break
   }
-  return status
+}
+
+function onProductImageError(row: InsightProductRow) {
+  bumpInsightListImage(row)
+}
+
+const insightThumbLoadHandlers = new WeakMap<InsightProductRow, (e: Event) => void>()
+
+function insightThumbLoadHandler(row: InsightProductRow) {
+  let fn = insightThumbLoadHandlers.get(row)
+  if (!fn) {
+    fn = (e: Event) => {
+      const el = e.target as HTMLImageElement | null
+      if (!el) return
+      if (el.naturalWidth > 1 && el.naturalHeight > 1) return
+      bumpInsightListImage(row)
+    }
+    insightThumbLoadHandlers.set(row, fn)
+  }
+  return fn
+}
+
+/** 洞察状态展示：分析中 / 已完成 / 失败（合并 pending+running → 分析中） */
+function flowInsightStatusLabel(status: string): string {
+  const key = classifyInsightFlowStatus(status)
+  return t(`insight.flowStatus.${key}`)
+}
+
+function classifyInsightFlowStatus(status: string): 'analyzing' | 'done' | 'failed' {
+  if (status === 'success') return 'done'
+  if (status === 'failed' || status === 'cancelled') return 'failed'
+  return 'analyzing'
 }
 
 function displayProviderLabel(providerId: string | null) {
@@ -551,24 +667,53 @@ function formatTaskTime(iso: string) {
   return iso.slice(0, 19).replace('T', ' ')
 }
 
+function reviewStatusFromTask(task: InsightTaskRow): 'fetching' | 'completed' | 'failed' {
+  if (task.status === 'failed') {
+    const fs = (task.failure_stage || '').trim().toLowerCase()
+    if (fs === 'fetch') return 'failed'
+    return 'completed'
+  }
+  if (task.status === 'success') return 'completed'
+  return 'fetching'
+}
+
 function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
-  const reviewStatus: 'fetching' | 'completed' = task.status === 'success' ? 'completed' : 'fetching'
+  const rs = reviewStatusFromTask(task)
   const full = displayProviderLabel(task.analysis_provider_id)
+  const pid = task.product_id.trim()
+  const useAmazonThumb = isLikelyAmazonAsin(pid)
+  const snap = task.product_snapshot
+  const snapTitle = typeof snap?.title === 'string' ? snap.title.trim() : ''
+  const snapImg = typeof snap?.image_url === 'string' ? snap.image_url.trim() : ''
+  const snapPrice = typeof snap?.price_display === 'string' ? snap.price_display.trim() : ''
+  let imageUrl: string
+  let imageThumbPhase: InsightProductRow['imageThumbPhase']
+  if (snapImg) {
+    imageUrl = snapImg
+    imageThumbPhase = 'exhausted'
+  } else if (useAmazonThumb) {
+    imageUrl = amazonUsImageUrlPrimary(pid)
+    imageThumbPhase = 'amazon_primary'
+  } else {
+    imageUrl = INSIGHT_LIST_IMAGE_PLACEHOLDER
+    imageThumbPhase = 'exhausted'
+  }
   return {
-    imageUrl: `https://images-na.ssl-images-amazon.com/images/P/${encodeURIComponent(task.product_id)}.01._SX80_.jpg`,
+    imageUrl,
+    imageThumbPhase,
     asin: task.product_id,
-    title: task.product_id,
+    title: snapTitle || task.product_id,
     countryLabel: '—',
-    priceLabel: '—',
+    priceLabel: snapPrice || '—',
     rating: 0,
     reviewCount: 0,
     creator: creatorForTask(task),
     createdAt: formatTaskTime(task.created_at),
     aiModel: full,
     aiModelList: formatInsightModelShort(task.analysis_provider_id, insightApiConfigRows.value, t),
-    reviewStatus,
-    reviewStatusLabel: reviewStatusLabel(reviewStatus),
-    statusLabel: taskStatusLabel(task.status),
+    reviewStatus: rs,
+    reviewStatusLabel: reviewStatusLabel(rs),
+    statusLabel: flowInsightStatusLabel(task.status),
     taskStatus: task.status,
     taskId: task.id,
     dictionaryVerticalLabel: verticalLabelForTask(task.dictionary_vertical_id),
@@ -597,7 +742,7 @@ function currentCreatorLabel(): string {
   return 'Read-only'
 }
 
-function reviewStatusLabel(status: 'fetching' | 'completed') {
+function reviewStatusLabel(status: 'fetching' | 'completed' | 'failed') {
   return t(`insight.reviewStatus.${status}`)
 }
 
@@ -664,26 +809,50 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
           pickFromExtra(extras, ['productTitle', 'product_title', 'title', 'name']) ?? '',
           row.title,
         ])
-        const image = pickFirstString([
-          pickFromExtra(extras, ['productImage', 'product_image', 'image', 'imageUrl', 'image_url']) ?? '',
-          row.imageUrl,
+        const rawExtraImg = pickFromExtra(extras, [
+          'productImage',
+          'product_image',
+          'image',
+          'imageUrl',
+          'image_url',
         ])
+        const extraImage =
+          rawExtraImg && isLikelyHttpImageUrl(rawExtraImg) ? rawExtraImg.trim() : null
+        const image = pickFirstString([extraImage ?? '', row.imageUrl])
         const country = parseCountryLabel(
           pickFromExtra(extras, ['country', 'marketplace', 'site', 'region']) ??
             (task.platform === 'amazon' ? 'United States' : ''),
         )
-        const price = parsePriceLabel(
-          pickFromExtra(extras, ['price', 'productPrice', 'product_price', 'finalPrice']) ?? '',
-        )
+        const rawPrice = pickFromExtra(extras, [
+          'price',
+          'productPrice',
+          'product_price',
+          'finalPrice',
+          'price_display',
+        ])
 
         row.title = title ?? row.title
         row.imageUrl = image ?? row.imageUrl
+        if (extraImage) {
+          row.imageThumbPhase = 'extra'
+        }
         row.countryLabel = country
-        row.priceLabel = price
+        // 评论 extra 里通常没有商品价：勿用「空」覆盖 product_snapshot 已展示的售价
+        if (rawPrice && rawPrice.trim()) {
+          row.priceLabel = parsePriceLabel(rawPrice)
+        }
         row.rating = avgRating(items)
         row.reviewCount = items.length
-        row.reviewStatus = items.length > 0 ? 'completed' : 'fetching'
+        const fs = (task.failure_stage || '').trim().toLowerCase()
+        if (items.length > 0) {
+          row.reviewStatus = 'completed'
+        } else if (task.status === 'failed' && fs === 'fetch') {
+          row.reviewStatus = 'failed'
+        } else {
+          row.reviewStatus = 'fetching'
+        }
         row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
+        row.statusLabel = flowInsightStatusLabel(task.status)
       } catch {
         // Ignore per-row hydration errors to keep list render resilient.
       }
@@ -993,20 +1162,29 @@ async function copyAsin(asin: string) {
   }
 }
 
+function viewResultsDisabled(row: InsightProductRow): boolean {
+  const s = row.taskStatus
+  return s === 'pending' || s === 'running'
+}
+
 function onViewResults(row: InsightProductRow) {
   const tid = row.taskId ?? 'demo'
+  const q: Record<string, string> = {
+    title: row.title,
+    asin: row.asin,
+    country: row.countryLabel,
+    price: row.priceLabel,
+    rating: row.rating > 0 ? String(row.rating) : '',
+    reviews: String(row.reviewCount),
+    model: row.aiModel,
+    analyzedAt: row.createdAt,
+  }
+  if (row.imageUrl && isLikelyHttpImageUrl(row.imageUrl)) {
+    q.imageUrl = row.imageUrl
+  }
   void router.push({
     path: `/insight-analysis/result/${encodeURIComponent(tid)}`,
-    query: {
-      title: row.title,
-      asin: row.asin,
-      country: row.countryLabel,
-      price: row.priceLabel,
-      rating: row.rating > 0 ? String(row.rating) : '',
-      reviews: String(row.reviewCount),
-      model: row.aiModel,
-      analyzedAt: row.createdAt,
-    },
+    query: q,
   })
 }
 
@@ -1049,8 +1227,21 @@ function onViewResults(row: InsightProductRow) {
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Element Plus 相邻按钮默认有 margin-left（约 12px），会盖掉 flex gap；清零后 gap 才生效 */
+.toolbar-left :deep(.el-button) {
+  margin-inline: 0;
+}
+
+/* 仅图标的刷新：与默认按钮同高的正方形外框 */
+.toolbar-refresh-square {
+  width: var(--el-component-size);
+  min-width: var(--el-component-size);
+  height: var(--el-component-size);
+  padding: 0;
 }
 
 .upload-reviews-intro {
@@ -1210,6 +1401,12 @@ function onViewResults(row: InsightProductRow) {
   height: 48px;
   border-radius: 6px;
   display: block;
+  background: var(--el-fill-color-light);
+  box-sizing: border-box;
+}
+
+.thumb :deep(.el-image__inner) {
+  object-position: center;
 }
 
 .thumb--fallback {

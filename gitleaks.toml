@@ -1,4 +1,4 @@
-# 本地/CI 运行（须指定本配置，否则不会应用下方 allowlist）:
+# 本地/CI 运行（须指定本配置）:
 #   gitleaks detect --source . -c gitleaks.toml --verbose
 # 文档: https://github.com/gitleaks/gitleaks
 
@@ -6,9 +6,3 @@ title = "RSA"
 
 [extend]
 useDefault = true
-
-[allowlist]
-description = "非密钥：前端 localStorage 键名，易被 generic-api-key 误报"
-paths = [
-  '''apps/web/src/modules/compare/compareRuns.storage.ts''',
-]

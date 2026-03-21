@@ -58,25 +58,7 @@ import BilingualBlock from '../../../shared/components/BilingualBlock.vue'
 import { isEnglishLocale } from '../../../app/i18n'
 import { translateAnalysisText } from '../../../shared/services/translateApi'
 import type { CompareProductsResponse } from '../types'
-import { getCompareRunById } from '../compareRuns.storage'
-
-const DEMO_RESULT: CompareProductsResponse = {
-  product_a: { platform: 'amazon', product_id: 'B0XXXXTEST1', insight_task_id: 'demo' },
-  product_b: { platform: 'amazon', product_id: 'B0XXXXTEST2', insight_task_id: 'demo' },
-  sentiment: {
-    a: { positive: 620, neutral: 110, negative: 45 },
-    b: { positive: 480, neutral: 140, negative: 95 },
-    delta: { positive: 140, neutral: -30, negative: -50 },
-  },
-  conclusion_cards: [
-    {
-      kind: 'demo',
-      title: 'Positive sentiment skew',
-      detail:
-        'Product A shows a higher share of positive mentions in stored reviews than product B in this sample.',
-    },
-  ],
-}
+import { fetchCompareRunDetail } from '../api'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -135,7 +117,7 @@ function goBack() {
   void router.push('/compare-analysis')
 }
 
-function hydrate() {
+async function hydrate() {
   loading.value = true
   notFound.value = false
   result.value = null
@@ -146,34 +128,24 @@ function hydrate() {
       notFound.value = true
       return
     }
-    if (id === 'demo-3') {
-      failedMessage.value = t('compare.demoFailedSample')
-      return
-    }
-    if (id.startsWith('demo')) {
-      result.value = DEMO_RESULT
-      return
-    }
-    const row = getCompareRunById(id)
-    if (!row) {
-      notFound.value = true
-      return
-    }
+    const row = await fetchCompareRunDetail(id)
     if (row.status === 'failed') {
       failedMessage.value = row.error_message || t('compare.statusFailed')
       return
     }
     if (row.result) {
-      result.value = row.result
+      result.value = row.result as CompareProductsResponse
       return
     }
+    notFound.value = true
+  } catch {
     notFound.value = true
   } finally {
     loading.value = false
   }
 }
 
-watch(compareId, () => hydrate(), { immediate: true })
+watch(compareId, () => void hydrate(), { immediate: true })
 </script>
 
 <style scoped>

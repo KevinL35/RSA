@@ -108,6 +108,28 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
     if insert_rows:
         sb.table("reviews").insert(insert_rows).execute()
 
+    mode = (settings.review_provider_mode or "http").strip().lower()
+    if (
+        mode == "pangolin"
+        and platform.strip().lower() == "amazon"
+        and settings.pangolin_fetch_product_detail
+        and not settings.review_provider_mock
+    ):
+        from app.integrations.review_provider.pangolin_product import (
+            try_fetch_pangolin_product_snapshot_optional,
+        )
+
+        product_snapshot = try_fetch_pangolin_product_snapshot_optional(
+            platform, product_id, settings=settings
+        )
+        if product_snapshot:
+            sb.table("insight_tasks").update(
+                {
+                    "product_snapshot": product_snapshot,
+                    "updated_at": _utc_now_iso(),
+                }
+            ).eq("id", str(task_id)).execute()
+
     fresh = (
         sb.table("insight_tasks")
         .select("*")

@@ -225,7 +225,8 @@ onMounted(async () => {
 }
 
 .config-block--intro {
-  padding: 16px 20px 18px;
+  /* 与接口配置 ApiConfigPage 顶部模块一致 */
+  padding: 16px 20px;
 }
 
 .intro-head {
@@ -258,9 +259,9 @@ onMounted(async () => {
 }
 
 .intro-text {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--el-text-color-regular);
 }
 

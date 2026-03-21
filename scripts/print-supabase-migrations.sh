@@ -17,6 +17,9 @@ FILES=(
   infra/migrations/004_insight_tasks_dictionary_vertical.sql
   infra/migrations/005_platform_users.sql
   infra/migrations/006_insight_tasks_created_by.sql
+  infra/migrations/007_compare_runs.sql
+  infra/migrations/008_insight_tasks_product_snapshot.sql
+  infra/migrations/009_audit_logs.sql
 )
 
 echo "-- RSA infra migrations bundle (empty project)"

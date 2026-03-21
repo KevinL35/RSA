@@ -60,7 +60,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { APP_MENUS, type MenuItem } from '../config/menu.config'
-import { getStoredMenuKeys, isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
+import { isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
 
 const { t } = useI18n()
 
@@ -71,7 +71,8 @@ const auth = useAuthStore()
 
 function menuVisible(item: MenuItem): boolean {
   if (isPlatformMenuAuth()) {
-    const keys = getStoredMenuKeys()
+    // 依赖 auth.menuKeys，账号权限保存后会触发重算（勿仅用 getStoredMenuKeys，否则非响应式）
+    const keys = auth.menuKeys.value
     if (keys.length === 0) return false
     return keys.includes(item.key)
   }

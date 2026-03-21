@@ -66,6 +66,8 @@ def build_insight_dashboard(
         "task_status": status,
         "analysis_provider_id": task.get("analysis_provider_id"),
         "analyzed_at": task.get("updated_at"),
+        "product_snapshot": task.get("product_snapshot"),
+        "dictionary_vertical_id": task.get("dictionary_vertical_id") or "general",
     }
 
     empty_template = {

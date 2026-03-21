@@ -36,6 +36,16 @@ export type ReviewTimeseriesPoint = {
   count: number
 }
 
+/** 与 insight_tasks.product_snapshot / contracts 对齐 */
+export type InsightTaskProductSnapshot = {
+  title?: string | null
+  image_url?: string | null
+  price_display?: string | null
+  asin?: string | null
+  source?: string | null
+  fetched_at?: string | null
+}
+
 export type InsightDashboardResponse = {
   insight_task_id: string
   platform: string
@@ -43,6 +53,8 @@ export type InsightDashboardResponse = {
   task_status: string
   analysis_provider_id?: string | null
   analyzed_at?: string | null
+  product_snapshot?: InsightTaskProductSnapshot | null
+  dictionary_vertical_id?: string | null
   empty_state: InsightDashboardEmptyState | null
   dimension_counts: Partial<Record<Dimension6Key, number>>
   pain_ranking: PainRankItem[]

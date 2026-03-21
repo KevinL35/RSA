@@ -7,6 +7,16 @@ export type InsightTaskStatus =
   | 'failed'
   | 'cancelled'
 
+/** Pangolin amzProductDetail 等写入 insight_tasks.product_snapshot */
+export type InsightTaskProductSnapshot = {
+  title?: string | null
+  image_url?: string | null
+  price_display?: string | null
+  asin?: string | null
+  source?: string | null
+  fetched_at?: string | null
+}
+
 export type InsightTaskRow = {
   id: string
   platform: string
@@ -22,6 +32,7 @@ export type InsightTaskRow = {
   failure_stage: string | null
   created_at: string
   updated_at: string
+  product_snapshot?: InsightTaskProductSnapshot | null
 }
 
 export type InsightTaskListResponse = {

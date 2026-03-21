@@ -1,4 +1,10 @@
-import { apiBaseUrl, getStoredRole } from '../../shared/services/api'
+import {
+  apiBaseUrl,
+  apiDeleteJson,
+  apiGetJson,
+  apiPostJson,
+  getStoredRole,
+} from '../../shared/services/api'
 import type { ComparePrerequisiteErrorDetail, CompareProductsResponse } from './types'
 
 export type CompareQuery = {
@@ -56,4 +62,45 @@ export async function fetchCompareProducts(q: CompareQuery): Promise<CompareProd
     throw new Error(msg || `HTTP ${res.status}`)
   }
   return data as CompareProductsResponse
+}
+
+export type CompareRunListItem = {
+  id: string
+  platform_a: string
+  product_id_a: string
+  platform_b: string
+  product_id_b: string
+  creator: string
+  created_at: string
+  model_id: string | null
+  model_label: string | null
+  status: 'success' | 'failed'
+  error_message: string | null
+}
+
+export type CompareRunDetail = CompareRunListItem & {
+  result: CompareProductsResponse | null
+}
+
+export async function fetchCompareRunsList(limit = 200): Promise<{ items: CompareRunListItem[] }> {
+  return apiGetJson<{ items: CompareRunListItem[] }>(`/api/v1/compare/runs?limit=${limit}`)
+}
+
+export async function fetchCompareRunDetail(id: string): Promise<CompareRunDetail> {
+  return apiGetJson<CompareRunDetail>(`/api/v1/compare/runs/${encodeURIComponent(id)}`)
+}
+
+export async function createCompareRun(body: {
+  platform_a: string
+  product_id_a: string
+  platform_b: string
+  product_id_b: string
+  model_id?: string | null
+  model_label?: string | null
+}): Promise<{ id: string; status: 'success' | 'failed'; error_message: string | null }> {
+  return apiPostJson(`/api/v1/compare/runs`, body)
+}
+
+export async function deleteCompareRunRemote(id: string): Promise<{ ok: boolean }> {
+  return apiDeleteJson<{ ok: boolean }>(`/api/v1/compare/runs/${encodeURIComponent(id)}`)
 }

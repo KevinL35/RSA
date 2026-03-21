@@ -4,6 +4,15 @@ export type TaskCenterError = {
   message: string | null
 }
 
+export type InsightTaskProductSnapshot = {
+  title?: string | null
+  image_url?: string | null
+  price_display?: string | null
+  asin?: string | null
+  source?: string | null
+  fetched_at?: string | null
+}
+
 export type InsightTaskRow = {
   id: string
   platform: string
@@ -18,6 +27,8 @@ export type InsightTaskRow = {
   failure_stage: string | null
   created_at: string
   updated_at: string
+  /** Pangolin 商品详情等 */
+  product_snapshot?: InsightTaskProductSnapshot | null
   /** TB-6：失败任务结构化错误；非失败为 null */
   error?: TaskCenterError | null
 }

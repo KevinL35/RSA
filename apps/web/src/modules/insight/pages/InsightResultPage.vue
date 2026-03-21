@@ -27,39 +27,59 @@
     />
 
     <section class="result-header-card">
-      <div class="result-header-body">
-        <div class="result-header-title-row">
-          <h1 class="result-main-title">{{ mainAsinTitle }}</h1>
-          <button type="button" class="rsa-text-back-btn" @click="goBack">
-            {{ t('insightResult.back') }}
-          </button>
+      <div class="result-header-inner">
+        <div v-if="headerProductImageUrl" class="result-header-thumb">
+          <el-image
+            :src="headerProductImageUrl"
+            fit="contain"
+            referrerpolicy="no-referrer"
+            class="result-header-thumb-img"
+          >
+            <template #error>
+              <div class="result-header-thumb-fallback" />
+            </template>
+          </el-image>
         </div>
-        <p class="result-meta-line">{{ metaSubtitle }}</p>
+        <div class="result-header-body">
+          <div class="result-header-title-row">
+            <h1 class="result-main-title">{{ mainAsinTitle }}</h1>
+            <button type="button" class="rsa-text-back-btn" @click="goBack">
+              {{ t('insightResult.back') }}
+            </button>
+          </div>
+          <p class="result-meta-line">{{ metaSubtitle }}</p>
+        </div>
       </div>
     </section>
 
     <section class="dim-grid">
-      <div v-for="dim in dimensionOrder" :key="dim" class="dim-card">
+      <div
+        v-for="dim in dimensionOrder"
+        :key="dim"
+        class="dim-card"
+        role="button"
+        tabindex="0"
+        @click="openCardExpand(dim)"
+        @keydown.enter.prevent="openCardExpand(dim)"
+        @keydown.space.prevent="openCardExpand(dim)"
+      >
         <div class="dim-card-head">
           <span class="dim-tag" :class="`dim-tag--${dim}`">{{ dimTitle(dim) }}</span>
-          <div class="dim-card-head-right">
-            <span class="dim-metric-label">{{ t('insightResult.cardReviewCount') }}</span>
-            <span class="dim-metric-label">{{ t('insightResult.cardShare') }}</span>
-            <el-button
-              type="primary"
-              link
-              class="dim-expand"
-              :icon="FullScreen"
-              @click="openCardExpand(dim)"
-            />
+          <div class="dim-card-head-right dim-metrics-cols">
+            <span class="dim-metric-label dim-metric-cell dim-metric-cell--count">{{
+              t('insightResult.cardReviewCount')
+            }}</span>
+            <span class="dim-metric-label dim-metric-cell dim-metric-cell--share">{{
+              t('insightResult.cardShare')
+            }}</span>
           </div>
         </div>
         <div class="dim-card-body">
           <template v-if="cardRows(dim).length">
             <div v-for="(row, idx) in cardRows(dim)" :key="idx" class="dim-row">
               <span class="dim-row-label" :title="row.label">{{ row.label }}</span>
-              <span class="dim-row-num">{{ row.count }}</span>
-              <span class="dim-row-num">{{ row.pct }}%</span>
+              <span class="dim-row-num dim-metric-cell dim-metric-cell--count">{{ row.count }}</span>
+              <span class="dim-row-num dim-metric-cell dim-metric-cell--share">{{ row.pct }}%</span>
             </div>
           </template>
           <div v-else class="dim-empty">{{ t('insightResult.cardEmpty') }}</div>
@@ -72,15 +92,12 @@
         <div class="wordcloud-panel-head">
           <h3 class="subpanel-title">{{ t('insightResult.wordCloudTitle') }}</h3>
           <el-select v-model="wordCloudDimension" class="wordcloud-dim-select" filterable>
+            <el-option :label="t('insightResult.wordCloudDimAll')" value="all" />
             <el-option v-for="d in dimensionOrder" :key="d" :label="dimTitle(d)" :value="d" />
           </el-select>
         </div>
         <div class="wordcloud-body">
-          <WordCloudChart
-            v-if="wordCloudItems.length > 0"
-            :items="wordCloudItems"
-            :colors="wordCloudColors"
-          />
+          <WordCloudChart v-if="wordCloudItems.length > 0" :items="wordCloudItems" />
           <div v-else class="wordcloud-empty">{{ t('insightResult.wordCloudEmpty') }}</div>
         </div>
       </div>
@@ -129,7 +146,7 @@
               <div class="evidence-block-head">
                 <span class="evidence-time">{{ formatReviewDateTime(ev) }}</span>
                 <button
-                  v-if="evidenceLayoutFor(ev) === 'long'"
+                  v-if="evidenceHasQuoteText(ev)"
                   type="button"
                   class="evidence-toggle"
                   @click="toggleEvidenceExpand(ev)"
@@ -142,12 +159,7 @@
                 </button>
               </div>
               <div class="evidence-quote-wrap">
-                <div
-                  :ref="(el) => bindEvidenceQuoteEl(ev, el)"
-                  class="evidence-quote"
-                  :class="evidenceQuoteClass(ev)"
-                  v-html="highlightEvidence(ev)"
-                />
+                <div class="evidence-quote" :class="evidenceQuoteClass(ev)" v-html="highlightEvidence(ev)" />
               </div>
             </div>
           </template>
@@ -184,13 +196,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { FullScreen } from '@element-plus/icons-vue'
 import ReviewTrendChart from '../components/ReviewTrendChart.vue'
 import WordCloudChart from '../components/WordCloudChart.vue'
 import { fetchInsightDashboard } from '../api'
+import { fetchTaxonomyPreview, type TaxonomyPreviewResponse } from '../../dictionary/api'
 import type {
   Dimension6Key,
   InsightDashboardResponse,
@@ -198,9 +210,6 @@ import type {
   PainRankItem,
   ReviewTimeseriesPoint,
 } from '../dashboardTypes'
-
-/** 证据评论实测布局：pending 测量中（先按三行裁剪）；short 不超过三行；long 超过三行可展开 */
-type EvidenceQuoteLayout = 'pending' | 'short' | 'long'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -218,14 +227,49 @@ const dimensionOrder: Dimension6Key[] = [
 /** 痛点排行榜仅统计「缺点」「退货原因」两维 */
 const painRankingDimensions: Dimension6Key[] = ['cons', 'return_reasons']
 
-/** 词云按维度着色（与六维卡片标签色系一致） */
+/**
+ * 词云色阶（与 dim-tag 同色相、略深，白底可读）
+ * 六维语义：绿=优点、琥珀=缺点、玫红=退货、蓝=购买动机、青=期望、紫=场景
+ */
 const WORDCLOUD_PALETTES: Record<Dimension6Key, string[]> = {
-  pros: ['#15803d', '#22c55e', '#4ade80', '#166534', '#86efac'],
-  cons: ['#ca8a04', '#eab308', '#facc15', '#a16207', '#fde047'],
-  return_reasons: ['#b91c1c', '#dc2626', '#ef4444', '#f87171', '#991b1b'],
-  purchase_motivation: ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#1e40af'],
-  user_expectation: ['#0e7490', '#0891b2', '#06b6d4', '#22d3ee', '#155e75'],
-  usage_scenario: ['#4f46e5', '#6366f1', '#818cf8', '#4338ca', '#a5b4fc'],
+  pros: ['#047857', '#059669', '#10b981', '#34d399', '#6ee7b7'],
+  cons: ['#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fcd34d'],
+  return_reasons: ['#be123c', '#e11d48', '#f43f5e', '#fb7185', '#fda4af'],
+  purchase_motivation: ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'],
+  user_expectation: ['#0e7490', '#0891b2', '#06b6d4', '#22d3ee', '#67e8f9'],
+  usage_scenario: ['#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd'],
+}
+
+function hashKeywordHue(keyword: string): number {
+  let h = 0
+  for (let i = 0; i < keyword.length; i++) h = (h * 31 + keyword.charCodeAt(i)) >>> 0
+  return h
+}
+
+/** 同一维度内用关键词哈希取色阶，避免整朵词云单色 */
+function pickWordCloudColor(keyword: string, dim: Dimension6Key): string {
+  const palette = WORDCLOUD_PALETTES[dim]
+  if (!palette?.length) return '#047857'
+  return palette[hashKeywordHue(keyword) % palette.length]!
+}
+
+/** 从 pain_ranking 行解析「主维度」（与 dimensionOrder 优先级一致） */
+function primaryDimensionFromRankDims(dims: string[]): Dimension6Key {
+  for (const d of dimensionOrder) {
+    if (dims.includes(d)) return d
+  }
+  const first = dims[0]
+  if (first && dimensionOrder.includes(first as Dimension6Key)) return first as Dimension6Key
+  return 'pros'
+}
+
+function primaryDimensionForPainKeyword(keyword: string): Dimension6Key {
+  const dash = dashboard.value
+  if (!dash?.pain_ranking?.length) return 'pros'
+  const low = keyword.trim().toLowerCase()
+  const row = dash.pain_ranking.find((p) => p.keyword.trim().toLowerCase() === low)
+  if (!row?.dimensions?.length) return 'pros'
+  return primaryDimensionFromRankDims(row.dimensions)
 }
 
 const MOCK_DASHBOARD: InsightDashboardResponse = {
@@ -235,6 +279,11 @@ const MOCK_DASHBOARD: InsightDashboardResponse = {
   task_status: 'success',
   analysis_provider_id: 'ins_builtin',
   analyzed_at: '2026-03-21T08:45:28.000Z',
+  product_snapshot: {
+    title: 'Demo product',
+    image_url: 'https://picsum.photos/seed/insight-result/144/144',
+  },
+  dictionary_vertical_id: 'general',
   empty_state: null,
   dimension_counts: {
     pros: 186,
@@ -266,7 +315,12 @@ const MOCK_DASHBOARD: InsightDashboardResponse = {
         highlight_spans: [],
         review_id: 'rev-demo-8821',
         insight_task_id: 'demo',
-        review: { raw_text: 'The battery drains faster than expected when using multiple ports.', rating: 3, reviewed_at: '2026-03-10' },
+        review: {
+          raw_text:
+            'The battery drains faster than expected when using multiple ports. After two weeks of daily use with a laptop and phone plugged in, I have to recharge the unit twice a day. Compared with my older Anker brick this is disappointing, especially given the price point and the marketing around all-day power.',
+          rating: 3,
+          reviewed_at: '2026-03-10',
+        },
       },
       {
         id: 'e2',
@@ -305,11 +359,15 @@ const MOCK_DASHBOARD: InsightDashboardResponse = {
 const loading = ref(false)
 const errorMsg = ref('')
 const dashboard = ref<InsightDashboardResponse | null>(null)
+/** 当前任务词典垂直下的 taxonomy，用于证据句同义词高亮 */
+const taxonomyPreview = ref<TaxonomyPreviewResponse | null>(null)
 
 const taskId = computed(() => String(route.params.taskId || ''))
 const isDemo = computed(() => taskId.value === 'demo')
 
-const wordCloudDimension = ref<Dimension6Key>('cons')
+type WordCloudDimFilter = 'all' | Dimension6Key
+
+const wordCloudDimension = ref<WordCloudDimFilter>('all')
 const painListDimension = ref<Dimension6Key>('pros')
 const selectedKeyword = ref<string | null>(null)
 const evidencePage = ref(1)
@@ -319,7 +377,6 @@ const expandVisible = ref(false)
 const expandDim = ref<Dimension6Key | null>(null)
 
 const evidenceExpandedIds = ref<Set<string>>(new Set())
-const evidenceLayoutById = ref<Map<string, EvidenceQuoteLayout>>(new Map())
 
 const emptyState = computed(() => dashboard.value?.empty_state ?? null)
 
@@ -356,6 +413,25 @@ const analyzedAtFormatted = computed(() => {
   return formatLocalDateTime(new Date().toISOString())
 })
 
+function isHeaderImageUrl(s: string): boolean {
+  const x = s.trim().toLowerCase()
+  return x.startsWith('https://') || x.startsWith('http://') || x.startsWith('data:image/')
+}
+
+/** 主图：优先接口 product_snapshot，其次列表跳转带来的 query.imageUrl */
+const headerProductImageUrl = computed(() => {
+  if (isDemo.value) {
+    const u = MOCK_DASHBOARD.product_snapshot?.image_url
+    return typeof u === 'string' && isHeaderImageUrl(u) ? u.trim() : ''
+  }
+  const snap = dashboard.value?.product_snapshot
+  const fromApi = typeof snap?.image_url === 'string' ? snap.image_url.trim() : ''
+  if (fromApi && isHeaderImageUrl(fromApi)) return fromApi
+  const q = (route.query.imageUrl as string | undefined)?.trim()
+  if (q && isHeaderImageUrl(q)) return q
+  return ''
+})
+
 const metaSubtitle = computed(() =>
   t('insightResult.headerMetaLine', {
     model: insightModelDisplay.value,
@@ -381,11 +457,12 @@ function cardRows(dim: Dimension6Key): { label: string; count: number; pct: numb
   const dash = dashboard.value
   if (!dash) return []
   const items = painForDimension(dim, dash.pain_ranking)
-  const sum = items.reduce((s, x) => s + x.count, 0) || 1
+  /** 占比分母：全量 pain_ranking 频次之和（整体），非单维度内合计 */
+  const globalTotal = dash.pain_ranking.reduce((s, p) => s + p.count, 0) || 1
   return items.map((x) => ({
     label: x.keyword,
     count: x.count,
-    pct: Math.round((x.count / sum) * 100),
+    pct: Math.round((x.count / globalTotal) * 100),
   }))
 }
 
@@ -418,6 +495,16 @@ function keywordsAggregatedForDimension(dim: Dimension6Key): { keyword: string; 
     .sort((a, b) => b.count - a.count)
 }
 
+/** 词云「全部」：使用排行榜全量关键词（与后端 pain_ranking 一致，不按维度过滤） */
+function keywordsAggregatedAllDimensions(): { keyword: string; count: number }[] {
+  const dash = dashboard.value
+  if (!dash?.pain_ranking?.length) return []
+  return dash.pain_ranking
+    .map((p) => ({ keyword: p.keyword.trim(), count: p.count }))
+    .filter((x) => x.keyword)
+    .sort((a, b) => b.count - a.count)
+}
+
 const rankingTableRows = computed(() => {
   const dash = dashboard.value
   if (!dash) return []
@@ -435,15 +522,22 @@ const rankingTableRows = computed(() => {
   })
 })
 
-const wordCloudItems = computed(() =>
-  keywordsAggregatedForDimension(wordCloudDimension.value)
-    .slice(0, 80)
-    .map(({ keyword, count }) => ({ name: keyword, value: count })),
-)
+const wordCloudItems = computed(() => {
+  const mode = wordCloudDimension.value
+  const rows =
+    mode === 'all' ? keywordsAggregatedAllDimensions() : keywordsAggregatedForDimension(mode)
+  return rows.slice(0, 80).map(({ keyword, count }) => {
+    const dimForColor = mode === 'all' ? primaryDimensionForPainKeyword(keyword) : mode
+    return {
+      name: keyword,
+      value: count,
+      color: pickWordCloudColor(keyword, dimForColor),
+      dimensionLabel: dimTitle(dimForColor),
+    }
+  })
+})
 
 const dimensionListRows = computed(() => keywordsAggregatedForDimension(painListDimension.value).slice(0, 48))
-
-const wordCloudColors = computed(() => WORDCLOUD_PALETTES[wordCloudDimension.value])
 
 const filteredEvidence = computed(() => {
   const dash = dashboard.value
@@ -479,41 +573,22 @@ watch(painListDimension, () => {
 
 watch([selectedKeyword, painListDimension, evidencePage], () => {
   evidenceExpandedIds.value = new Set()
-  evidenceLayoutById.value = new Map()
 })
 
-function evidenceLayoutFor(ev: InsightEvidenceItem): EvidenceQuoteLayout {
-  return evidenceLayoutById.value.get(String(ev.id)) ?? 'pending'
+/** 与 highlightEvidence 使用同一套正文来源，保证「是否可展开」与展示内容一致 */
+function evidenceDisplayPlainText(ev: InsightEvidenceItem): string {
+  const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
+  const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
+  return (rawFull.trim() || quote.trim()) || ''
+}
+
+function evidenceHasQuoteText(ev: InsightEvidenceItem): boolean {
+  return evidenceDisplayPlainText(ev).length > 0
 }
 
 function evidenceQuoteClass(ev: InsightEvidenceItem) {
-  const layout = evidenceLayoutFor(ev)
-  if (layout === 'short') return {}
-  if (layout === 'long') {
-    return { 'evidence-quote--collapsed': !isEvidenceExpanded(ev) }
-  }
-  return { 'evidence-quote--collapsed': true }
-}
-
-function bindEvidenceQuoteEl(ev: InsightEvidenceItem, el: unknown) {
-  const id = String(ev.id)
-  const html = el instanceof HTMLElement ? el : null
-  if (!html) {
-    const m = new Map(evidenceLayoutById.value)
-    m.delete(id)
-    evidenceLayoutById.value = m
-    return
-  }
-  void nextTick(() => {
-    requestAnimationFrame(() => {
-      if (!html.isConnected) return
-      void html.offsetHeight
-      const overflow = html.scrollHeight > html.clientHeight + 2
-      const m = new Map(evidenceLayoutById.value)
-      m.set(id, overflow ? 'long' : 'short')
-      evidenceLayoutById.value = m
-    })
-  })
+  if (!evidenceHasQuoteText(ev)) return {}
+  return { 'evidence-quote--collapsed': !isEvidenceExpanded(ev) }
 }
 
 function isEvidenceExpanded(ev: InsightEvidenceItem): boolean {
@@ -555,20 +630,114 @@ function escapeHtml(s: string) {
     .replace(/"/g, '&quot;')
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** 当前维度下每条词典词条 = 一组同义词（规范词 + aliases） */
+function buildSynonymGroups(dim: Dimension6Key, preview: TaxonomyPreviewResponse | null): string[][] {
+  const block = preview?.dimensions?.[dim]
+  const entries = block?.entries
+  if (!entries?.length) return []
+  const out: string[][] = []
+  for (const e of entries) {
+    const can = String(e.canonical ?? '').trim()
+    const als = Array.isArray(e.aliases)
+      ? e.aliases.map((a) => String(a).trim()).filter(Boolean)
+      : []
+    const g = [...new Set([can, ...als].filter(Boolean))]
+    if (g.length) out.push(g)
+  }
+  return out
+}
+
+function expandKeywordWithSynonyms(kw: string, groups: string[][]): string[] {
+  const t = kw.trim()
+  if (!t) return []
+  const low = t.toLowerCase()
+  for (const g of groups) {
+    if (g.some((x) => x.toLowerCase() === low)) return [...g]
+  }
+  return [t]
+}
+
+function collectEvidenceHighlightTerms(ev: InsightEvidenceItem, groups: string[][]): string[] {
+  const acc = new Set<string>()
+  for (const k of ev.keywords ?? []) {
+    for (const x of expandKeywordWithSynonyms(String(k), groups)) {
+      if (x.trim()) acc.add(x.trim())
+    }
+  }
+  const picked = selectedKeyword.value?.trim()
+  if (picked) {
+    for (const x of expandKeywordWithSynonyms(picked, groups)) {
+      if (x.trim()) acc.add(x.trim())
+    }
+  }
+  return [...acc].sort((a, b) => b.length - a.length)
+}
+
+/** 在已 escape 的正文上合并区间再包 mark，避免多次 replace 嵌套或覆盖 */
+function highlightByMergedIntervals(escapedText: string, terms: string[]): string {
+  if (!terms.length) return escapedText
+  const intervals: [number, number][] = []
+  for (const term of terms) {
+    const piece = term.trim()
+    if (!piece) continue
+    const esc = escapeHtml(piece)
+    if (!esc) continue
+    const pattern = `(${escapeRegExp(esc)})`
+    let re: RegExp
+    try {
+      re = new RegExp(pattern, 'giu')
+    } catch {
+      re = new RegExp(pattern, 'gi')
+    }
+    re.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(escapedText)) !== null) {
+      if (m.index === re.lastIndex) re.lastIndex++
+      intervals.push([m.index, m.index + m[0].length])
+    }
+  }
+  if (!intervals.length) return escapedText
+  intervals.sort((a, b) => a[0] - b[0] || b[1] - a[1])
+  const merged: [number, number][] = []
+  for (const iv of intervals) {
+    const last = merged[merged.length - 1]
+    if (!last || iv[0] >= last[1]) merged.push([iv[0], iv[1]])
+    else last[1] = Math.max(last[1], iv[1])
+  }
+  let out = ''
+  let cur = 0
+  for (const [s, e] of merged) {
+    out += escapedText.slice(cur, s) + '<mark>' + escapedText.slice(s, e) + '</mark>'
+    cur = e
+  }
+  out += escapedText.slice(cur)
+  return out
+}
+
 function highlightEvidence(ev: InsightEvidenceItem) {
   const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
   const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
   const raw = (rawFull.trim() || quote.trim()) || ''
   if (!raw) return ''
-  let text = escapeHtml(raw)
-  const kws = [...ev.keywords].sort((a, b) => b.length - a.length)
-  for (const kw of kws) {
-    if (!kw.trim()) continue
-    const escaped = escapeHtml(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const re = new RegExp(`(${escaped})`, 'gi')
-    text = text.replace(re, '<mark>$1</mark>')
+  const escaped = escapeHtml(raw)
+  const groups = buildSynonymGroups(painListDimension.value, taxonomyPreview.value)
+  const terms = collectEvidenceHighlightTerms(ev, groups)
+  return highlightByMergedIntervals(escaped, terms)
+}
+
+async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {
+  taxonomyPreview.value = null
+  if (!d?.dictionary_vertical_id) return
+  const vid = String(d.dictionary_vertical_id).trim() || 'general'
+  try {
+    taxonomyPreview.value = await fetchTaxonomyPreview(vid)
+  } catch {
+    taxonomyPreview.value = null
   }
-  return text
 }
 
 async function load() {
@@ -577,6 +746,7 @@ async function load() {
     dashboard.value = MOCK_DASHBOARD
     painListDimension.value = 'pros'
     selectedKeyword.value = null
+    await loadTaxonomyForDashboard(MOCK_DASHBOARD)
     return
   }
   loading.value = true
@@ -584,9 +754,11 @@ async function load() {
     dashboard.value = await fetchInsightDashboard(taskId.value, { evidence_limit: 120, evidence_offset: 0 })
     painListDimension.value = 'pros'
     selectedKeyword.value = null
+    await loadTaxonomyForDashboard(dashboard.value)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e)
     dashboard.value = null
+    taxonomyPreview.value = null
     painListDimension.value = 'pros'
     selectedKeyword.value = null
   } finally {
@@ -624,8 +796,39 @@ watch(
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.result-header-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.result-header-thumb {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  box-sizing: border-box;
+}
+
+.result-header-thumb-img {
+  width: 72px;
+  height: 72px;
+  display: block;
+}
+
+.result-header-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+}
+
 .result-header-body {
   min-width: 0;
+  flex: 1;
 }
 
 .result-header-title-row {
@@ -697,6 +900,21 @@ watch(
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dim-card:hover {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.dim-card:focus-visible {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
 }
 
 .dim-card-head {
@@ -709,19 +927,30 @@ watch(
 }
 
 .dim-card-head-right {
-  display: flex;
+  flex-shrink: 0;
+}
+
+/** 与数据行后两列同宽，与 flex 右对齐组合后垂线与正文一致 */
+.dim-metrics-cols {
+  display: grid;
+  grid-template-columns: 4.75rem 4.25rem;
+  column-gap: 0;
   align-items: center;
-  gap: 12px;
+}
+
+.dim-metric-cell {
+  margin: 0;
+  padding: 4px 8px 4px 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
 }
 
 .dim-metric-label {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-
-.dim-expand {
-  padding: 4px;
-  min-height: auto;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .dim-tag {
@@ -733,28 +962,28 @@ watch(
 }
 
 .dim-tag--pros {
-  color: #166534;
-  background: #dcfce7;
+  color: #047857;
+  background: #ecfdf5;
 }
 .dim-tag--cons {
-  color: #a16207;
-  background: #fef9c3;
+  color: #b45309;
+  background: #fffbeb;
 }
 .dim-tag--return_reasons {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: #be123c;
+  background: #fff1f2;
 }
 .dim-tag--purchase_motivation {
   color: #1d4ed8;
-  background: #dbeafe;
+  background: #eff6ff;
 }
 .dim-tag--user_expectation {
   color: #0e7490;
-  background: #cffafe;
+  background: #ecfeff;
 }
 .dim-tag--usage_scenario {
-  color: #4338ca;
-  background: #e0e7ff;
+  color: #6d28d9;
+  background: #f5f3ff;
 }
 
 .dim-card-body {
@@ -765,12 +994,13 @@ watch(
 
 .dim-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 4.75rem 4.25rem;
+  column-gap: 0;
+  align-items: center;
   font-size: 13px;
   padding: 8px 0;
   border-bottom: 1px solid #f1f5f9;
+  box-sizing: border-box;
 }
 
 .dim-row:last-child {
@@ -778,6 +1008,8 @@ watch(
 }
 
 .dim-row-label {
+  min-width: 0;
+  padding-right: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -785,9 +1017,6 @@ watch(
 
 .dim-row-num {
   color: var(--el-text-color-regular);
-  font-variant-numeric: tabular-nums;
-  min-width: 36px;
-  text-align: right;
 }
 
 .dim-empty {
@@ -866,9 +1095,13 @@ watch(
   min-width: 0;
 }
 
-.wordcloud-body :deep(.wordcloud-host) {
+.wordcloud-body :deep(.wordcloud-zoom-wrap) {
   flex: 1;
   min-height: 240px;
+}
+
+.wordcloud-body :deep(.wordcloud-host) {
+  min-height: 220px;
 }
 
 .wordcloud-empty {
