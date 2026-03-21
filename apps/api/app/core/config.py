@@ -17,12 +17,28 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
-    # TB-2：评论抓取 API（POST JSON：platform, product_id；可选 Bearer）
+    # TB-2：评论抓取 — http：POST REVIEW_PROVIDER_URL；apify：直连 Apify sync dataset
+    review_provider_mode: str = "http"
     review_provider_url: str | None = None
     review_provider_api_key: str | None = None
     review_provider_timeout_seconds: float = 30.0
     review_fetch_max_retries: int = 3
     review_provider_mock: bool = False
+    apify_token: str | None = None
+    apify_actor_id: str | None = None
+    apify_input_style: str = "asins"
+    apify_max_reviews: int = 50
+    apify_run_timeout_seconds: float = 240.0
+
+    # Pangolin Amazon Review API（REVIEW_PROVIDER_MODE=pangolin）
+    pangolin_token: str | None = None
+    pangolin_base_url: str = "https://scrapeapi.pangolinfo.com"
+    pangolin_amazon_url: str = "https://www.amazon.com"
+    pangolin_page_count: int = 1
+    pangolin_filter_by_star: str = "all_stars"
+    pangolin_sort_by: str = "recent"
+    pangolin_parser_name: str = "amzReviewV2"
+    pangolin_timeout_seconds: float = 180.0
 
     # TB-3：分析源（POST JSON：insight_task_id, platform, product_id, analysis_provider_id, reviews[]）
     analysis_provider_url: str | None = None

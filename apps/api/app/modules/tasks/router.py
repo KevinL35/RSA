@@ -118,6 +118,58 @@ def post_fetch_reviews(
         ) from e
 
 
+@router.get("/{task_id}/reviews")
+def get_insight_task_reviews(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(get_rsa_role)],
+    limit: int = Query(default=5000, ge=1, le=20000),
+) -> dict:
+    """列出任务已落库评论（供前端导出 CSV 等）；只读角色可访问。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        tr = (
+            sb.table("insight_tasks")
+            .select("id,platform,product_id,status")
+            .eq("id", str(task_id))
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Supabase 查询失败：{e!s}") from e
+    trows = tr.data or []
+    if not trows:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    task_row = trows[0]
+    try:
+        rv = (
+            sb.table("reviews")
+            .select(
+                "id,external_review_id,raw_text,title,rating,sku,reviewed_at,lang,created_at",
+            )
+            .eq("insight_task_id", str(task_id))
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Supabase 查询失败：{e!s}") from e
+    items = rv.data or []
+    for row in items:
+        row["platform"] = task_row["platform"]
+        row["product_id"] = task_row["product_id"]
+    return {
+        "insight_task_id": str(task_id),
+        "platform": task_row["platform"],
+        "product_id": task_row["product_id"],
+        "task_status": task_row["status"],
+        "count": len(items),
+        "items": items,
+    }
+
+
 @router.get("/{task_id}/dashboard")
 def get_insight_dashboard(
     task_id: UUID,

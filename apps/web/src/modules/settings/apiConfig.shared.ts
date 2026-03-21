@@ -71,9 +71,15 @@ function normalizeTranslateRows(rows: unknown): ApiConfigRow[] {
   return rows as ApiConfigRow[]
 }
 
+function normalizeReviewFetchRows(rows: unknown): ApiConfigRow[] {
+  if (!Array.isArray(rows)) return []
+  return rows as ApiConfigRow[]
+}
+
 type Bundle = {
   insight: ApiConfigRow[]
   agent: ApiConfigRow[]
+  reviewFetch: ApiConfigRow[]
   translate: ApiConfigRow[]
 }
 
@@ -86,6 +92,7 @@ function loadBundle(): Bundle {
         return {
           insight: normalizeInsightRows(p.insight),
           agent: normalizeAgentRows(p.agent),
+          reviewFetch: normalizeReviewFetchRows(p.reviewFetch),
           translate: normalizeTranslateRows(p.translate),
         }
       }
@@ -102,6 +109,7 @@ function loadBundle(): Bundle {
         const bundle: Bundle = {
           insight: normalizeInsightRows(parsed),
           agent: defaultAgentRows(),
+          reviewFetch: [],
           translate: defaultTranslateRows(),
         }
         persistBundle(bundle)
@@ -120,6 +128,7 @@ function loadBundle(): Bundle {
   return {
     insight: defaultInsightRows(),
     agent: defaultAgentRows(),
+    reviewFetch: [],
     translate: defaultTranslateRows(),
   }
 }
@@ -136,16 +145,19 @@ const initial = loadBundle()
 
 export const insightApiConfigRows = ref<ApiConfigRow[]>(initial.insight)
 export const agentApiConfigRows = ref<ApiConfigRow[]>(initial.agent)
+export const reviewFetchApiConfigRows = ref<ApiConfigRow[]>(initial.reviewFetch)
 export const translateApiConfigRows = ref<ApiConfigRow[]>(initial.translate)
 
 function persistAll() {
   persistBundle({
     insight: insightApiConfigRows.value,
     agent: agentApiConfigRows.value,
+    reviewFetch: reviewFetchApiConfigRows.value,
     translate: translateApiConfigRows.value,
   })
 }
 
 watch(insightApiConfigRows, persistAll, { deep: true })
 watch(agentApiConfigRows, persistAll, { deep: true })
+watch(reviewFetchApiConfigRows, persistAll, { deep: true })
 watch(translateApiConfigRows, persistAll, { deep: true })

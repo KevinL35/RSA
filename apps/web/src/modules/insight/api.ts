@@ -1,4 +1,27 @@
 import { apiGetJson, apiPostJson } from '../../shared/services/api'
+
+export type InsightTaskReviewRow = {
+  id: string
+  platform?: string
+  product_id?: string
+  external_review_id?: string | null
+  raw_text: string
+  title?: string | null
+  rating?: number | null
+  sku?: string | null
+  reviewed_at?: string | null
+  lang?: string | null
+  created_at?: string
+}
+
+export type InsightTaskReviewsResponse = {
+  insight_task_id: string
+  platform: string
+  product_id: string
+  task_status: string
+  count: number
+  items: InsightTaskReviewRow[]
+}
 import type { InsightTaskRow } from '../tasks/types'
 import type { InsightTaskCreateBody } from './types'
 import type { InsightDashboardResponse } from './dashboardTypes'
@@ -24,8 +47,22 @@ export function createInsightTask(body: InsightTaskCreateBody) {
   return apiPostJson<InsightTaskRow>('/api/v1/insight-tasks', body)
 }
 
+export function fetchInsightTaskReviews(taskId: string, limit = 20000) {
+  return apiGetJson<InsightTaskReviewsResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/reviews?limit=${limit}`,
+  )
+}
+
+export type FetchReviewsResponse = {
+  reviews_inserted?: number
+  task?: unknown
+}
+
 export function postInsightTaskFetchReviews(taskId: string) {
-  return apiPostJson<Record<string, unknown>>(`/api/v1/insight-tasks/${encodeURIComponent(taskId)}/fetch-reviews`, {})
+  return apiPostJson<FetchReviewsResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/fetch-reviews`,
+    {},
+  )
 }
 
 export function postInsightTaskAnalyze(taskId: string) {

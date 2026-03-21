@@ -2,10 +2,12 @@
 
 业务编排层，**真实读写 Supabase（Postgres）**，不再返回占位 mock。
 
+**环境变量清单（最小必填项）**：见 `docs/runbooks/env-to-run.md`。
+
 ## 环境
 
 1. 复制 `apps/api/.env.example` 为 `apps/api/.env`
-2. 填入 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`（使用 **service_role**，仅后端持有，勿提交前端）
+2. 填入 `SUPABASE_URL`（**Project URL**，`https://…supabase.co`，勿填 JWT）、`SUPABASE_SERVICE_ROLE_KEY`（**service_role**，仅后端持有，勿提交前端）
 
 ## 数据库
 
@@ -42,6 +44,7 @@ pytest
 - `POST /api/v1/insight-tasks`：创建一条 `pending` 任务（用于联调）
 - `PATCH /api/v1/insight-tasks/{id}`：状态迁移（TB-1 状态机：`pending→running→success|failed|cancelled`，`failed→pending` 重试）；迁到 `failed` 时须带 `failure_stage` 与 `error_message`
 - `POST /api/v1/insight-tasks/{id}/fetch-reviews`：TB-2 按任务的 `platform`/`product_id` 调用配置的评论抓取 API，写入 `reviews`；成功则任务保持 `running`；失败则 `failed` 且 `failure_stage=fetch` 与 `error_code`
+- `GET /api/v1/insight-tasks/{id}/reviews?limit=`：列出任务已落库评论（默认 `limit=5000`，最大 `20000`），供前端导出 Excel（`.xlsx`）等；只读角色可访问
 - `POST /api/v1/insight-tasks/{id}/analyze`：TB-3 读取已落库 `reviews`，调用分析源（任务上的 `analysis_provider_id` 优先，否则 `ANALYSIS_PROVIDER_DEFAULT_ID`；URL 由 `ANALYSIS_PROVIDER_ROUTES_JSON` 或 `ANALYSIS_PROVIDER_URL` 解析）；返回逐条情感/六维/证据结构；**成功则先写入 TB-4 表再** `running→success`；失败则 `failed` 且 `failure_stage=analyze`
 - `GET /api/v1/insight-tasks/{id}/analysis`：TB-4 按任务读取已落库分析结果，每条带 `review` 原文片段字段便于证据反查
 - `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
@@ -51,13 +54,13 @@ pytest
 
 **评论抓取（TB-2）环境变量**（`apps/api/.env`）：
 
-- `REVIEW_PROVIDER_URL`：第三方抓取接口完整 URL（`POST`，JSON body：`platform`, `product_id`；可配 `Authorization: Bearer`）
-- `REVIEW_PROVIDER_API_KEY`：可选
-- `REVIEW_PROVIDER_TIMEOUT_SECONDS`：默认 30
-- `REVIEW_FETCH_MAX_RETRIES`：默认 3（429/5xx/超时/连接错误重试）
-- `REVIEW_PROVIDER_MOCK=true`：无真实 API 时返回两条占位评论，便于联调
-
-响应 JSON 支持顶层数组，或 `reviews` / `items` / `data` / `results` / `records` 数组；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等。
+- `REVIEW_PROVIDER_MODE`：`http`（默认）、`apify` 或 `pangolin`
+- **`http`**：`REVIEW_PROVIDER_URL` 为完整 `POST` URL，JSON body：`platform`, `product_id`；可选 `REVIEW_PROVIDER_API_KEY` → `Authorization: Bearer`；响应须为顶层数组或 `reviews`/`items`/`data`/`results`/`records`；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等
+- **`apify`**：内置调用 Apify `run-sync-get-dataset-items`，**无需** `REVIEW_PROVIDER_URL`；需 `APIFY_TOKEN`、`APIFY_ACTOR_ID`；可选 `APIFY_INPUT_STYLE`（`asins`|`productUrls`）、`APIFY_MAX_REVIEWS`、`APIFY_RUN_TIMEOUT_SECONDS`（≤300，同步接口上限）
+- **`pangolin`**：[Pangolinfo Amazon Review API](https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI)：`POST …/api/v1/scrape`，需 `PANGOLIN_TOKEN`（`POST …/api/v1/auth` 返回的 `data`）；可选 `PANGOLIN_AMAZON_URL`（默认 `https://www.amazon.com`，英亚等可改域名）、`PANGOLIN_PAGE_COUNT`（每页扣费见对方文档）、`PANGOLIN_FILTER_BY_STAR`、`PANGOLIN_SORT_BY`、`PANGOLIN_PARSER_NAME`、`PANGOLIN_TIMEOUT_SECONDS`；详见 `docs/runbooks/pangolin-amazon-reviews.md`
+- `REVIEW_PROVIDER_TIMEOUT_SECONDS`：`http` 模式下的客户端超时（秒）
+- `REVIEW_FETCH_MAX_RETRIES`：默认 3（429/5xx 等可重试错误）
+- `REVIEW_PROVIDER_MOCK=true`：不请求外网，返回两条占位评论
 
 **线 A（外部分析源先跑通）**：见 `docs/runbooks/line-a-external-model-e2e.md`（与 `ANALYSIS_PROVIDER_*` / `REVIEW_PROVIDER_MOCK` 对齐步骤）。
 

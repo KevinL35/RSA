@@ -59,8 +59,26 @@
           <span class="status-text">{{ row.statusLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('insight.colActions')" width="168" fixed="right">
+      <el-table-column :label="t('insight.colActions')" min-width="300" fixed="right">
         <template #default="{ row }">
+          <el-button
+            type="primary"
+            link
+            :disabled="fetchReviewsDisabled(row)"
+            :loading="fetchReviewingId === row.taskId"
+            @click="onFetchReviews(row)"
+          >
+            {{ t('insight.grabReviews') }}
+          </el-button>
+          <el-button
+            type="primary"
+            link
+            :disabled="downloadReviewsDisabled(row)"
+            :loading="downloadReviewingId === row.taskId"
+            @click="onDownloadReviews(row)"
+          >
+            {{ t('insight.downloadReviews') }}
+          </el-button>
           <el-button type="primary" link @click="onViewResults(row)">{{ t('insight.viewResults') }}</el-button>
           <el-button type="primary" link @click="onRegenerate(row)">{{ t('insight.regenerate') }}</el-button>
         </template>
@@ -163,10 +181,20 @@ import type { ApiConfigRow } from '../../settings/apiConfig.shared'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
-import { createInsightTask, postInsightTaskAnalyze, postInsightTaskFetchReviews } from '../api'
+import { extractAsinFromAmazonUrl, looksLikeAmazonProductUrl } from '../../../shared/utils/amazonAsin'
+import { downloadReviewsExcel } from '../../../shared/utils/excelDownload'
+import {
+  createInsightTask,
+  fetchInsightTaskReviews,
+  postInsightTaskAnalyze,
+  postInsightTaskFetchReviews,
+} from '../api'
+import { useAuthStore } from '../../auth/store/auth.store'
 
 const { t, locale } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
+const canFetchReviews = computed(() => auth.canRetryInsightTasks.value)
 
 type InsightProductRow = {
   imageUrl: string
@@ -180,6 +208,8 @@ type InsightProductRow = {
   createdAt: string
   aiModel: string
   statusLabel: string
+  /** insight_tasks.status，用于操作按钮禁用逻辑 */
+  taskStatus?: string
   /** 真实洞察任务 UUID；缺省则结果页使用 demo 数据 */
   taskId?: string
 }
@@ -193,6 +223,22 @@ const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
 const insightModelId = ref<string>('')
 const dialogSubmitting = ref(false)
+const fetchReviewingId = ref<string | null>(null)
+const downloadReviewingId = ref<string | null>(null)
+
+const REVIEW_CSV_COLUMNS = [
+  'platform',
+  'product_id',
+  'id',
+  'external_review_id',
+  'title',
+  'rating',
+  'reviewed_at',
+  'lang',
+  'sku',
+  'raw_text',
+  'created_at',
+] as const
 
 function insightOptionLabel(row: ApiConfigRow) {
   const name = row.builtin ? t('settings.insightBuiltinModelName') : row.name
@@ -299,6 +345,7 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     createdAt: formatTaskTime(task.created_at),
     aiModel: displayProviderLabel(task.analysis_provider_id),
     statusLabel: taskStatusLabel(task.status),
+    taskStatus: task.status,
     taskId: task.id,
   }
 }
@@ -329,9 +376,77 @@ function onPageSizeChange() {
   page.value = 1
 }
 
-function tryExtractAsin(link: string): string | null {
-  const m = link.match(/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:\/|\?|$)/i)
-  return m ? m[1].toUpperCase() : null
+function fetchReviewsDisabled(row: InsightProductRow): boolean {
+  if (!canFetchReviews.value) return true
+  const tid = row.taskId
+  if (!tid || tid === 'demo') return true
+  const s = row.taskStatus
+  if (s === 'success' || s === 'cancelled') return true
+  return false
+}
+
+function downloadReviewsDisabled(row: InsightProductRow): boolean {
+  const tid = row.taskId
+  return !tid || tid === 'demo'
+}
+
+async function onFetchReviews(row: InsightProductRow) {
+  const tid = row.taskId
+  if (!tid || tid === 'demo') {
+    ElMessage.warning(t('insight.grabReviewsNoTask'))
+    return
+  }
+  if (!canFetchReviews.value) {
+    ElMessage.warning(t('insight.grabReviewsReadOnly'))
+    return
+  }
+  if (row.taskStatus === 'success' || row.taskStatus === 'cancelled') {
+    ElMessage.warning(t('insight.grabReviewsDisabledSuccess'))
+    return
+  }
+  fetchReviewingId.value = tid
+  try {
+    const res = await postInsightTaskFetchReviews(tid)
+    const n = typeof res.reviews_inserted === 'number' ? res.reviews_inserted : 0
+    ElMessage.success(t('insight.grabReviewsOk', { n }))
+    await loadTasks()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('insight.grabReviewsFail')}: ${msg}`)
+  } finally {
+    fetchReviewingId.value = null
+  }
+}
+
+async function onDownloadReviews(row: InsightProductRow) {
+  const tid = row.taskId
+  if (!tid || tid === 'demo') {
+    ElMessage.warning(t('insight.downloadReviewsNoTask'))
+    return
+  }
+  downloadReviewingId.value = tid
+  try {
+    const res = await fetchInsightTaskReviews(tid)
+    const items = res.items ?? []
+    if (items.length === 0) {
+      ElMessage.warning(t('insight.downloadReviewsEmpty'))
+      return
+    }
+    const asin = (res.product_id || row.asin || 'product').replace(/[^\w-]/g, '_')
+    const shortId = tid.slice(0, 8)
+    const filename = `reviews_${asin}_${shortId}.xlsx`
+    await downloadReviewsExcel(
+      filename,
+      items as unknown as Record<string, unknown>[],
+      REVIEW_CSV_COLUMNS,
+    )
+    ElMessage.success(t('insight.downloadReviewsOk', { n: items.length }))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('insight.downloadReviewsFail')}: ${msg}`)
+  } finally {
+    downloadReviewingId.value = null
+  }
 }
 
 async function submitAddProduct() {
@@ -355,7 +470,13 @@ async function submitAddProduct() {
   let ok = 0
   try {
     for (const link of links) {
-      const productId = tryExtractAsin(link) ?? link.trim().slice(0, 256)
+      const trimmed = link.trim()
+      const fromUrl = extractAsinFromAmazonUrl(trimmed)
+      if (looksLikeAmazonProductUrl(trimmed) && !fromUrl) {
+        ElMessage.warning(t('insight.linkMissingAsin'))
+        continue
+      }
+      const productId = fromUrl ?? trimmed.slice(0, 256)
       if (!productId) {
         ElMessage.warning(t('insight.productIdInvalid'))
         continue

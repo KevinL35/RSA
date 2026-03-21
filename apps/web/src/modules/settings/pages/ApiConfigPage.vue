@@ -66,6 +66,34 @@
     </section>
 
     <section class="config-block">
+      <div class="block-head block-head--stack">
+        <div>
+          <h3 class="block-title">{{ t('settings.moduleReviewFetchApi') }}</h3>
+          <p class="block-subhint">{{ t('settings.moduleReviewFetchApiHint') }}</p>
+        </div>
+        <el-button type="primary" class="block-head-add" @click="openAddDialog('reviewFetch')">
+          {{ t('settings.apiAdd') }}
+        </el-button>
+      </div>
+      <el-table :data="reviewFetchRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
+        <el-table-column :label="t('settings.apiColName')" min-width="160" prop="name" />
+        <el-table-column prop="baseUrl" :label="t('settings.apiColBaseUrl')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
+        <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
+          <template #default="{ row, $index }">
+            <el-button type="primary" link @click="openEditDialog('reviewFetch', row, $index)">
+              {{ t('settings.edit') }}
+            </el-button>
+            <el-button type="danger" link @click="onDelete('reviewFetch', $index)">
+              {{ t('settings.delete') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+
+    <section class="config-block">
       <div class="block-head">
         <h3 class="block-title">{{ t('settings.moduleTranslateApi') }}</h3>
         <el-button type="primary" @click="openAddDialog('translate')">{{ t('settings.apiAdd') }}</el-button>
@@ -140,10 +168,11 @@ import type { ApiConfigRow } from '../apiConfig.shared'
 import {
   agentApiConfigRows as agentRows,
   insightApiConfigRows as insightRows,
+  reviewFetchApiConfigRows as reviewFetchRows,
   translateApiConfigRows as translateRows,
 } from '../apiConfig.shared'
 
-type ModuleKey = 'insight' | 'agent' | 'translate'
+type ModuleKey = 'insight' | 'agent' | 'reviewFetch' | 'translate'
 
 const { t, locale } = useI18n()
 
@@ -171,6 +200,7 @@ function newId() {
 function rowList(key: ModuleKey) {
   if (key === 'insight') return insightRows
   if (key === 'agent') return agentRows
+  if (key === 'reviewFetch') return reviewFetchRows
   return translateRows
 }
 
@@ -304,6 +334,15 @@ function onSystemLangChange(v: string) {
   margin-bottom: 14px;
 }
 
+.block-head--stack {
+  align-items: flex-start;
+}
+
+.block-head-add {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 .block-head--lang {
   margin-bottom: 0;
 }
@@ -313,6 +352,14 @@ function onSystemLangChange(v: string) {
   font-size: 16px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.block-subhint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--el-text-color-secondary);
+  max-width: 560px;
 }
 
 .block-table {

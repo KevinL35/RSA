@@ -7,16 +7,8 @@ import httpx
 
 from app.core.config import Settings, get_settings
 
+from .errors import ReviewProviderError
 from .normalize import extract_review_list, normalize_provider_item
-
-
-class ReviewProviderError(Exception):
-    """业务可映射为 insight_tasks.error_code / error_message。"""
-
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        self.message = message
-        super().__init__(message)
 
 
 def _mock_payload(platform: str, product_id: str) -> list[dict[str, Any]]:
@@ -57,11 +49,38 @@ def fetch_reviews_normalized(
                 out.append(row)
         return out
 
+    mode = (cfg.review_provider_mode or "http").strip().lower()
+    if mode == "apify":
+        from .apify import fetch_reviews_via_apify
+
+        attempts = max(1, cfg.review_fetch_max_retries)
+        for attempt in range(attempts):
+            try:
+                return fetch_reviews_via_apify(platform, product_id, settings=cfg)
+            except ReviewProviderError as e:
+                if e.code == "REVIEW_PROVIDER_TRANSIENT" and attempt < attempts - 1:
+                    time.sleep(0.4 * (2**attempt))
+                    continue
+                raise
+
+    if mode == "pangolin":
+        from .pangolin import fetch_reviews_via_pangolin
+
+        attempts = max(1, cfg.review_fetch_max_retries)
+        for attempt in range(attempts):
+            try:
+                return fetch_reviews_via_pangolin(platform, product_id, settings=cfg)
+            except ReviewProviderError as e:
+                if e.code == "REVIEW_PROVIDER_TRANSIENT" and attempt < attempts - 1:
+                    time.sleep(0.4 * (2**attempt))
+                    continue
+                raise
+
     url = (cfg.review_provider_url or "").strip()
     if not url:
         raise ReviewProviderError(
             "REVIEW_PROVIDER_NOT_CONFIGURED",
-            "未配置 REVIEW_PROVIDER_URL（或在 .env 设置 REVIEW_PROVIDER_MOCK=true 联调）",
+            "未配置 REVIEW_PROVIDER_URL，或改用 REVIEW_PROVIDER_MODE=apify|pangolin 并配置对应变量；联调可设 REVIEW_PROVIDER_MOCK=true",
         )
 
     headers: dict[str, str] = {

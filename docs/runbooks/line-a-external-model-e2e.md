@@ -5,7 +5,7 @@
 ## 1. 环境与数据库
 
 - `apps/api/.env`：`SUPABASE_*`、迁移 `001`～`003` 已执行（见 `apps/api/README.md`）。
-- **评论**：无真实抓取 API 时设 `REVIEW_PROVIDER_MOCK=true` 便于联调。
+- **评论**：无真实抓取 API 时设 `REVIEW_PROVIDER_MOCK=true` 便于联调；接 Apify：`REVIEW_PROVIDER_MODE=apify`（见 `docs/runbooks/apify-amazon-reviews.md`）；接 Pangolinfo：`REVIEW_PROVIDER_MODE=pangolin` 与 `PANGOLIN_TOKEN`（见 `docs/runbooks/pangolin-amazon-reviews.md`）。
 - **分析源**（二选一或组合）：
   - **外部分析服务**：配置 `ANALYSIS_PROVIDER_URL`（单端点），或 `ANALYSIS_PROVIDER_ROUTES_JSON` 按 `analysis_provider_id` 路由多条 URL。
   - **快速冒烟**：`ANALYSIS_PROVIDER_MOCK=true`（不请求外网，返回占位六维）。
