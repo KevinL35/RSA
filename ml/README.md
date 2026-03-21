@@ -22,6 +22,8 @@
 | **`scripts/import_amazon_fine_food_raw.py`** | 将 Amazon Fine Food CSV 转为契约格式（可选数据源）。 |
 | **`scripts/csv_splits.py`** | 读入 split CSV：严格解析失败时宽松跳过坏行（引号/截断问题）。 |
 | **`scripts/merge_train_shards.py`** | 可选：多个 train 分片合并为一个 `train.csv`。 |
+| **`scripts/subset_splits.py`** | 从 `splits/` 对 train/val/test **各做分层 10%（可改比例）** → `splits_10pct/`，配合 `train_roberta_colab_10pct.yaml`。 |
+| **`configs/train_roberta_colab_10pct.yaml`** | 一成数据训练：CSV 指向 `ml/data/splits_10pct/`，artifact 目录与全量区分。 |
 | **`scripts/train_sentiment.py`** | RoBERTa 微调；兼容 transformers 4/5（`eval_strategy`、`Trainer.processing_class`）；可选 `--tokenized-cache-dir` 跳过重复 map。 |
 | **`scripts/evaluate_sentiment.py`** | 加载已训练 checkpoint，在 `test.csv` 上评估并写报告。 |
 | **`data/`** | 放置 `raw` / `processed` / `splits`（大文件勿提交 Git，见仓库 `.gitignore`）。 |

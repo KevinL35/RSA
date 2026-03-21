@@ -1,0 +1,15 @@
+# Vercel CLI uploads the working tree; exclude everything not needed for apps/web build.
+ml/
+apps/api/
+docs/
+packages/
+.agents/
+.claude/
+.cursor/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+.git/
+*.log
+.DS_Store

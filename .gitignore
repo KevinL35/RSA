@@ -37,3 +37,4 @@ ml/reports/
 # macOS metadata
 .AppleDouble
 .LSOverride
+.vercel

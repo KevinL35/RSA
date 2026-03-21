@@ -138,7 +138,9 @@ else:
 
 ### 4）训练
 
-**首次**会完整 `map`（行数很大时可能要十几分钟）。**第二次起**建议把 **tokenized 缓存**放到 **Drive**（换 Colab 会话也不丢），可跳过漫长 map：
+**建议两趟：** 先用 **`--max-train-rows` 等子集** 试跑（几分钟级 map、确认不 OOM），再**去掉这些参数**跑全量。脚本在子集模式下**不会读取也不会写入** `--tokenized-cache-dir` 下的缓存，避免试跑把「小数据集」存进缓存、全量时误加载。
+
+**全量 + Drive 缓存（第二次起跳过漫长 map）：**
 
 ```bash
 %cd /content/RSA
@@ -146,11 +148,20 @@ else:
   --tokenized-cache-dir "/content/drive/MyDrive/RSA/ml_tokenized_cache"
 ```
 
-- 第一次跑完后会自动在 Drive 写入 `train/`、`val/`、`test/`。  
+- 第一次全量跑完后会在 Drive 写入 `train/`、`val/`、`test/`。  
 - **以后**只要该目录还在，会**直接加载**。  
-- **换了 CSV** 后：在 Drive 里删掉 `ml_tokenized_cache`，或加 `--force-refresh-tokenized-cache`。
+- **换了 CSV** 后：删掉 `ml_tokenized_cache`，或加 `--force-refresh-tokenized-cache`。
 
-不配缓存（与旧行为相同，每次全量 map）：
+**试跑（子集，可与上面同一 `CACHE` 路径；不会污染缓存）：**
+
+```bash
+%cd /content/RSA
+!python ml/scripts/train_sentiment.py --config ml/configs/train_roberta_colab.yaml \
+  --tokenized-cache-dir "/content/drive/MyDrive/RSA/ml_tokenized_cache" \
+  --max-train-rows 20000 --max-val-rows 2000 --max-test-rows 2000
+```
+
+不配缓存（每次全量 map）：
 
 ```bash
 %cd /content/RSA

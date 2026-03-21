@@ -16,6 +16,7 @@
             {{ row.builtin ? t('settings.insightBuiltinModelName') : row.name }}
           </template>
         </el-table-column>
+        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
         <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
         <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
           <template #default="{ row, $index }">
@@ -49,6 +50,7 @@
       </div>
       <el-table :data="agentRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
         <el-table-column :label="t('settings.apiColName')" min-width="160" prop="name" />
+        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
         <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
         <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
           <template #default="{ row, $index }">
@@ -70,6 +72,7 @@
       </div>
       <el-table :data="translateRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
         <el-table-column :label="t('settings.apiColName')" min-width="160" prop="name" />
+        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
         <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
         <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
           <template #default="{ row, $index }">

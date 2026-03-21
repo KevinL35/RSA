@@ -201,6 +201,17 @@ def main() -> None:
         and cache_val.is_dir()
         and cache_test.is_dir()
     )
+    subset_mode = (
+        args.max_train_rows is not None
+        or args.max_val_rows is not None
+        or args.max_test_rows is not None
+    )
+    if subset_mode and cache_hit:
+        print(
+            "试跑模式（--max-*-rows）：忽略已有 tokenized 缓存，避免误把全量缓存当子集或反之。"
+        )
+    if subset_mode:
+        cache_hit = False
 
     if cache_hit:
         print(f"使用 tokenized 缓存（跳过 map）：{cache_root}")
@@ -262,12 +273,16 @@ def main() -> None:
             [c for c in ds_test.column_names if c not in ["input_ids", "attention_mask", "labels", "token_type_ids"]]
         )
 
-        if cache_root:
+        if cache_root and not subset_mode:
             cache_root.mkdir(parents=True, exist_ok=True)
             ds_train.save_to_disk(str(cache_train))
             ds_val.save_to_disk(str(cache_val))
             ds_test.save_to_disk(str(cache_test))
             print(f"已写入 tokenized 缓存，下次可加同一参数跳过 map：{cache_root}")
+        elif cache_root and subset_mode:
+            print(
+                "试跑模式：未写入 tokenized 缓存。全量训练请去掉 --max-*-rows 并保留 --tokenized-cache-dir。"
+            )
 
     if cache_hit:
         tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])

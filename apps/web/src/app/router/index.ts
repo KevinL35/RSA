@@ -5,7 +5,9 @@ import LoginPage from '../../modules/auth/pages/LoginPage.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import { useAuthStore } from '../../modules/auth/store/auth.store'
 import InsightAnalysisPage from '../../modules/insight/pages/InsightAnalysisPage.vue'
+import InsightResultPage from '../../modules/insight/pages/InsightResultPage.vue'
 import CompareAnalysisPage from '../../modules/compare/pages/CompareAnalysisPage.vue'
+import CompareResultPage from '../../modules/compare/pages/CompareResultPage.vue'
 import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
 import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
 import TaskCenterPage from '../../modules/tasks/pages/TaskCenterPage.vue'
@@ -22,7 +24,9 @@ const router = createRouter({
       children: [
         { path: '', redirect: '/insight-analysis' },
         { path: 'insight-analysis', component: InsightAnalysisPage },
+        { path: 'insight-analysis/result/:taskId', component: InsightResultPage },
         { path: 'compare-analysis', component: CompareAnalysisPage },
+        { path: 'compare-analysis/result/:compareId', component: CompareResultPage },
         { path: 'pain-audit', component: PainAuditPage, meta: { allowedRoles: ['admin'] } },
         { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
         { path: 'task-center', component: TaskCenterPage },

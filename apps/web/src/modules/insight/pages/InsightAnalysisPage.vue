@@ -145,20 +145,28 @@
       </el-form>
       <template #footer>
         <el-button @click="addDialogVisible = false">{{ t('insight.dialogCancel') }}</el-button>
-        <el-button type="primary" @click="submitAddProduct">{{ t('insight.dialogConfirm') }}</el-button>
+        <el-button type="primary" :loading="dialogSubmitting" @click="submitAddProduct">
+          {{ t('insight.dialogConfirm') }}
+        </el-button>
       </template>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Plus, Refresh } from '@element-plus/icons-vue'
+import type { ApiConfigRow } from '../../settings/apiConfig.shared'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import { fetchInsightTasks } from '../../tasks/api'
+import type { InsightTaskRow } from '../../tasks/types'
+import { createInsightTask, postInsightTaskAnalyze, postInsightTaskFetchReviews } from '../api'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 
 type InsightProductRow = {
   imageUrl: string
@@ -172,6 +180,8 @@ type InsightProductRow = {
   createdAt: string
   aiModel: string
   statusLabel: string
+  /** 真实洞察任务 UUID；缺省则结果页使用 demo 数据 */
+  taskId?: string
 }
 
 const loading = ref(false)
@@ -182,11 +192,18 @@ const pageSizeOptions = [10, 20, 50] as const
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
 const insightModelId = ref<string>('')
+const dialogSubmitting = ref(false)
+
+function insightOptionLabel(row: ApiConfigRow) {
+  const name = row.builtin ? t('settings.insightBuiltinModelName') : row.name
+  const m = row.model?.trim()
+  return m ? `${name}-${m}` : name
+}
 
 const insightModelOptions = computed(() =>
   insightApiConfigRows.value.map((row) => ({
     id: row.id,
-    label: row.builtin ? t('settings.insightBuiltinModelName') : row.name,
+    label: insightOptionLabel(row),
   })),
 )
 
@@ -215,6 +232,7 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       createdAt: '2026-03-18 14:22',
       aiModel: 'DeepSeek',
       statusLabel: zh ? '分析成功' : 'Done',
+      taskId: 'demo',
     },
     {
       imageUrl: 'https://picsum.photos/seed/insight2/96/96',
@@ -228,6 +246,7 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       createdAt: '2026-03-17 09:05',
       aiModel: 'DeepSeek',
       statusLabel: zh ? '分析成功' : 'Done',
+      taskId: 'demo',
     },
     {
       imageUrl: 'https://picsum.photos/seed/insight3/96/96',
@@ -241,14 +260,68 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       createdAt: '2026-03-16 18:40',
       aiModel: 'DeepSeek',
       statusLabel: zh ? '分析中' : 'Running',
+      taskId: 'demo',
     },
   ]
 }
 
 const rows = ref<InsightProductRow[]>([])
 
+function taskStatusLabel(status: string) {
+  const k = status as 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+  if (k === 'pending' || k === 'running' || k === 'success' || k === 'failed' || k === 'cancelled') {
+    return t(`insight.taskStatus.${k}`)
+  }
+  return status
+}
+
+function displayProviderLabel(providerId: string | null) {
+  if (!providerId) return t('insight.defaultAnalysisProvider')
+  const cfg = insightApiConfigRows.value.find((r) => r.id === providerId)
+  return cfg ? insightOptionLabel(cfg) : providerId
+}
+
+function formatTaskTime(iso: string) {
+  if (!iso) return '—'
+  return iso.slice(0, 19).replace('T', ' ')
+}
+
+function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
+  return {
+    imageUrl: `https://picsum.photos/seed/${encodeURIComponent(task.id)}/96/96`,
+    asin: task.product_id,
+    title: `${task.platform} · ${task.product_id}`,
+    countryLabel: '—',
+    priceLabel: '—',
+    rating: 0,
+    reviewCount: 0,
+    creator: '—',
+    createdAt: formatTaskTime(task.created_at),
+    aiModel: displayProviderLabel(task.analysis_provider_id),
+    statusLabel: taskStatusLabel(task.status),
+    taskId: task.id,
+  }
+}
+
+async function loadTasks() {
+  loading.value = true
+  try {
+    const res = await fetchInsightTasks({ limit: 50 })
+    rows.value = (res.items ?? []).map(mapTaskToRow)
+  } catch {
+    ElMessage.warning(t('insight.listLoadFailed'))
+    rows.value = buildDefaultRows(locale.value === 'zh-CN')
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
-  rows.value = buildDefaultRows(locale.value === 'zh-CN')
+  void loadTasks()
+})
+
+watch(locale, () => {
+  void loadTasks()
 })
 
 function onPageSizeChange() {
@@ -260,7 +333,7 @@ function tryExtractAsin(link: string): string | null {
   return m ? m[1].toUpperCase() : null
 }
 
-function submitAddProduct() {
+async function submitAddProduct() {
   const links = linkInputs.value.map((s) => s.trim()).filter(Boolean)
   if (links.length === 0) {
     ElMessage.warning(t('insight.addProductNeedLink'))
@@ -276,30 +349,40 @@ function submitAddProduct() {
     ElMessage.warning(t('insight.insightModelMissing'))
     return
   }
-  const modelLabel = cfg.builtin ? t('settings.insightBuiltinModelName') : cfg.name
-  const zh = locale.value === 'zh-CN'
-  const now = new Date().toISOString().slice(0, 16).replace('T', ' ')
-  for (const link of [...links].reverse()) {
-    const asin = tryExtractAsin(link) ?? '—'
-    const seed = String(link.length + id.length)
-    rows.value.unshift({
-      imageUrl: `https://picsum.photos/seed/add-${seed}/96/96`,
-      asin,
-      title: link.length > 80 ? `${link.slice(0, 80)}…` : link,
-      countryLabel: '—',
-      priceLabel: '—',
-      rating: 0,
-      reviewCount: 0,
-      creator: zh ? '当前用户' : 'Current user',
-      createdAt: now,
-      aiModel: modelLabel,
-      statusLabel: zh ? '待分析' : 'Pending',
-    })
+
+  dialogSubmitting.value = true
+  let ok = 0
+  try {
+    for (const link of links) {
+      const productId = tryExtractAsin(link) ?? link.trim().slice(0, 256)
+      if (!productId) {
+        ElMessage.warning(t('insight.productIdInvalid'))
+        continue
+      }
+      const task = await createInsightTask({
+        platform: 'amazon',
+        product_id: productId,
+        analysis_provider_id: id,
+      })
+      await postInsightTaskFetchReviews(task.id)
+      await postInsightTaskAnalyze(task.id)
+      ok++
+    }
+    if (ok === 0) {
+      return
+    }
+    addDialogVisible.value = false
+    resetAddForm()
+    page.value = 1
+    ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
+    await loadTasks()
+  } catch (e) {
+    ElMessage.error(
+      e instanceof Error ? `${t('insight.addProductPipelineFailed')}: ${e.message}` : t('insight.addProductPipelineFailed'),
+    )
+  } finally {
+    dialogSubmitting.value = false
   }
-  addDialogVisible.value = false
-  resetAddForm()
-  page.value = 1
-  ElMessage.success(t('insight.addProductSuccessCount', { n: links.length }))
 }
 
 const pagedRows = computed(() => {
@@ -312,9 +395,7 @@ function onAddProduct() {
 }
 
 async function onRefresh() {
-  loading.value = true
-  await new Promise((r) => setTimeout(r, 400))
-  loading.value = false
+  await loadTasks()
   ElMessage.success(t('insight.refreshed'))
 }
 
@@ -327,8 +408,21 @@ async function copyAsin(asin: string) {
   }
 }
 
-function onViewResults(_row: InsightProductRow) {
-  ElMessage.info(t('insight.viewResultsSoon'))
+function onViewResults(row: InsightProductRow) {
+  const tid = row.taskId ?? 'demo'
+  void router.push({
+    path: `/insight-analysis/result/${encodeURIComponent(tid)}`,
+    query: {
+      title: row.title,
+      asin: row.asin,
+      country: row.countryLabel,
+      price: row.priceLabel,
+      rating: row.rating > 0 ? String(row.rating) : '',
+      reviews: String(row.reviewCount),
+      model: row.aiModel,
+      analyzedAt: row.createdAt,
+    },
+  })
 }
 
 function onRegenerate(_row: InsightProductRow) {

@@ -59,6 +59,8 @@ pytest
 
 响应 JSON 支持顶层数组，或 `reviews` / `items` / `data` / `results` / `records` 数组；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等。
 
+**线 A（外部分析源先跑通）**：见 `docs/runbooks/line-a-external-model-e2e.md`（与 `ANALYSIS_PROVIDER_*` / `REVIEW_PROVIDER_MOCK` 对齐步骤）。
+
 **分析源（TB-3）环境变量**：
 
 - `ANALYSIS_PROVIDER_URL`：默认分析 HTTP 端点（当路由表未命中某 `analysis_provider_id` 时回退到此 URL）
