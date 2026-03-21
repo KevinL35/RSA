@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from app.integrations.supabase import require_supabase
 
 from . import state_machine
+from .analyze_task import run_analyze_for_task
 from .fetch_reviews import run_fetch_reviews_for_task
 from .schema import InsightTaskCreate, InsightTaskPatch
 
@@ -80,6 +81,24 @@ def post_fetch_reviews(task_id: UUID) -> dict:
         raise HTTPException(
             status_code=500,
             detail=f"抓取流程异常：{e!s}",
+        ) from e
+
+
+@router.post("/{task_id}/analyze")
+def post_analyze_insight_task(task_id: UUID) -> dict:
+    """TB-3：对已抓取评论调用分析源，返回情感/六维/证据结构；成功将任务标为 success。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        return run_analyze_for_task(sb, task_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"分析流程异常：{e!s}",
         ) from e
 
 

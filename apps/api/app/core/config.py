@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     review_fetch_max_retries: int = 3
     review_provider_mock: bool = False
 
+    # TB-3：分析源（POST JSON：insight_task_id, platform, product_id, analysis_provider_id, reviews[]）
+    analysis_provider_url: str | None = None
+    analysis_provider_api_key: str | None = None
+    analysis_provider_default_id: str = "default"
+    analysis_provider_routes_json: str | None = None
+    analysis_provider_timeout_seconds: float = 120.0
+    analysis_max_retries: int = 2
+    analysis_provider_mock: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

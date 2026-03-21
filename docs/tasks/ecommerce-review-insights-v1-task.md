@@ -80,8 +80,9 @@
   - DoD：输入 `platform + product_id` 可拉取评论并落库；失败可重试并记录错误码。  
   - 交付：`reviews` 表 + `review_provider`（HTTP + 可配置重试 + `REVIEW_PROVIDER_MOCK` 联调）；`POST /api/v1/insight-tasks/{id}/fetch-reviews`；失败时任务 `failed` 且 `failure_stage=fetch` 与结构化 `error_code`。
 
-- [ ] **TB-3 接入分析源调用链路（对接 Stage A 模型）**（P0）  
-  - DoD：支持 `analysis_provider_id` 显式选择与默认回退；返回情感/六维/证据句结构。
+- [x] **TB-3 接入分析源调用链路（对接 Stage A 模型）**（P0，status: done）  
+  - DoD：支持 `analysis_provider_id` 显式选择与默认回退；返回情感/六维/证据句结构。  
+  - 交付：`POST /api/v1/insight-tasks/{id}/analyze`；`analysis_provider` 适配层（路由解析、HTTP+重试、Mock、响应规整为 TA-1 六维与 `highlight_spans`）；契约 `packages/contracts/src/analysis.ts`。（持久化查询见 TB-4/TB-5。）
 
 - [ ] **TB-4 设计并落地分析结果存储结构**（P0）  
   - DoD：可按商品、任务、维度检索；证据句可反查原评论。
@@ -168,4 +169,4 @@
 
 **Task Version**: 1.2.1（与 Plan v1.2 对齐；补 Stage A 与「清洗→微调」叙事；归因：词典+规则+BERTopic 审核回灌）  
 **Status**: Review Required  
-**Execution**: Stage B 进行中（TB-1、TB-2 已交付）
+**Execution**: Stage B 进行中（TB-1～TB-3 已交付）

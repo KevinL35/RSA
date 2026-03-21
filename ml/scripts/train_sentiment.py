@@ -16,6 +16,11 @@ from transformers import (
     TrainingArguments,
 )
 
+# 压低 Hub/权重加载时的 LOAD REPORT 等 INFO，避免被误认为报错；Trainer 仍会用 tqdm 打训练进度。
+import transformers
+
+transformers.logging.set_verbosity_error()
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))

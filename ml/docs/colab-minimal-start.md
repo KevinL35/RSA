@@ -132,6 +132,9 @@ drive.mount("/content/drive")
 
 | 现象 | 处理 |
 |------|------|
+| **最后一行出现 `^C` 但自己没按 Ctrl+C** | 在 Colab 里 **`^C` 一般表示进程收到了「中断」**，不一定是你键盘按的。常见原因：**① 点了工具栏「停止」**；**② 运行时崩溃**（尤其 **内存用尽**，加载/映射大 CSV 时 RAM 会飙高）；**③ 免费版会话被回收 / 断连**。请看 Colab **顶部是否出现黄色条**（如 *session crashed* / *out of memory*）。可先跑 `!free -h` 看内存；数据特别大时试 **「运行时 → 更改运行时类型 → 高 RAM」**，或暂时缩小 `train.csv` 做烟雾测试。 |
+| **Roberta LOAD REPORT 里 MISSING / UNEXPECTED** | **正常现象**：分类头随机初始化、预训练里多出来的 `lm_head` 会丢弃。拉最新代码后脚本会压低这类日志；**不要因此中断训练**。 |
+| **HF_TOKEN / unauthenticated** | 可选：在 Colab 执行 `from huggingface_hub import login; login()` 粘贴 token，减轻限速；不设也能训。 |
 | **CUDA out of memory** | 编辑 `ml/configs/train_roberta_colab.yaml`，把 `per_device_train_batch_size` 改为 `4` 或 `2`。 |
 | **找不到 CSV** | 检查 `cp` 源路径是否与 Drive 一致；在 Colab 左侧 **「文件」** 点开 `drive/MyDrive/RSA/finetune/data/splits` 核对文件名。 |
 | **`git clone` 失败** | 确认仓库为 **HTTPS** 且 **公开**；不要用 `git@github.com` SSH 地址。 |

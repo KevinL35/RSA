@@ -13,3 +13,12 @@ export type {
 } from './insight-tasks'
 
 export type { FetchReviewsResponse, ReviewRow } from './reviews'
+
+export type {
+  AnalyzeInsightTaskResponse,
+  Dimension6Key,
+  DimensionAnalysis,
+  HighlightSpan,
+  ReviewAnalysisRow,
+  SentimentLabel,
+} from './analysis'
