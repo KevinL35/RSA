@@ -16,6 +16,7 @@
 | **`configs/train_roberta_colab_shards.yaml`** | 可选：仅当 `train` 拆成多文件时需 glob 合并（见 `colab-minimal-start.md` 附录）。 |
 | **`docs/colab-minimal-start.md`** | Colab 步骤说明（与下面笔记本二选一）。 |
 | **`notebooks/ta5_roberta_colab.ipynb`** | 可上传 Colab 按格运行（含挂载 Drive、克隆、拷数据、训练、备份）。 |
+| **`notebooks/ta5_roberta_autodl.ipynb`** | **AutoDL JupyterLab**：学术加速、`splits_10pct` / 全量可切换、训练与可选评估（长时间训练仍建议 SSH + `tmux`）。 |
 | **`scripts/clean_data.py`** | 按 `data_contract.yaml` 清洗原始 CSV → `reviews_cleaned.csv`。 |
 | **`scripts/split_dataset.py`** | 将清洗后数据按配置切分为 train/val/test。 |
 | **`scripts/import_amazon2018_reviews_jsonl.py`** | 将 Amazon 2018 JSONL 转为契约 CSV（可选数据源）。 |
