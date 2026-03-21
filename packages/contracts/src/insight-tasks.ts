@@ -29,3 +29,11 @@ export type InsightTaskCreateBody = {
   product_id: string
   analysis_provider_id?: string | null
 }
+
+/** PATCH /api/v1/insight-tasks/:id — 状态迁移需符合服务端状态机 */
+export type InsightTaskPatchBody = {
+  status: InsightTaskStatus
+  error_code?: string | null
+  error_message?: string | null
+  failure_stage?: string | null
+}

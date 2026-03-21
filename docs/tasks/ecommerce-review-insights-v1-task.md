@@ -72,8 +72,8 @@
 
 ### Phase 1 - 基础链路（M1）
 
-- [ ] **TB-1 建立洞察任务模型与状态机**（P0）  
-  - DoD：支持 `pending/running/success/failed`；可查询任务状态与错误信息。
+- [x] **TB-1 建立洞察任务模型与状态机**（P0，status: done）  
+  - DoD：支持 `pending/running/success/failed`；可查询任务状态与错误信息。（实现：`insight_tasks` 表 + `GET` 列表/单条 + `PATCH` 合法迁移；另含 `cancelled` 与 `failed→pending` 重试。）
 
 - [ ] **TB-2 接入评论抓取 API 适配器**（P0）  
   - DoD：输入 `platform + product_id` 可拉取评论并落库；失败可重试并记录错误码。

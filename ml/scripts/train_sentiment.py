@@ -1,4 +1,5 @@
 import argparse
+import glob
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +29,38 @@ def tokenize_fn(examples, tokenizer, text_column, max_length: int):
     )
 
 
+def resolve_train_csv_paths(data_cfg: dict) -> list[Path]:
+    """Single train.csv, or many shards via train_csv_shards / train_csv_shard_glob."""
+    shards = data_cfg.get("train_csv_shards") or []
+    glob_pat = data_cfg.get("train_csv_shard_glob")
+    if shards and glob_pat:
+        raise ValueError("Use only one of train_csv_shards or train_csv_shard_glob, not both.")
+    if shards:
+        return [Path(p) for p in shards]
+    if glob_pat:
+        paths = sorted(Path(p) for p in glob.glob(glob_pat))
+        if not paths:
+            raise FileNotFoundError(f"No files matched train_csv_shard_glob: {glob_pat!r}")
+        return paths
+    return [Path(data_cfg["train_csv"])]
+
+
+def load_train_dataframe(data_cfg: dict) -> pd.DataFrame:
+    paths = resolve_train_csv_paths(data_cfg)
+    for p in paths:
+        if not p.exists():
+            raise FileNotFoundError(f"Missing train file: {p}")
+    dfs = [pd.read_csv(p) for p in paths]
+    df = pd.concat(dfs, ignore_index=True)
+    if data_cfg.get("dedupe_train_on_id") and "id" in df.columns:
+        n0 = len(df)
+        df = df.drop_duplicates(subset=["id"], keep="first")
+        dropped = n0 - len(df)
+        if dropped:
+            print(f"dedupe_train_on_id: removed {dropped} duplicate id row(s)")
+    return df
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fine-tune RoBERTa for sentiment.")
     parser.add_argument("--config", required=True, help="Path to train_roberta yaml.")
@@ -39,17 +72,14 @@ def main() -> None:
     train_cfg = cfg["training"]
     eval_cfg = cfg.get("evaluation", {})
 
-    cleaned_csv = Path(data_cfg["cleaned_csv"])
-    train_csv = Path(data_cfg["train_csv"])
     val_csv = Path(data_cfg["val_csv"])
     test_csv = Path(data_cfg["test_csv"])
 
-    required = [train_csv, val_csv, test_csv]
-    for p in required:
+    for p in (val_csv, test_csv):
         if not p.exists():
             raise FileNotFoundError(f"Missing split file: {p}. Run split_dataset.py first.")
 
-    df_train = pd.read_csv(train_csv)
+    df_train = load_train_dataframe(data_cfg)
     df_val = pd.read_csv(val_csv)
     df_test = pd.read_csv(test_csv)
 

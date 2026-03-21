@@ -9,9 +9,11 @@
 
 ## 数据库
 
-在 Supabase SQL Editor 执行：
+在 **你的 Supabase 项目**（任意区域，含新加坡）打开 **SQL Editor**，执行：
 
 - `infra/migrations/001_insight_tasks.sql`
+
+然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/api/.env`。
 
 ## 安装与启动
 
@@ -26,7 +28,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## 接口
 
 - `GET /api/v1/insight-tasks`：列表（来自表 `insight_tasks`）
+- `GET /api/v1/insight-tasks/{id}`：单条查询（状态与 `error_*` / `failure_stage`）
 - `POST /api/v1/insight-tasks`：创建一条 `pending` 任务（用于联调）
+- `PATCH /api/v1/insight-tasks/{id}`：状态迁移（TB-1 状态机：`pending→running→success|failed|cancelled`，`failed→pending` 重试）；迁到 `failed` 时须带 `failure_stage` 与 `error_message`
 
 前端开发：在 `apps/web` 运行 `npm run dev`，Vite 会将 `/api` 代理到 `http://127.0.0.1:8000`。
 

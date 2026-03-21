@@ -7,6 +7,7 @@ export type ApiEnvelope<T> = {
 export type {
   InsightTaskCreateBody,
   InsightTaskListResponse,
+  InsightTaskPatchBody,
   InsightTaskRow,
   InsightTaskStatus,
 } from './insight-tasks'
