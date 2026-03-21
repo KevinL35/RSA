@@ -11,7 +11,7 @@
 
 ## 数据库
 
-在 **你的 Supabase 项目**（任意区域，含新加坡）打开 **SQL Editor**，依次执行：
+在 **你的 Supabase 项目**打开 **SQL Editor**：可直接打开仓库内 **`infra/migrations/ALL_FOR_SQL_EDITOR.sql`**，**全选复制**（仅 SQL，不要复制 bash 命令）→ 粘贴 → **Run**。改迁移后请重生成该文件：`bash scripts/print-supabase-migrations.sh > infra/migrations/ALL_FOR_SQL_EDITOR.sql`。或仍可按文件逐个执行：
 
 - `infra/migrations/001_insight_tasks.sql`
 - `infra/migrations/002_reviews.sql`（TB-2 评论落库）
