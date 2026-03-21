@@ -5,7 +5,16 @@
       <p class="page-subtitle">{{ t('insight.pageSubtitle') }}</p>
     </header>
     <div class="toolbar">
-      <el-button type="primary" @click="onAddProduct">{{ t('insight.addProduct') }}</el-button>
+      <div class="toolbar-left">
+        <el-button type="primary" @click="onAddProduct">{{ t('insight.addProduct') }}</el-button>
+        <el-button
+          type="primary"
+          :disabled="!canMutateInsightTasks"
+          @click="onUploadReviews"
+        >
+          {{ t('insight.uploadReviews') }}
+        </el-button>
+      </div>
       <el-button :icon="Refresh" @click="onRefresh" :loading="loading" :title="t('insight.refresh')" />
     </div>
 
@@ -27,6 +36,15 @@
               <el-icon><DocumentCopy /></el-icon>
             </el-button>
           </span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        :label="t('insight.colDictionaryVertical')"
+        width="120"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">
+          <span class="status-text">{{ row.dictionaryVerticalLabel }}</span>
         </template>
       </el-table-column>
       <el-table-column :label="t('insight.colReviewStatus')" width="112">
@@ -134,6 +152,20 @@
             </div>
           </div>
         </el-form-item>
+        <el-form-item :label="t('insight.formDictionaryVertical')" required>
+          <el-select
+            v-model="dictionaryVerticalId"
+            class="insight-model-select"
+            :teleported="false"
+          >
+            <el-option
+              v-for="opt in dictionaryVerticalOptions"
+              :key="opt.id"
+              :label="opt.label"
+              :value="opt.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="t('insight.formInsightModel')" required>
           <el-select
             v-model="insightModelId"
@@ -157,6 +189,112 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="uploadDialogVisible"
+      :title="t('insight.dialogUploadReviews')"
+      width="580px"
+      class="upload-reviews-dialog"
+      destroy-on-close
+      align-center
+      @closed="resetUploadForm"
+    >
+      <p class="upload-reviews-intro">{{ t('insight.uploadReviewsIntro') }}</p>
+
+      <div
+        class="upload-template-strip"
+        role="region"
+        :aria-label="t('insight.uploadTemplateStripLabel')"
+      >
+        <div class="upload-template-strip-left">
+          <el-icon class="upload-template-strip-icon"><Download /></el-icon>
+          <span class="upload-template-strip-text">{{ t('insight.uploadTemplateStripLabel') }}</span>
+        </div>
+        <el-button
+          link
+          type="primary"
+          class="upload-template-download-btn"
+          @click="onDownloadReviewTemplate"
+        >
+          {{ t('insight.uploadTemplateDownload') }}
+        </el-button>
+      </div>
+
+      <el-form label-position="top" class="upload-reviews-form">
+        <el-form-item :label="t('insight.formProductIdUpload')">
+          <el-input
+            v-model="uploadLinkInput"
+            clearable
+            :placeholder="t('insight.formProductIdUploadPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('insight.formDictionaryVertical')" required>
+          <el-select
+            v-model="uploadDictionaryVerticalId"
+            class="insight-model-select"
+            :teleported="true"
+            placement="bottom-start"
+            :fallback-placements="['bottom-start', 'bottom', 'bottom-end']"
+            :popper-options="uploadInsightSelectPopperOptions"
+          >
+            <el-option
+              v-for="opt in dictionaryVerticalOptions"
+              :key="opt.id"
+              :label="opt.label"
+              :value="opt.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('insight.formInsightModel')" required>
+          <el-select
+            v-model="uploadInsightModelId"
+            class="insight-model-select"
+            clearable
+            placement="bottom-start"
+            :fallback-placements="['bottom-start', 'bottom', 'bottom-end']"
+            :popper-options="uploadInsightSelectPopperOptions"
+          >
+            <el-option
+              v-for="opt in insightModelOptions"
+              :key="opt.id"
+              :label="opt.label"
+              :value="opt.id"
+            />
+          </el-select>
+        </el-form-item>
+        <div class="upload-file-section-label">{{ t('insight.uploadFileSectionLabel') }}</div>
+        <div class="upload-file-zone">
+          <el-upload
+            ref="uploadExcelRef"
+            class="upload-file-inner"
+            :auto-upload="false"
+            :limit="1"
+            :show-file-list="false"
+            accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            :on-change="onUploadExcelChange"
+            :on-exceed="onUploadExcelExceed"
+          >
+            <div class="upload-file-trigger-row">
+              <span
+                class="upload-file-status"
+                :class="{ 'upload-file-status--placeholder': !uploadExcelFile }"
+              >
+                {{ uploadExcelDisplayName }}
+              </span>
+            </div>
+          </el-upload>
+        </div>
+        <p class="upload-file-hint">{{ t('insight.uploadFileFormatHint') }}</p>
+      </el-form>
+      <template #footer>
+        <div class="upload-reviews-footer">
+          <el-button @click="uploadDialogVisible = false">{{ t('insight.dialogCancel') }}</el-button>
+          <el-button type="primary" :loading="uploadSubmitting" @click="submitUploadReviews">
+            {{ t('insight.uploadStartImport') }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -165,25 +303,34 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentCopy, Plus, Refresh } from '@element-plus/icons-vue'
+import { genFileId } from 'element-plus'
+import type { UploadFile, UploadInstance, UploadRawFile } from 'element-plus'
+import { DocumentCopy, Download, Plus, Refresh } from '@element-plus/icons-vue'
 import type { ApiConfigRow } from '../../settings/apiConfig.shared'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
 import { deleteInsightTask, fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
-import { extractAsinFromAmazonUrl, looksLikeAmazonProductUrl } from '../../../shared/utils/amazonAsin'
+import {
+  extractAsinFromAmazonUrl,
+  looksLikeAmazonProductUrl,
+  resolveProductIdForUploadReviews,
+} from '../../../shared/utils/amazonAsin'
 import {
   formatInsightModelLine,
   formatInsightModelLineByProviderId,
   formatInsightModelShort,
 } from '../../../shared/utils/insightModelLabel'
-import { downloadReviewsExcel } from '../../../shared/utils/excelDownload'
+import { downloadReviewImportTemplate, downloadReviewsExcel } from '../../../shared/utils/excelDownload'
 import {
   createInsightTask,
   fetchInsightTaskReviews,
   postInsightTaskAnalyze,
   postInsightTaskFetchReviews,
+  postInsightTaskImportReviews,
 } from '../api'
-import { useAuthStore } from '../../auth/store/auth.store'
+import { getStoredUsername, useAuthStore } from '../../auth/store/auth.store'
+import type { DictionaryVerticalItem } from '../../dictionary/api'
+import { fetchDictionaryVerticals } from '../../dictionary/api'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -211,6 +358,7 @@ type InsightProductRow = {
   taskStatus?: string
   /** 真实洞察任务 UUID；缺省则结果页使用 demo 数据 */
   taskId?: string
+  dictionaryVerticalLabel: string
 }
 
 const loading = ref(false)
@@ -218,10 +366,26 @@ const page = ref(1)
 const pageSize = ref(20)
 const pageSizeOptions = [10, 20, 50] as const
 
+const dictionaryVerticals = ref<DictionaryVerticalItem[]>([])
+const dictionaryVerticalId = ref('general')
+const uploadDictionaryVerticalId = ref('general')
+
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
 const insightModelId = ref<string>('ins_builtin')
 const dialogSubmitting = ref(false)
+const uploadDialogVisible = ref(false)
+const uploadLinkInput = ref('')
+const uploadInsightModelId = ref('ins_builtin')
+const uploadExcelFile = ref<File | null>(null)
+const uploadExcelRef = ref<UploadInstance | null>(null)
+const uploadSubmitting = ref(false)
+/** 与后端 import-reviews 一致 */
+const UPLOAD_REVIEW_MAX_BYTES = 10 * 1024 * 1024
+/** 上传弹窗内下拉固定向下展开（避免在 dialog 内被 flip 到上方） */
+const uploadInsightSelectPopperOptions = {
+  modifiers: [{ name: 'flip', enabled: false }],
+}
 const downloadReviewingId = ref<string | null>(null)
 const deletingTaskId = ref<string | null>(null)
 
@@ -240,6 +404,58 @@ const insightModelOptions = computed(() =>
   })),
 )
 
+const dictionaryVerticalOptions = computed(() => {
+  if (dictionaryVerticals.value.length > 0) {
+    return dictionaryVerticals.value.map((v) => ({
+      id: v.id,
+      label: locale.value === 'zh-CN' ? v.label_zh : v.label_en,
+    }))
+  }
+  return [
+    { id: 'general', label: locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary' },
+    { id: 'electronics', label: locale.value === 'zh-CN' ? '电子产品' : 'Electronics' },
+  ]
+})
+
+function verticalLabelForTask(vid: string | null | undefined): string {
+  const id = (vid || 'general').trim() || 'general'
+  if (id === 'general') {
+    return locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary'
+  }
+  const v = dictionaryVerticals.value.find((x) => x.id === id)
+  if (!v) return id
+  return locale.value === 'zh-CN' ? v.label_zh : v.label_en
+}
+
+async function ensureDictionaryVerticals() {
+  if (dictionaryVerticals.value.length > 0) return
+  try {
+    const res = await fetchDictionaryVerticals()
+    dictionaryVerticals.value = res.items ?? []
+  } catch {
+    dictionaryVerticals.value = []
+  }
+}
+
+const uploadExcelDisplayName = computed(() =>
+  uploadExcelFile.value?.name ?? t('insight.uploadFileClickToChoose'),
+)
+
+function isAllowedReviewExcelFileName(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.xlsx') || lower.endsWith('.xls')
+}
+
+async function onDownloadReviewTemplate() {
+  try {
+    await downloadReviewImportTemplate()
+    ElMessage.success(t('insight.uploadTemplateDownloadOk'))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('insight.uploadTemplateDownloadFail')}: ${msg}`)
+  }
+}
+
 function appendLinkRow() {
   linkInputs.value.push('')
 }
@@ -247,6 +463,7 @@ function appendLinkRow() {
 function resetAddForm() {
   linkInputs.value = ['']
   insightModelId.value = 'ins_builtin'
+  dictionaryVerticalId.value = 'general'
 }
 
 function buildDefaultRows(zh: boolean): InsightProductRow[] {
@@ -274,6 +491,7 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewStatusLabel: zh ? '已完成' : 'Completed',
       statusLabel: zh ? '分析成功' : 'Done',
       taskId: 'demo',
+      dictionaryVerticalLabel: zh ? '电子产品' : 'Electronics',
     },
     {
       imageUrl: 'https://picsum.photos/seed/insight2/96/96',
@@ -291,6 +509,7 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewStatusLabel: zh ? '已完成' : 'Completed',
       statusLabel: zh ? '分析成功' : 'Done',
       taskId: 'demo',
+      dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
     },
     {
       imageUrl: 'https://picsum.photos/seed/insight3/96/96',
@@ -308,6 +527,7 @@ function buildDefaultRows(zh: boolean): InsightProductRow[] {
       reviewStatusLabel: zh ? '获取中' : 'Fetching',
       statusLabel: zh ? '分析中' : 'Running',
       taskId: 'demo',
+      dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
     },
   ]
 }
@@ -342,7 +562,7 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     priceLabel: '—',
     rating: 0,
     reviewCount: 0,
-    creator: currentCreatorLabel(),
+    creator: creatorForTask(task),
     createdAt: formatTaskTime(task.created_at),
     aiModel: full,
     aiModelList: formatInsightModelShort(task.analysis_provider_id, insightApiConfigRows.value, t),
@@ -351,20 +571,21 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     statusLabel: taskStatusLabel(task.status),
     taskStatus: task.status,
     taskId: task.id,
+    dictionaryVerticalLabel: verticalLabelForTask(task.dictionary_vertical_id),
   }
 }
 
+/** 列表创建人：优先库内 created_by，否则当前登录名，再否则按角色占位 */
+function creatorForTask(task: InsightTaskRow): string {
+  const fromDb = typeof task.created_by === 'string' ? task.created_by.trim() : ''
+  if (fromDb) return fromDb
+  return currentCreatorLabel()
+}
+
 function currentCreatorLabel(): string {
+  const u = getStoredUsername()
+  if (u) return u
   const zh = locale.value === 'zh-CN'
-  try {
-    const raw = localStorage.getItem('rsa_login_credentials')
-    if (raw) {
-      const u = (JSON.parse(raw) as { username?: string }).username
-      if (u) return String(u)
-    }
-  } catch {
-    /* ignore */
-  }
   const role = localStorage.getItem('rsa_user_role') || 'readonly'
   if (zh) {
     if (role === 'admin') return '超级管理员'
@@ -472,6 +693,7 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
 
 async function loadTasks() {
   loading.value = true
+  await ensureDictionaryVerticals()
   try {
     const res = await fetchInsightTasks({ limit: 50 })
     const taskRows = res.items ?? []
@@ -587,6 +809,11 @@ async function submitAddProduct() {
     ElMessage.warning(t('insight.insightModelMissing'))
     return
   }
+  const dvid = dictionaryVerticalId.value
+  if (!dvid) {
+    ElMessage.warning(t('insight.needDictionaryVertical'))
+    return
+  }
 
   dialogSubmitting.value = true
   let ok = 0
@@ -608,6 +835,7 @@ async function submitAddProduct() {
         platform: 'amazon',
         product_id: productId,
         analysis_provider_id: id,
+        dictionary_vertical_id: dvid,
       })
       createdTaskIds.push(task.id)
       ok++
@@ -650,6 +878,105 @@ const pagedRows = computed(() => {
 
 function onAddProduct() {
   addDialogVisible.value = true
+}
+
+function onUploadReviews() {
+  uploadDialogVisible.value = true
+}
+
+function resetUploadForm() {
+  uploadLinkInput.value = ''
+  uploadInsightModelId.value = 'ins_builtin'
+  uploadDictionaryVerticalId.value = 'general'
+  uploadExcelFile.value = null
+  uploadExcelRef.value?.clearFiles()
+}
+
+function onUploadExcelChange(uploadFile: UploadFile) {
+  uploadExcelFile.value = uploadFile.raw ?? null
+}
+
+function onUploadExcelExceed(files: File[]) {
+  uploadExcelRef.value?.clearFiles()
+  const f = files[0]
+  if (!f) return
+  const raw = f as UploadRawFile
+  raw.uid = genFileId()
+  uploadExcelRef.value?.handleStart(raw)
+}
+
+async function submitUploadReviews() {
+  const trimmed = uploadLinkInput.value.trim()
+  const resolved = resolveProductIdForUploadReviews(trimmed)
+  if (!resolved.ok) {
+    if (resolved.reason === 'url_no_asin') {
+      ElMessage.warning(t('insight.linkMissingAsin'))
+    } else {
+      ElMessage.warning(t('insight.uploadProductIdInvalidFormat'))
+    }
+    return
+  }
+  const productId = resolved.productId
+  const id = uploadInsightModelId.value
+  if (!id) {
+    ElMessage.warning(t('insight.addProductNeedModel'))
+    return
+  }
+  const cfg = insightApiConfigRows.value.find((r) => r.id === id)
+  if (!cfg) {
+    ElMessage.warning(t('insight.insightModelMissing'))
+    return
+  }
+  const file = uploadExcelFile.value
+  if (!file) {
+    ElMessage.warning(t('insight.uploadNeedFile'))
+    return
+  }
+  if (!isAllowedReviewExcelFileName(file.name)) {
+    ElMessage.warning(t('insight.uploadNeedFile'))
+    return
+  }
+  if (file.size > UPLOAD_REVIEW_MAX_BYTES) {
+    ElMessage.warning(t('insight.uploadFileTooLarge'))
+    return
+  }
+
+  uploadSubmitting.value = true
+  try {
+    const dvid = uploadDictionaryVerticalId.value
+    if (!dvid) {
+      ElMessage.warning(t('insight.needDictionaryVertical'))
+      return
+    }
+    const task = await createInsightTask({
+      platform: 'amazon',
+      product_id: productId,
+      analysis_provider_id: id,
+      dictionary_vertical_id: dvid,
+    })
+    const taskId = task.id
+    const imp = await postInsightTaskImportReviews(taskId, file)
+    const n = imp.reviews_inserted ?? 0
+    uploadDialogVisible.value = false
+    resetUploadForm()
+    page.value = 1
+    ElMessage.success(t('insight.uploadReviewsSuccess', { n }))
+    await loadTasks()
+    try {
+      await postInsightTaskAnalyze(taskId)
+      await loadTasks()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      ElMessage.warning(`${t('insight.uploadReviewsFail')}: ${msg}`)
+      await loadTasks()
+    }
+  } catch (e) {
+    ElMessage.error(
+      e instanceof Error ? `${t('insight.uploadReviewsFail')}: ${e.message}` : t('insight.uploadReviewsFail'),
+    )
+  } finally {
+    uploadSubmitting.value = false
+  }
 }
 
 async function onRefresh() {
@@ -717,6 +1044,132 @@ function onViewResults(row: InsightProductRow) {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.upload-reviews-intro {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--el-text-color-regular);
+}
+
+.form-field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--el-text-color-secondary);
+}
+
+.upload-template-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-5);
+  border-radius: 6px;
+}
+
+.upload-template-strip-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.upload-template-strip-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--el-color-primary);
+}
+
+.upload-template-strip-text {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  line-height: 1.4;
+}
+
+.upload-template-download-btn {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.upload-reviews-form {
+  margin-top: 4px;
+}
+
+.upload-file-section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 10px;
+}
+
+.upload-file-zone {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--el-fill-color-blank);
+  transition:
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    background-color 0.28s ease;
+}
+
+.upload-file-zone:hover,
+.upload-file-zone:focus-within {
+  border-color: var(--el-color-primary-light-3);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
+  background-color: var(--el-color-primary-light-9);
+}
+
+.upload-file-inner :deep(.el-upload) {
+  display: block;
+  width: auto;
+}
+
+.upload-file-trigger-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 22px;
+}
+
+.upload-file-status {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  word-break: break-all;
+}
+
+.upload-file-zone .upload-file-status--placeholder {
+  color: var(--el-color-primary);
+}
+
+.upload-file-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.upload-reviews-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
 
 .insight-table {

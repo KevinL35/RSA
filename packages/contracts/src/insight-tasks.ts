@@ -13,6 +13,10 @@ export type InsightTaskRow = {
   product_id: string
   status: InsightTaskStatus
   analysis_provider_id: string | null
+  /** 词典类目：general / electronics 等 */
+  dictionary_vertical_id?: string | null
+  /** 创建人用户名 */
+  created_by?: string | null
   error_code: string | null
   error_message: string | null
   failure_stage: string | null
@@ -28,6 +32,8 @@ export type InsightTaskCreateBody = {
   platform: string
   product_id: string
   analysis_provider_id?: string | null
+  /** 默认 general；与后端词典垂直一致 */
+  dictionary_vertical_id?: string
 }
 
 /** PATCH /api/v1/insight-tasks/:id — 状态迁移需符合服务端状态机 */

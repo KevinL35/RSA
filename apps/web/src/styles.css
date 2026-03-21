@@ -31,3 +31,30 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/** 「返回列表」等：带边框按钮，hover 与侧栏菜单一致 */
+.rsa-text-back-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--rsa-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  font-size: 14px;
+  font-weight: 600;
+  color: #475467;
+  cursor: pointer;
+  line-height: 1.35;
+  font-family: inherit;
+}
+
+.rsa-text-back-btn:hover {
+  background: #f4f7fd;
+  border-color: #c7d2fe;
+  color: var(--rsa-primary);
+}
+
+.rsa-text-back-btn:focus-visible {
+  outline: 2px solid var(--rsa-primary);
+  outline-offset: 2px;
+}

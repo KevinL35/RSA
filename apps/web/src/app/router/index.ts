@@ -3,14 +3,14 @@ import { ElMessage } from 'element-plus'
 import { i18n } from '../i18n'
 import LoginPage from '../../modules/auth/pages/LoginPage.vue'
 import MainLayout from '../layouts/MainLayout.vue'
-import { useAuthStore } from '../../modules/auth/store/auth.store'
+import { pathRequiredMenuKey, firstAllowedPath } from '../../modules/auth/routeMenu'
+import { getStoredMenuKeys, isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
 import InsightAnalysisPage from '../../modules/insight/pages/InsightAnalysisPage.vue'
 import InsightResultPage from '../../modules/insight/pages/InsightResultPage.vue'
 import CompareAnalysisPage from '../../modules/compare/pages/CompareAnalysisPage.vue'
 import CompareResultPage from '../../modules/compare/pages/CompareResultPage.vue'
 import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
 import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
-import TaskCenterPage from '../../modules/tasks/pages/TaskCenterPage.vue'
 import ApiConfigPage from '../../modules/settings/pages/ApiConfigPage.vue'
 import AccountPermissionsPage from '../../modules/settings/pages/AccountPermissionsPage.vue'
 
@@ -29,7 +29,7 @@ const router = createRouter({
         { path: 'compare-analysis/result/:compareId', component: CompareResultPage },
         { path: 'pain-audit', component: PainAuditPage, meta: { allowedRoles: ['admin'] } },
         { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
-        { path: 'task-center', component: TaskCenterPage },
+        { path: 'task-center', redirect: '/insight-analysis' },
         { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
         {
           path: 'system-settings/account-permissions',
@@ -41,11 +41,22 @@ const router = createRouter({
   ],
 })
 
-// TB-7：登录 + 路由级 RBAC（与侧边栏 allowedRoles 一致）
+// TB-7：登录 + 路由级 RBAC；平台用户另按 menu_keys 约束路由
 router.beforeEach((to: RouteLocationNormalized) => {
   const auth = useAuthStore()
   if (to.path === '/login') return true
   if (!auth.isLogin()) return { path: '/login', query: { redirect: to.fullPath } }
+
+  if (isPlatformMenuAuth()) {
+    const keys = getStoredMenuKeys()
+    const need = pathRequiredMenuKey(to.path)
+    if (need && !keys.includes(need)) {
+      ElMessage.warning(i18n.global.t('router.noPermission'))
+      return { path: firstAllowedPath(keys), replace: true }
+    }
+    return true
+  }
+
   const roles = to.meta.allowedRoles
   if (roles?.length && !roles.includes(auth.role.value)) {
     ElMessage.warning(i18n.global.t('router.noPermission'))

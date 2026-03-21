@@ -10,6 +10,9 @@ export type InsightTaskRow = {
   product_id: string
   status: string
   analysis_provider_id: string | null
+  dictionary_vertical_id?: string | null
+  /** 创建人用户名（Supabase insight_tasks.created_by） */
+  created_by?: string | null
   error_code: string | null
   error_message: string | null
   failure_stage: string | null

@@ -52,6 +52,7 @@ def analyze_reviews(
     product_id: str,
     task_analysis_provider_id: str | None,
     reviews: list[dict[str, Any]],
+    dictionary_vertical_id: str | None = None,
     settings: Settings | None = None,
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     """
@@ -66,6 +67,8 @@ def analyze_reviews(
         raise AnalysisProviderError("ANALYSIS_INPUT_INVALID", "评论行缺少 id")
 
     effective_id = effective_analysis_provider_id(cfg, task_analysis_provider_id)
+
+    dvid = (dictionary_vertical_id or "general").strip() or "general"
 
     if cfg.analysis_provider_mock:
         raw = _mock_payload(effective_id, reviews)
@@ -90,6 +93,7 @@ def analyze_reviews(
         "platform": platform,
         "product_id": product_id,
         "analysis_provider_id": effective_id,
+        "dictionary_vertical_id": dvid,
         "reviews": [
             {
                 "id": r.get("id"),

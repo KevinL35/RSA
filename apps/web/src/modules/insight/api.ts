@@ -1,4 +1,4 @@
-import { apiGetJson, apiPostJson } from '../../shared/services/api'
+import { apiGetJson, apiPostFormData, apiPostJson } from '../../shared/services/api'
 
 export type InsightTaskReviewRow = {
   id: string
@@ -63,6 +63,15 @@ export function postInsightTaskFetchReviews(taskId: string) {
   return apiPostJson<FetchReviewsResponse>(
     `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/fetch-reviews`,
     {},
+  )
+}
+
+export function postInsightTaskImportReviews(taskId: string, file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return apiPostFormData<FetchReviewsResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/import-reviews`,
+    fd,
   )
 }
 

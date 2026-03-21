@@ -11,23 +11,23 @@ from .errors import ReviewProviderError
 from .normalize import extract_review_list, normalize_provider_item
 
 
+MOCK_REVIEW_COUNT = 100
+
+
 def _mock_payload(platform: str, product_id: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "external_review_id": "mock-1",
-            "raw_text": f"[mock] Solid purchase on {platform} for {product_id}.",
-            "title": "Good",
-            "rating": 5.0,
-            "lang": "en",
-        },
-        {
-            "external_review_id": "mock-2",
-            "raw_text": "[mock] Packaging could be better.",
-            "title": "Mixed",
-            "rating": 3.0,
-            "lang": "en",
-        },
-    ]
+    rows: list[dict[str, Any]] = []
+    for i in range(1, MOCK_REVIEW_COUNT + 1):
+        rows.append(
+            {
+                "external_review_id": f"mock-{i}",
+                "raw_text": f"[mock #{i}] Sample review for {platform} / {product_id}. "
+                f"Quality and delivery experience vary; this row is for pipeline testing.",
+                "title": f"Mock title {i}",
+                "rating": float(3 + (i % 3)),
+                "lang": "en",
+            }
+        )
+    return rows
 
 
 def fetch_reviews_normalized(

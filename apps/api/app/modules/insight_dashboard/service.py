@@ -6,6 +6,25 @@ from uuid import UUID
 
 from supabase import Client
 
+
+def _review_volume_by_reviewed_date(sb: Client, task_id: UUID) -> list[dict[str, Any]]:
+    """按评论 reviewed_at 的 UTC 日期聚合条数，供前端时间趋势图。"""
+    rv = (
+        sb.table("reviews")
+        .select("reviewed_at")
+        .eq("insight_task_id", str(task_id))
+        .execute()
+    )
+    by_day: Counter[str] = Counter()
+    for row in rv.data or []:
+        raw = row.get("reviewed_at")
+        if raw is None:
+            continue
+        s = str(raw)
+        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+            by_day[s[:10]] += 1
+    return [{"date": d, "count": by_day[d]} for d in sorted(by_day.keys())]
+
 _DIMS = frozenset(
     {
         "pros",
@@ -45,6 +64,8 @@ def build_insight_dashboard(
         "platform": task["platform"],
         "product_id": task["product_id"],
         "task_status": status,
+        "analysis_provider_id": task.get("analysis_provider_id"),
+        "analyzed_at": task.get("updated_at"),
     }
 
     empty_template = {
@@ -53,6 +74,7 @@ def build_insight_dashboard(
         "dimension_counts": {},
         "pain_ranking": [],
         "evidence": {"items": [], "total": 0, "limit": evidence_limit, "offset": evidence_offset},
+        "review_timeseries": [],
     }
 
     if status != "success":
@@ -77,6 +99,7 @@ def build_insight_dashboard(
             "message": "任务已成功，但未找到维度命中数据",
             "hint": "可能分析源未返回六维结果",
         }
+        empty_template["review_timeseries"] = _review_volume_by_reviewed_date(sb, task_id)
         return empty_template
 
     if evidence_dimension:
@@ -155,4 +178,5 @@ def build_insight_dashboard(
             "limit": evidence_limit,
             "offset": evidence_offset,
         },
+        "review_timeseries": _review_volume_by_reviewed_date(sb, task_id),
     }

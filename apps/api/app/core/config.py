@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     pangolin_token: str | None = None
     pangolin_base_url: str = "https://scrapeapi.pangolinfo.com"
     pangolin_amazon_url: str = "https://www.amazon.com"
-    pangolin_page_count: int = 1
+    # Amazon 评论页约每页 10 条；10 页约 100 条（以 Pangolin 实际返回为准）
+    pangolin_page_count: int = 10
     pangolin_filter_by_star: str = "all_stars"
     pangolin_sort_by: str = "recent"
     pangolin_parser_name: str = "amzReviewV2"

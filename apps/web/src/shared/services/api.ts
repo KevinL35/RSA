@@ -1,6 +1,8 @@
+import { getStoredUsername } from '../../modules/auth/store/auth.store'
+
 /**
  * 调用 FastAPI。开发环境走 Vite proxy `/api` → 后端；生产用 VITE_API_BASE_URL。
- * TB-13：所有请求携带 `X-RSA-Role`，与 `auth.store` / localStorage `rsa_user_role` 一致。
+ * TB-13：携带 `X-RSA-Role`；创建人等链路携带 `X-RSA-Username`（与 `rsa_login_username` 一致）。
  */
 export function apiBaseUrl(): string {
   const env = import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -25,9 +27,11 @@ export function getStoredRole(): ApiRole {
 }
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const u = getStoredUsername()
   return {
     Accept: 'application/json',
     'X-RSA-Role': getStoredRole(),
+    ...(u ? { 'X-RSA-Username': u } : {}),
     ...extra,
   }
 }
@@ -37,6 +41,45 @@ export async function apiGetJson<T>(path: string): Promise<T> {
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
   const res = await fetch(url, {
     headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return (await res.json()) as T
+}
+
+export async function apiPostFormData<T>(path: string, formData: FormData): Promise<T> {
+  const base = apiBaseUrl()
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const u = getStoredUsername()
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'X-RSA-Role': getStoredRole(),
+      ...(u ? { 'X-RSA-Username': u } : {}),
+    },
+    body: formData,
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return (await res.json()) as T
+}
+
+/** 登录等无需携带 X-RSA-Role 的接口 */
+export async function apiPostJsonPublic<T>(path: string, body: unknown): Promise<T> {
+  const base = apiBaseUrl()
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const text = await res.text()
@@ -58,6 +101,29 @@ export async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
     throw new Error(text || `HTTP ${res.status}`)
   }
   return (await res.json()) as T
+}
+
+export async function apiPatchJson<T>(path: string, body: unknown): Promise<T> {
+  const base = apiBaseUrl()
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) {
+    return {} as T
+  }
+  const text = await res.text()
+  if (!text.trim()) {
+    return {} as T
+  }
+  return JSON.parse(text) as T
 }
 
 export async function apiDeleteJson<T>(path: string): Promise<T> {

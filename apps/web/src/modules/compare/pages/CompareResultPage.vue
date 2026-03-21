@@ -1,9 +1,15 @@
 <template>
   <el-card class="view-card" v-loading="loading">
     <header class="page-header">
-      <el-button text type="primary" class="back-btn" @click="goBack">{{ t('compare.resultBack') }}</el-button>
-      <h2 class="page-title">{{ t('compare.resultPageTitle') }}</h2>
-      <p class="page-subtitle">{{ subtitle }}</p>
+      <div class="page-header-body">
+        <div class="page-header-title-row">
+          <h2 class="page-title">{{ t('compare.resultPageTitle') }}</h2>
+          <button type="button" class="rsa-text-back-btn" @click="goBack">
+            {{ t('compare.resultBack') }}
+          </button>
+        </div>
+        <p class="page-subtitle">{{ subtitle }}</p>
+      </div>
     </header>
 
     <el-alert
@@ -182,13 +188,22 @@ watch(compareId, () => hydrate(), { immediate: true })
   margin-bottom: 18px;
 }
 
-.back-btn {
-  padding-left: 0;
+.page-header-body {
+  min-width: 0;
+}
+
+.page-header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
 }
 
 .page-title {
-  margin: 0 0 8px;
+  margin: 0;
+  min-width: 0;
+  flex: 1;
   font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);

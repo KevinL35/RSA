@@ -25,11 +25,19 @@ export type InsightEvidenceItem = {
   review: Record<string, unknown> | null
 }
 
+export type ReviewTimeseriesPoint = {
+  date: string
+  count: number
+}
+
 export type InsightDashboardResponse = {
   insight_task_id: string
   platform: string
   product_id: string
   task_status: string
+  analysis_provider_id?: string | null
+  /** 任务最近更新时间（分析完成后通常与完成时刻接近），ISO 8601 */
+  analyzed_at?: string | null
   empty_state: InsightDashboardEmptyState | null
   dimension_counts: Partial<Record<Dimension6Key, number>>
   pain_ranking: PainRankItem[]
@@ -39,4 +47,6 @@ export type InsightDashboardResponse = {
     limit: number
     offset: number
   }
+  /** 按评论 reviewed_at 日期聚合的条数，用于时间趋势 */
+  review_timeseries?: ReviewTimeseriesPoint[]
 }

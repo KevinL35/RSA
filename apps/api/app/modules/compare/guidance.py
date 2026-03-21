@@ -25,11 +25,11 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
         if r == "no_success_task":
             zh_lines.append(
                 f"{label_zh}（{pid}）尚无「成功」状态的洞察任务；"
-                "请先在任务中心创建任务并完成拉取评论与分析。"
+                "请先在「洞察分析」添加商品并完成拉取评论与分析。"
             )
             en_lines.append(
                 f"{label_en} ({pid}) has no successful insight task. "
-                "In Task Center, create a task, run Fetch reviews, then Analyze."
+                "In Insight analysis, add the product, fetch reviews, then run analysis."
             )
         elif r == "empty_analysis":
             tid = p.get("insight_task_id") or ""
@@ -43,11 +43,11 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
             )
 
     guidance_zh = (
-        "建议：前往「任务中心」→ 创建洞察任务 → 拉取评论 → 执行分析；"
+        "建议：前往「洞察分析」→ 添加商品 → 拉取评论 → 执行分析；"
         "两侧商品均具备可对比的分析数据后再回到本页。"
     )
     guidance_en = (
-        "Suggested: Task Center → create insight task → Fetch reviews → Analyze; "
+        "Suggested: Insight analysis → add product → fetch reviews → analyze; "
         "return here when both products have comparable stored analysis."
     )
 
@@ -67,9 +67,9 @@ def format_compare_prerequisite_error(raw: dict[str, Any]) -> dict[str, Any]:
         },
         "guidance": {"zh_CN": guidance_zh, "en": guidance_en},
         "next_step": {
-            "route": "/task-center",
-            "label_zh": "打开任务中心",
-            "label_en": "Open Task Center",
+            "route": "/insight-analysis",
+            "label_zh": "打开洞察分析",
+            "label_en": "Open Insight analysis",
         },
         "missing": missing,
         "reasons": reasons,

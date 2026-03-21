@@ -33,3 +33,6 @@ def test_dashboard_task_not_ready() -> None:
     )
     out = build_insight_dashboard(sb, UUID("00000000-0000-4000-8000-000000000002"))
     assert out["empty_state"]["code"] == "TASK_NOT_READY"
+    assert out.get("review_timeseries") == []
+    assert "analysis_provider_id" in out
+    assert "analyzed_at" in out

@@ -25,17 +25,16 @@
           <span class="status-text">{{ row.statusLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('compare.colActions')" width="168" fixed="right">
+      <el-table-column :label="t('compare.colActions')" min-width="140" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link @click="onViewResults(row)">{{ t('compare.viewResults') }}</el-button>
           <el-button
-            type="primary"
+            type="danger"
             link
-            :loading="regeneratingId === row.id"
             :disabled="row.id.startsWith('demo')"
-            @click="onRegenerate(row)"
+            @click="onDeleteCompare(row)"
           >
-            {{ t('compare.regenerate') }}
+            {{ t('compare.delete') }}
           </el-button>
         </template>
       </el-table-column>
@@ -129,21 +128,23 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { insightApiConfigRows } from '../../settings/apiConfig.shared'
-import {
-  formatInsightModelLine,
-  formatInsightModelLineByProviderId,
-} from '../../../shared/utils/insightModelLabel'
+import { formatInsightModelLineByProviderId } from '../../../shared/utils/insightModelLabel'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
+import { getStoredUsername } from '../../auth/store/auth.store'
 import { ComparePrerequisiteError, fetchCompareProducts } from '../api'
 import {
+  deleteCompareRun,
   loadCompareRuns,
   upsertCompareRun,
   type StoredCompareRun,
 } from '../compareRuns.storage'
+
+/** 列表「模型」列固定展示（与结果页分析源一致口径） */
+const COMPARE_LIST_MODEL_LABEL = 'rsa-v1'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -179,7 +180,6 @@ const asin2Key = ref('')
 const insightProductOptions = ref<InsightProductOption[]>([])
 const insightTasksLoading = ref(false)
 const dialogSubmitting = ref(false)
-const regeneratingId = ref<string | null>(null)
 
 const rows = ref<CompareTableRow[]>([])
 
@@ -189,16 +189,9 @@ function formatTaskTime(iso: string) {
 }
 
 function currentCreatorLabel(): string {
+  const u = getStoredUsername()
+  if (u) return u
   const zh = locale.value === 'zh-CN'
-  try {
-    const raw = localStorage.getItem('rsa_login_credentials')
-    if (raw) {
-      const u = (JSON.parse(raw) as { username?: string }).username
-      if (u) return String(u)
-    }
-  } catch {
-    /* ignore */
-  }
   const role = localStorage.getItem('rsa_user_role') || 'readonly'
   if (zh) {
     if (role === 'admin') return '超级管理员'
@@ -221,7 +214,7 @@ function mapStoredToRow(s: StoredCompareRun): CompareTableRow {
     asin2: s.product_id_b,
     creator: s.creator,
     createdAt: formatTaskTime(s.created_at_iso),
-    smartModel: s.model_label,
+    smartModel: COMPARE_LIST_MODEL_LABEL,
     status: s.status,
     statusLabel: statusLabelFor(s.status),
     platformA: s.platform_a,
@@ -231,10 +224,6 @@ function mapStoredToRow(s: StoredCompareRun): CompareTableRow {
 
 function buildDefaultRows(): CompareTableRow[] {
   const zh = locale.value === 'zh-CN'
-  const demoLine = formatInsightModelLine(
-    { name: t('insight.demoInsightProviderName'), model: 'deepseek-chat' },
-    t,
-  )
   return [
     {
       id: 'demo-1',
@@ -242,7 +231,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST2',
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-18 14:22',
-      smartModel: demoLine,
+      smartModel: COMPARE_LIST_MODEL_LABEL,
       status: 'success',
       statusLabel: statusLabelFor('success'),
       platformA: 'amazon',
@@ -254,7 +243,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST4',
       creator: zh ? '分析师' : 'Analyst',
       createdAt: '2026-03-17 09:05',
-      smartModel: demoLine,
+      smartModel: COMPARE_LIST_MODEL_LABEL,
       status: 'success',
       statusLabel: statusLabelFor('success'),
       platformA: 'amazon',
@@ -266,7 +255,7 @@ function buildDefaultRows(): CompareTableRow[] {
       asin2: 'B0XXXXTEST6',
       creator: zh ? '超级管理员' : 'Super admin',
       createdAt: '2026-03-16 18:40',
-      smartModel: demoLine,
+      smartModel: COMPARE_LIST_MODEL_LABEL,
       status: 'failed',
       statusLabel: statusLabelFor('failed'),
       platformA: 'amazon',
@@ -363,17 +352,12 @@ type CompareRunPayload = {
   model_label: string
 }
 
-async function runCompareAndPersist(
-  payload: CompareRunPayload,
-  opts: { isRegenerate: boolean; existingId?: string },
-): Promise<boolean> {
+async function runCompareAndPersist(payload: CompareRunPayload): Promise<boolean> {
   const { platform_a: pa, product_id_a: ida, platform_b: pb, product_id_b: idb, model_id: mid, model_label: modelLabel } =
     payload
 
-  const runId = opts.existingId ?? crypto.randomUUID()
-  const createdIso = opts.isRegenerate
-    ? (loadCompareRuns().find((r) => r.id === runId)?.created_at_iso ?? new Date().toISOString())
-    : new Date().toISOString()
+  const runId = crypto.randomUUID()
+  const createdIso = new Date().toISOString()
 
   try {
     const result = await fetchCompareProducts({
@@ -417,7 +401,6 @@ async function runCompareAndPersist(
       status: 'failed',
       error_message: errMsg,
     })
-    if (opts.isRegenerate) throw e
     ElMessage.warning(errMsg)
     return false
   }
@@ -456,7 +439,7 @@ async function submitAddCompare() {
 
   dialogSubmitting.value = true
   try {
-    const ok = await runCompareAndPersist(payload, { isRegenerate: false })
+    const ok = await runCompareAndPersist(payload)
     loadRows()
     if (ok) {
       addDialogVisible.value = false
@@ -475,37 +458,23 @@ function onViewResults(row: CompareTableRow) {
   })
 }
 
-async function onRegenerate(row: CompareTableRow) {
+async function onDeleteCompare(row: CompareTableRow) {
   if (row.id.startsWith('demo')) {
-    ElMessage.info(t('compare.regenerateDemo'))
+    ElMessage.info(t('compare.deleteDemo'))
     return
   }
-  const stored = loadCompareRuns().find((r) => r.id === row.id)
-  if (!stored) {
-    ElMessage.warning(t('compare.rowMissing'))
-    return
-  }
-
-  regeneratingId.value = row.id
-
-  const payload: CompareRunPayload = {
-    platform_a: stored.platform_a,
-    product_id_a: stored.product_id_a,
-    platform_b: stored.platform_b,
-    product_id_b: stored.product_id_b,
-    model_id: stored.model_id ?? '',
-    model_label: stored.model_label,
-  }
-
   try {
-    await runCompareAndPersist(payload, { isRegenerate: true, existingId: row.id })
-    ElMessage.success(t('compare.regenerateOk'))
-    loadRows()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : t('compare.regenerateFail'))
-    loadRows()
-  } finally {
-    regeneratingId.value = null
+    await ElMessageBox.confirm(t('compare.deleteConfirm'), t('layout.logoutTitle'), {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  deleteCompareRun(row.id)
+  loadRows()
+  ElMessage.success(t('compare.deleteOk'))
+  if (pagedRows.value.length === 0 && page.value > 1) {
+    page.value = Math.max(1, page.value - 1)
   }
 }
 </script>

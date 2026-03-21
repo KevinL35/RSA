@@ -16,6 +16,9 @@
 - `infra/migrations/001_insight_tasks.sql`
 - `infra/migrations/002_reviews.sql`（TB-2 评论落库）
 - `infra/migrations/003_review_analysis.sql`（TB-4 分析结果）
+- `infra/migrations/004_insight_tasks_dictionary_vertical.sql`（如使用词典垂直）
+- `infra/migrations/005_platform_users.sql`（平台登录用户与菜单权限；默认账号 `admin` / `admin`，bcrypt 存储）
+- `infra/migrations/006_insight_tasks_created_by.sql`（洞察任务 `created_by` 创建人用户名；创建任务时由前端 `X-RSA-Username` 传入）
 
 然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/api/.env`。
 
@@ -41,7 +44,7 @@ pytest
 
 ## 接口
 
-- `GET /api/v1/insight-tasks`：任务中心列表（TB-6），支持 `task_type=insight`、`status`（逗号分隔）、`created_after` / `created_before`（ISO8601）、`limit`；**失败**任务每条含 `error: { stage, code, message }`
+- `GET /api/v1/insight-tasks`：洞察任务列表（TB-6），支持 `task_type=insight`、`status`（逗号分隔）、`created_after` / `created_before`（ISO8601）、`limit`；**失败**任务每条含 `error: { stage, code, message }`
 - `GET /api/v1/insight-tasks/{id}`：单条查询（状态与 `error_*` / `failure_stage`）
 - `POST /api/v1/insight-tasks`：创建一条 `pending` 任务（用于联调）
 - `PATCH /api/v1/insight-tasks/{id}`：状态迁移（TB-1 状态机：`pending→running→success|failed|cancelled`，`failed→pending` 重试）；迁到 `failed` 时须带 `failure_stage` 与 `error_message`
@@ -53,7 +56,7 @@ pytest
 - `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因
 - `POST /api/v1/insight-tasks/{id}/retry`：TB-6 **幂等**重试：`failed→pending` 并清空错误；已为 `pending` 则 `idempotent: true`；`running`/`success`/`cancelled` 返回 409
 - `DELETE /api/v1/insight-tasks/{id}`：删除任务（`admin`/`operator`）；关联 `reviews` / `review_analysis` / `review_dimension_analysis` 随库级 `ON DELETE CASCADE` 清理；不存在返回 404
-- `GET /api/v1/compare/products?platform_a=&product_id_a=&platform_b=&product_id_b=`：TB-9 双商品对比；按各自最近一次 `success` 任务聚合情感分布、`dimensions` 六维计数、关键词 Top 与相对偏多侧、`conclusion_cards`（规则模板）。**TB-10 前置校验**：任一侧无 `success` 任务、或任务成功但 `review_analysis` 为空（无落库分析）时 **400**，响应体 `{"detail": { ... }}` 内含 `code: MISSING_INSIGHT_DATA`、`messages.zh_CN` / `messages.en`、`guidance`、`next_step`（引导至任务中心）、`reasons`（`no_success_task` | `empty_analysis`）、`products`（含 `insight_task_id`）
+- `GET /api/v1/compare/products?platform_a=&product_id_a=&platform_b=&product_id_b=`：TB-9 双商品对比；按各自最近一次 `success` 任务聚合情感分布、`dimensions` 六维计数、关键词 Top 与相对偏多侧、`conclusion_cards`（规则模板）。**TB-10 前置校验**：任一侧无 `success` 任务、或任务成功但 `review_analysis` 为空（无落库分析）时 **400**，响应体 `{"detail": { ... }}` 内含 `code: MISSING_INSIGHT_DATA`、`messages.zh_CN` / `messages.en`、`guidance`、`next_step`（引导至洞察分析）、`reasons`（`no_success_task` | `empty_analysis`）、`products`（含 `insight_task_id`）
 
 **评论抓取（TB-2）环境变量**（`apps/api/.env`）：
 

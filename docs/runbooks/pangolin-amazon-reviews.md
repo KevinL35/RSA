@@ -23,14 +23,15 @@ PANGOLIN_TOKEN=<上一步的 data 字符串>
 PANGOLIN_AMAZON_URL=https://www.amazon.com
 # 英国站示例：https://www.amazon.co.uk
 
-PANGOLIN_PAGE_COUNT=1
+# 默认约 10 条/页时可设 10 以接近 100 条；积点与耗时随页数增加
+PANGOLIN_PAGE_COUNT=10
 PANGOLIN_FILTER_BY_STAR=all_stars
 PANGOLIN_SORT_BY=recent
 PANGOLIN_PARSER_NAME=amzReviewV2
 PANGOLIN_TIMEOUT_SECONDS=180
 ```
 
-- **`PANGOLIN_PAGE_COUNT`**：文档说明与积点消耗相关（如每页 5 积点），请按账户额度谨慎增大。
+- **`PANGOLIN_PAGE_COUNT`**：列表页数；Amazon 常见约每页 10 条评论，**设为 10 约可拉 100 条**（以实际返回为准）。文档说明与积点消耗相关（如每页 N 积点），请按账户额度谨慎增大。
 - 修改 `.env` 后**重启** API 进程。
 
 ## 3. 任务侧约定

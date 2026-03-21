@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import UUID
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
-from app.core.rbac import get_rsa_role, require_mutator_role
+from app.core.rbac import get_rsa_role, get_rsa_username_optional, require_mutator_role
 from app.integrations.supabase import require_supabase
 from app.modules.insight_dashboard.service import build_insight_dashboard
 
 from . import state_machine
 from .analyze_task import run_analyze_for_task
 from .fetch_reviews import run_fetch_reviews_for_task
+from .import_reviews_excel import run_import_reviews_from_excel
 from .listing import enrich_task_for_task_center, list_insight_tasks_filtered
 from .retry_task import retry_insight_task
+from app.modules.dictionary.verticals import assert_valid_vertical_id
+
 from .schema import InsightTaskCreate, InsightTaskPatch
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
@@ -73,17 +77,25 @@ def list_insight_tasks(
 def create_insight_task(
     body: InsightTaskCreate,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    created_by: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     try:
         sb = require_supabase()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
-    row = {
+    try:
+        dvid = assert_valid_vertical_id(body.dictionary_vertical_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    row: dict[str, object] = {
         "platform": body.platform.strip(),
         "product_id": body.product_id.strip(),
         "status": "pending",
         "analysis_provider_id": body.analysis_provider_id,
+        "dictionary_vertical_id": dvid,
     }
+    if created_by:
+        row["created_by"] = created_by
     try:
         res = sb.table("insight_tasks").insert(row).execute()
     except Exception as e:  # noqa: BLE001
@@ -115,6 +127,40 @@ def post_fetch_reviews(
         raise HTTPException(
             status_code=500,
             detail=f"抓取流程异常：{e!s}",
+        ) from e
+
+
+@router.post("/{task_id}/import-reviews")
+async def post_import_reviews(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    file: UploadFile = File(..., description="评论 Excel（.xlsx / .xls），表头含时间与评论列"),
+) -> dict:
+    """从 Excel 导入评论（仅时间与正文列），替换该任务已有 reviews；pending→running，与抓取后状态一致以便继续 analyze。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in (".xlsx", ".xls"):
+        raise HTTPException(status_code=400, detail="仅支持 .xlsx 或 .xls 文件")
+    try:
+        content = await file.read()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"读取上传文件失败：{e!s}") from e
+    try:
+        return run_import_reviews_from_excel(
+            sb,
+            task_id,
+            content,
+            filename=file.filename or "",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"导入评论异常：{e!s}",
         ) from e
 
 

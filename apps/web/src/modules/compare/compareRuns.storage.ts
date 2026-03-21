@@ -41,6 +41,11 @@ export function upsertCompareRun(run: StoredCompareRun) {
   saveCompareRuns(runs)
 }
 
+export function deleteCompareRun(id: string) {
+  const runs = loadCompareRuns().filter((x) => x.id !== id)
+  saveCompareRuns(runs)
+}
+
 export function getCompareRunById(id: string): StoredCompareRun | undefined {
   return loadCompareRuns().find((r) => r.id === id)
 }

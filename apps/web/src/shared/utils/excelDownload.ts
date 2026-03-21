@@ -22,3 +22,19 @@ export async function downloadReviewsExcel(
   const name = filename.toLowerCase().endsWith('.xlsx') ? filename : `${filename}.xlsx`
   XLSX.writeFile(wb, name)
 }
+
+/** 评论导入模板表头（与后端 import-reviews 解析一致）。 */
+export const REVIEW_IMPORT_TEMPLATE_COLUMNS = ['时间', '评论'] as const
+
+/** 下载空模板（含表头与一行示例，可删除后填写）。 */
+export async function downloadReviewImportTemplate(): Promise<void> {
+  const cols = [...REVIEW_IMPORT_TEMPLATE_COLUMNS]
+  await downloadReviewsExcel(
+    '评论导入模板.xlsx',
+    [
+      { 时间: '', 评论: '' },
+      { 时间: '2026-01-15', 评论: '示例：可删除本行后填写真实评论' },
+    ],
+    cols,
+  )
+}

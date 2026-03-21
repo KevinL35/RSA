@@ -70,6 +70,7 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
             product_id=task["product_id"],
             task_analysis_provider_id=task.get("analysis_provider_id"),
             reviews=review_rows,
+            dictionary_vertical_id=task.get("dictionary_vertical_id"),
             settings=settings,
         )
     except AnalysisProviderError as e:

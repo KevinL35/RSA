@@ -31,11 +31,18 @@ export type InsightEvidenceItem = {
   review: Record<string, unknown> | null
 }
 
+export type ReviewTimeseriesPoint = {
+  date: string
+  count: number
+}
+
 export type InsightDashboardResponse = {
   insight_task_id: string
   platform: string
   product_id: string
   task_status: string
+  analysis_provider_id?: string | null
+  analyzed_at?: string | null
   empty_state: InsightDashboardEmptyState | null
   dimension_counts: Partial<Record<Dimension6Key, number>>
   pain_ranking: PainRankItem[]
@@ -45,4 +52,5 @@ export type InsightDashboardResponse = {
     limit: number
     offset: number
   }
+  review_timeseries?: ReviewTimeseriesPoint[]
 }

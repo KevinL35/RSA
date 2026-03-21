@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Request
 
 RSA_ROLE_HEADER = "X-RSA-Role"
+RSA_USERNAME_HEADER = "X-RSA-Username"
 VALID_ROLES = frozenset({"admin", "operator", "readonly"})
 
 audit_log = logging.getLogger("rsa.audit")
@@ -35,6 +36,18 @@ def get_rsa_role(
             },
         )
     return role
+
+
+def get_rsa_username_optional(
+    x_rsa_username: Annotated[str | None, Header(alias=RSA_USERNAME_HEADER)] = None,
+) -> str | None:
+    """可选登录用户名，与前端 localStorage `rsa_login_username` / 平台登录响应一致。"""
+    if not x_rsa_username:
+        return None
+    s = x_rsa_username.strip()
+    if not s or len(s) > 128:
+        return None
+    return s
 
 
 def require_mutator_role(

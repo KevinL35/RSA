@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.modules.analysis_results.router import router as analysis_results_router
 from app.modules.compare.router import router as compare_router
+from app.modules.dictionary.router import router as dictionary_router
+from app.modules.platform_users import auth_router as platform_auth_router
+from app.modules.platform_users import users_router as platform_users_router
 from app.modules.tasks.router import router as tasks_router
 from app.routers import health
 from app.routers.translate import router as translate_router
@@ -23,9 +26,12 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(translate_router)
+app.include_router(platform_auth_router)
+app.include_router(platform_users_router)
 app.include_router(tasks_router)
 app.include_router(analysis_results_router)
 app.include_router(compare_router)
+app.include_router(dictionary_router)
 
 
 @app.get("/")

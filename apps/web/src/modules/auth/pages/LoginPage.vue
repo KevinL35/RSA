@@ -37,48 +37,136 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '../store/auth.store'
+import { apiBaseUrl } from '../../../shared/services/api'
+import { useAuthStore, type UserRole } from '../store/auth.store'
 
 const { t } = useI18n()
 
 const DEMO_USER = 'admin'
 const DEMO_PASS = 'admin'
 
-const username = ref(DEMO_USER)
-const password = ref(DEMO_PASS)
-const rememberPassword = ref(true)
+const REMEMBER_KEY = 'rsa_login_remember'
+const CRED_KEY = 'rsa_login_credentials'
+
+/** 进入页时同步读取，避免先闪现默认账号再被 onMounted 改掉 */
+function readRememberedForm(): { username: string; password: string; remember: boolean } {
+  try {
+    const remember = localStorage.getItem(REMEMBER_KEY) === '1'
+    if (!remember) {
+      return { username: '', password: '', remember: false }
+    }
+    const raw = localStorage.getItem(CRED_KEY)
+    if (!raw) {
+      localStorage.removeItem(REMEMBER_KEY)
+      return { username: '', password: '', remember: false }
+    }
+    const parsed = JSON.parse(raw) as { username?: string; password?: string }
+    const u = typeof parsed.username === 'string' ? parsed.username : ''
+    const p = typeof parsed.password === 'string' ? parsed.password : ''
+    if (!u && !p) {
+      localStorage.removeItem(REMEMBER_KEY)
+      localStorage.removeItem(CRED_KEY)
+      return { username: '', password: '', remember: false }
+    }
+    return { username: u, password: p, remember: true }
+  } catch {
+    localStorage.removeItem(REMEMBER_KEY)
+    localStorage.removeItem(CRED_KEY)
+    return { username: '', password: '', remember: false }
+  }
+}
+
+const initialForm = readRememberedForm()
+const username = ref(initialForm.username)
+const password = ref(initialForm.password)
+const rememberPassword = ref(initialForm.remember)
 const loading = ref(false)
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const REMEMBER_KEY = 'rsa_login_remember'
-const CRED_KEY = 'rsa_login_credentials'
 const userSvg =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path fill="currentColor" d="M512 512a192 192 0 1 0 0-384 192 192 0 0 0 0 384m0 64a256 256 0 1 1 0-512 256 256 0 0 1 0 512m320 320v-96a96 96 0 0 0-96-96H288a96 96 0 0 0-96 96v96a32 32 0 1 1-64 0v-96a160 160 0 0 1 160-160h448a160 160 0 0 1 160 160v96a32 32 0 1 1-64 0"></path></svg>'
 const passwordSvg =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path fill="currentColor" d="M224 448a32 32 0 0 0-32 32v384a32 32 0 0 0 32 32h576a32 32 0 0 0 32-32V480a32 32 0 0 0-32-32zm0-64h576a96 96 0 0 1 96 96v384a96 96 0 0 1-96 96H224a96 96 0 0 1-96-96V480a96 96 0 0 1 96-96"></path><path fill="currentColor" d="M512 544a32 32 0 0 1 32 32v192a32 32 0 1 1-64 0V576a32 32 0 0 1 32-32m192-160v-64a192 192 0 1 0-384 0v64zM512 64a256 256 0 0 1 256 256v128H256V320A256 256 0 0 1 512 64"></path></svg>'
 
+type PlatformLoginJson = {
+  username: string
+  role: string
+  menu_keys: string[]
+  token: string
+}
+
+async function tryPlatformLogin(): Promise<'ok' | 'auth_fail' | 'skip'> {
+  const base = apiBaseUrl()
+  const url = `${base}/api/v1/platform-auth/login`
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username.value.trim(),
+        password: password.value,
+      }),
+    })
+    if (res.ok) {
+      const data = (await res.json()) as PlatformLoginJson
+      const r = data.role as UserRole
+      const role: UserRole =
+        r === 'admin' || r === 'operator' || r === 'readonly' ? r : 'readonly'
+      auth.loginWithPlatform(data.username, data.token, role, data.menu_keys ?? [])
+      return 'ok'
+    }
+    if (res.status === 401) return 'auth_fail'
+    return 'skip'
+  } catch {
+    return 'skip'
+  }
+}
+
+function persistRememberPreference() {
+  if (rememberPassword.value) {
+    localStorage.setItem(REMEMBER_KEY, '1')
+    localStorage.setItem(
+      CRED_KEY,
+      JSON.stringify({
+        username: username.value,
+        password: password.value,
+      }),
+    )
+  } else {
+    localStorage.removeItem(REMEMBER_KEY)
+    localStorage.removeItem(CRED_KEY)
+  }
+}
+
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.login(username.value, password.value, 'admin')
-    if (rememberPassword.value) {
-      localStorage.setItem(REMEMBER_KEY, '1')
-      localStorage.setItem(
-        CRED_KEY,
-        JSON.stringify({
-          username: username.value,
-          password: password.value,
-        }),
-      )
-    } else {
-      localStorage.removeItem(REMEMBER_KEY)
-      localStorage.removeItem(CRED_KEY)
+    const plat = await tryPlatformLogin()
+    if (plat === 'auth_fail') {
+      ElMessage.error(t('login.failed'))
+      return
     }
+    if (plat === 'ok') {
+      persistRememberPreference()
+      const redir = route.query.redirect
+      router.replace(typeof redir === 'string' && redir.startsWith('/') ? redir : '/insight-analysis')
+      return
+    }
+
+    await auth.login(username.value, password.value, 'admin')
+    if (
+      username.value === DEMO_USER &&
+      password.value === DEMO_PASS &&
+      plat === 'skip'
+    ) {
+      ElMessage.warning(t('login.demoFallback'))
+    }
+    persistRememberPreference()
     const redir = route.query.redirect
     router.replace(typeof redir === 'string' && redir.startsWith('/') ? redir : '/insight-analysis')
   } catch (e) {
@@ -87,21 +175,6 @@ async function onSubmit() {
     loading.value = false
   }
 }
-
-onMounted(() => {
-  const remember = localStorage.getItem(REMEMBER_KEY) === '1'
-  rememberPassword.value = remember
-  if (!remember) return
-  const raw = localStorage.getItem(CRED_KEY)
-  if (!raw) return
-  try {
-    const parsed = JSON.parse(raw) as { username?: string; password?: string }
-    username.value = parsed.username ?? DEMO_USER
-    password.value = parsed.password ?? DEMO_PASS
-  } catch {
-    localStorage.removeItem(CRED_KEY)
-  }
-})
 </script>
 
 <style scoped>
