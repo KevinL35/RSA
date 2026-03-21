@@ -29,9 +29,14 @@ def test_invalid_role_returns_401() -> None:
 
 
 def test_readonly_can_get_insight_tasks_list() -> None:
-    """只读可 GET 列表（若 Supabase 未配置则 503，但 RBAC 已通过）。"""
+    """只读可 GET 列表；RBAC 须已通过（非 401/403）。
+
+    - 200：Supabase 正常返回列表
+    - 503：未配置 URL/密钥（require_supabase 抛 RuntimeError）
+    - 502：已配置但查询失败（网络、密钥无效、项目暂停、PostgREST 网关错误等，见 router 502 分支）
+    """
     r = _client().get("/api/v1/insight-tasks", headers={"X-RSA-Role": "readonly"})
-    assert r.status_code in (200, 503)
+    assert r.status_code in (200, 503, 502)
 
 
 def test_readonly_can_post_translate() -> None:
