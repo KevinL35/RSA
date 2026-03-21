@@ -19,6 +19,13 @@
             </template>
           </el-input>
         </el-form-item>
+        <el-form-item class="form-item">
+          <el-select v-model="role" size="large" placeholder="角色（演示 RBAC）" style="width: 100%">
+            <el-option label="管理员" value="admin" />
+            <el-option label="运营" value="operator" />
+            <el-option label="只读" value="readonly" />
+          </el-select>
+        </el-form-item>
         <el-form-item class="remember-item">
           <el-checkbox v-model="rememberPassword">记住密码</el-checkbox>
         </el-form-item>
@@ -32,14 +39,16 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '../store/auth.store'
+import { useAuthStore, type UserRole } from '../store/auth.store'
 
 const username = ref('')
 const password = ref('')
+const role = ref<UserRole>('operator')
 const rememberPassword = ref(true)
 const loading = ref(false)
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const REMEMBER_KEY = 'rsa_login_remember'
@@ -52,7 +61,7 @@ const passwordSvg =
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.login(username.value, password.value)
+    await auth.login(username.value, password.value, role.value)
     if (rememberPassword.value) {
       localStorage.setItem(REMEMBER_KEY, '1')
       localStorage.setItem(
@@ -66,7 +75,8 @@ async function onSubmit() {
       localStorage.removeItem(REMEMBER_KEY)
       localStorage.removeItem(CRED_KEY)
     }
-    router.replace('/insight-analysis')
+    const redir = route.query.redirect
+    router.replace(typeof redir === 'string' && redir.startsWith('/') ? redir : '/insight-analysis')
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '登录失败')
   } finally {

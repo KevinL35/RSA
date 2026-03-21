@@ -1,3 +1,9 @@
+export type TaskCenterError = {
+  stage: string | null
+  code: string | null
+  message: string | null
+}
+
 export type InsightTaskRow = {
   id: string
   platform: string
@@ -9,8 +15,26 @@ export type InsightTaskRow = {
   failure_stage: string | null
   created_at: string
   updated_at: string
+  /** TB-6：失败任务结构化错误；非失败为 null */
+  error?: TaskCenterError | null
+}
+
+export type InsightTaskListFiltersApplied = {
+  task_type: string
+  status: string[] | null
+  created_after: string | null
+  created_before: string | null
+  limit: number
 }
 
 export type InsightTaskListResponse = {
   items: InsightTaskRow[]
+  filters_applied?: InsightTaskListFiltersApplied
+}
+
+export type InsightTaskRetryResponse = {
+  task: InsightTaskRow
+  idempotent: boolean
+  action: 'none' | 'reset_to_pending'
+  message: string
 }

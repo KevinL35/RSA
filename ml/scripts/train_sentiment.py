@@ -195,7 +195,7 @@ def main() -> None:
         per_device_eval_batch_size=train_cfg["per_device_eval_batch_size"],
         weight_decay=train_cfg["weight_decay"],
         logging_steps=train_cfg["logging_steps"],
-        evaluation_strategy=train_cfg["eval_strategy"],
+        eval_strategy=train_cfg["eval_strategy"],
         save_strategy=train_cfg["save_strategy"],
         metric_for_best_model=train_cfg["metric_for_best_model"],
         greater_is_better=train_cfg["greater_is_better"],

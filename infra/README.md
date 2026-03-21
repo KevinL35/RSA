@@ -4,5 +4,5 @@
 
 - 环境变量模板（dev/staging/prod）
 - 部署配置（容器/进程管理）
-- 数据库迁移与初始化脚本（`migrations/001_insight_tasks.sql`、`002_reviews.sql` 等，在 Supabase SQL Editor 或 MCP `apply_migration` 执行）
+- 数据库迁移与初始化脚本（`001_insight_tasks.sql`、`002_reviews.sql`、`003_review_analysis.sql` 等，在 Supabase SQL Editor 或 MCP `apply_migration` 执行）
 - CI/CD 工作流

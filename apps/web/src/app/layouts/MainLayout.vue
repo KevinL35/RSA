@@ -58,18 +58,30 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { APP_MENUS } from '../config/menu.config'
+import { APP_MENUS, type MenuItem } from '../config/menu.config'
 import { useAuthStore } from '../../modules/auth/store/auth.store'
 
 const collapsed = ref(false)
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const menus = APP_MENUS
+
+function menuVisible(item: MenuItem): boolean {
+  if (!item.allowedRoles?.length) return true
+  return item.allowedRoles.includes(auth.role.value)
+}
+
+const menus = computed(() =>
+  APP_MENUS.filter(menuVisible).map((item) => {
+    if (!item.children?.length) return item
+    const children = item.children.filter(menuVisible)
+    return { ...item, children }
+  }),
+)
 
 const activePath = computed(() => route.path)
 const defaultOpeneds = computed(() => {
-  const parent = menus.find((item) => item.children?.some((child) => child.path === route.path))
+  const parent = menus.value.find((item) => item.children?.some((child) => child.path === route.path))
   return parent ? [parent.key] : []
 })
 const menuActionSvg =

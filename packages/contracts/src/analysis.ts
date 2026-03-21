@@ -39,3 +39,57 @@ export type AnalyzeInsightTaskResponse = {
   analysis_provider_id_used: string
   review_analyses: ReviewAnalysisRow[]
 }
+
+/** TB-4：GET /api/v1/insight-tasks/{id}/analysis */
+
+export type ReviewSnippet = {
+  id: string
+  raw_text: string
+  title: string | null
+  rating: number | null
+  sku: string | null
+  reviewed_at: string | null
+}
+
+export type StoredTaskAnalysisItem = {
+  review_id: string
+  review: ReviewSnippet | null
+  sentiment: {
+    label: SentimentLabel
+    confidence: number | null
+  }
+  dimensions: DimensionAnalysis[]
+  analysis_provider_id: string | null
+  created_at: string
+}
+
+export type StoredTaskAnalysisResponse = {
+  insight_task_id: string
+  platform: string
+  product_id: string
+  task_status: string
+  items: StoredTaskAnalysisItem[]
+}
+
+/** TB-4：GET /api/v1/analysis/by-product */
+
+export type DimensionHitStoredRow = {
+  id: string
+  review_analysis_id: string
+  insight_task_id: string
+  review_id: string
+  platform: string
+  product_id: string
+  dimension: Dimension6Key
+  keywords: string[]
+  evidence_quote: string | null
+  highlight_spans: HighlightSpan[]
+  created_at: string
+}
+
+export type ByProductDimensionHitsResponse = {
+  platform: string
+  product_id: string
+  dimension_filter: string | null
+  items: Array<DimensionHitStoredRow & { review: ReviewSnippet | null }>
+}

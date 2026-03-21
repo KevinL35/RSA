@@ -13,6 +13,7 @@
 
 - `infra/migrations/001_insight_tasks.sql`
 - `infra/migrations/002_reviews.sql`（TB-2 评论落库）
+- `infra/migrations/003_review_analysis.sql`（TB-4 分析结果）
 
 然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/api/.env`。
 
@@ -26,14 +27,26 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## 测试（TB-8）
+
+```bash
+cd apps/api
+source .venv/bin/activate
+pytest
+```
+
 ## 接口
 
-- `GET /api/v1/insight-tasks`：列表（来自表 `insight_tasks`）
+- `GET /api/v1/insight-tasks`：任务中心列表（TB-6），支持 `task_type=insight`、`status`（逗号分隔）、`created_after` / `created_before`（ISO8601）、`limit`；**失败**任务每条含 `error: { stage, code, message }`
 - `GET /api/v1/insight-tasks/{id}`：单条查询（状态与 `error_*` / `failure_stage`）
 - `POST /api/v1/insight-tasks`：创建一条 `pending` 任务（用于联调）
 - `PATCH /api/v1/insight-tasks/{id}`：状态迁移（TB-1 状态机：`pending→running→success|failed|cancelled`，`failed→pending` 重试）；迁到 `failed` 时须带 `failure_stage` 与 `error_message`
 - `POST /api/v1/insight-tasks/{id}/fetch-reviews`：TB-2 按任务的 `platform`/`product_id` 调用配置的评论抓取 API，写入 `reviews`；成功则任务保持 `running`；失败则 `failed` 且 `failure_stage=fetch` 与 `error_code`
-- `POST /api/v1/insight-tasks/{id}/analyze`：TB-3 读取已落库 `reviews`，调用分析源（任务上的 `analysis_provider_id` 优先，否则 `ANALYSIS_PROVIDER_DEFAULT_ID`；URL 由 `ANALYSIS_PROVIDER_ROUTES_JSON` 或 `ANALYSIS_PROVIDER_URL` 解析）；返回逐条情感/六维/证据结构；成功则 `running→success`；失败则 `failed` 且 `failure_stage=analyze`
+- `POST /api/v1/insight-tasks/{id}/analyze`：TB-3 读取已落库 `reviews`，调用分析源（任务上的 `analysis_provider_id` 优先，否则 `ANALYSIS_PROVIDER_DEFAULT_ID`；URL 由 `ANALYSIS_PROVIDER_ROUTES_JSON` 或 `ANALYSIS_PROVIDER_URL` 解析）；返回逐条情感/六维/证据结构；**成功则先写入 TB-4 表再** `running→success`；失败则 `failed` 且 `failure_stage=analyze`
+- `GET /api/v1/insight-tasks/{id}/analysis`：TB-4 按任务读取已落库分析结果，每条带 `review` 原文片段字段便于证据反查
+- `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
+- `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因
+- `POST /api/v1/insight-tasks/{id}/retry`：TB-6 **幂等**重试：`failed→pending` 并清空错误；已为 `pending` 则 `idempotent: true`；`running`/`success`/`cancelled` 返回 409
 
 **评论抓取（TB-2）环境变量**（`apps/api/.env`）：
 

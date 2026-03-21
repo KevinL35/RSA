@@ -16,9 +16,29 @@ export type { FetchReviewsResponse, ReviewRow } from './reviews'
 
 export type {
   AnalyzeInsightTaskResponse,
+  ByProductDimensionHitsResponse,
   Dimension6Key,
   DimensionAnalysis,
+  DimensionHitStoredRow,
   HighlightSpan,
   ReviewAnalysisRow,
+  ReviewSnippet,
   SentimentLabel,
+  StoredTaskAnalysisItem,
+  StoredTaskAnalysisResponse,
 } from './analysis'
+
+export type {
+  InsightDashboardEmptyState,
+  InsightDashboardResponse,
+  InsightEvidenceItem,
+  PainRankItem,
+} from './insight-dashboard'
+
+export type {
+  InsightTaskListFiltersApplied,
+  InsightTaskListWithFiltersResponse,
+  InsightTaskRetryResponse,
+  TaskCenterError,
+  TaskCenterInsightTaskRow,
+} from './task-center'

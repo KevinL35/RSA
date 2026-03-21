@@ -9,6 +9,7 @@ from supabase import Client
 from app.core.config import get_settings
 from app.integrations.review_provider import ReviewProviderError, fetch_reviews_normalized
 from app.modules.tasks import state_machine
+from app.modules.tasks.listing import enrich_task_for_task_center
 
 
 def _utc_now_iso() -> str:
@@ -116,4 +117,7 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
         .execute()
     )
     task_row = (fresh.data or [task])[0]
-    return {"task": task_row, "reviews_inserted": len(insert_rows)}
+    return {
+        "task": enrich_task_for_task_center(task_row),
+        "reviews_inserted": len(insert_rows),
+    }

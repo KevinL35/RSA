@@ -1,6 +1,8 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import LoginPage from '../../modules/auth/pages/LoginPage.vue'
 import MainLayout from '../layouts/MainLayout.vue'
+import { useAuthStore } from '../../modules/auth/store/auth.store'
 import InsightAnalysisPage from '../../modules/insight/pages/InsightAnalysisPage.vue'
 import CompareAnalysisPage from '../../modules/compare/pages/CompareAnalysisPage.vue'
 import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
@@ -20,17 +22,31 @@ const router = createRouter({
         { path: '', redirect: '/insight-analysis' },
         { path: 'insight-analysis', component: InsightAnalysisPage },
         { path: 'compare-analysis', component: CompareAnalysisPage },
-        { path: 'pain-audit', component: PainAuditPage },
-        { path: 'dictionary', component: DictionaryPage },
+        { path: 'pain-audit', component: PainAuditPage, meta: { allowedRoles: ['admin'] } },
+        { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
         { path: 'task-center', component: TaskCenterPage },
-        { path: 'system-settings/api-config', component: ApiConfigPage },
-        { path: 'system-settings/account-permissions', component: AccountPermissionsPage },
+        { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
+        {
+          path: 'system-settings/account-permissions',
+          component: AccountPermissionsPage,
+          meta: { allowedRoles: ['admin'] },
+        },
       ],
     },
   ],
 })
 
-// 开发阶段临时关闭登录守卫；联调鉴权时再恢复。
-router.beforeEach(() => true)
+// TB-7：登录 + 路由级 RBAC（与侧边栏 allowedRoles 一致）
+router.beforeEach((to: RouteLocationNormalized) => {
+  const auth = useAuthStore()
+  if (to.path === '/login') return true
+  if (!auth.isLogin()) return { path: '/login', query: { redirect: to.fullPath } }
+  const roles = to.meta.allowedRoles
+  if (roles?.length && !roles.includes(auth.role.value)) {
+    ElMessage.warning('当前角色无权访问该页面')
+    return { path: '/insight-analysis', replace: true }
+  }
+  return true
+})
 
 export default router

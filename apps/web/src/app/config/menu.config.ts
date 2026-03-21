@@ -1,8 +1,12 @@
+import type { UserRole } from '../../modules/auth/store/auth.store'
+
 export type MenuItem = {
   key: string
   label: string
   path: string
   icon: string
+  /** 未设置表示三角色均可见（TB-7 菜单 RBAC） */
+  allowedRoles?: UserRole[]
   children?: MenuItem[]
 }
 
@@ -23,12 +27,14 @@ export const APP_MENUS: MenuItem[] = [
     key: 'pain-audit',
     label: '痛点审核',
     path: '/pain-audit',
+    allowedRoles: ['admin'],
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/></svg>',
   },
   {
     key: 'dictionary',
     label: '词典管理',
     path: '/dictionary',
+    allowedRoles: ['admin'],
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 22H5.5a1 1 0 0 1 0-5h4.501"/><path d="m21 22-1.879-1.878"/><path d="M3 19.5v-15A2.5 2.5 0 0 1 5.5 2H18a1 1 0 0 1 1 1v8"/><circle cx="17" cy="18" r="3"/></svg>',
   },
   {
@@ -41,6 +47,7 @@ export const APP_MENUS: MenuItem[] = [
     key: 'system-settings',
     label: '系统设置',
     path: '/system-settings/api-config',
+    allowedRoles: ['admin'],
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>',
     children: [
       { key: 'api-config', label: '接口配置', path: '/system-settings/api-config', icon: '' },

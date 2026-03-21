@@ -82,22 +82,27 @@
 
 - [x] **TB-3 接入分析源调用链路（对接 Stage A 模型）**（P0，status: done）  
   - DoD：支持 `analysis_provider_id` 显式选择与默认回退；返回情感/六维/证据句结构。  
-  - 交付：`POST /api/v1/insight-tasks/{id}/analyze`；`analysis_provider` 适配层（路由解析、HTTP+重试、Mock、响应规整为 TA-1 六维与 `highlight_spans`）；契约 `packages/contracts/src/analysis.ts`。（持久化查询见 TB-4/TB-5。）
+  - 交付：`POST /api/v1/insight-tasks/{id}/analyze`；`analysis_provider` 适配层；契约 `packages/contracts/src/analysis.ts`；分析成功后结果写入 TB-4 表。
 
-- [ ] **TB-4 设计并落地分析结果存储结构**（P0）  
-  - DoD：可按商品、任务、维度检索；证据句可反查原评论。
+- [x] **TB-4 设计并落地分析结果存储结构**（P0，status: done）  
+  - DoD：可按商品、任务、维度检索；证据句可反查原评论。  
+  - 交付：表 `review_analysis`、`review_dimension_analysis`（迁移 `003_review_analysis.sql`）；`analyze` 成功路径落库；`GET /api/v1/insight-tasks/{id}/analysis`；`GET /api/v1/analysis/by-product`（可选 `dimension`）；`review_id` 联接 `reviews.raw_text`。
 
-- [ ] **TB-5 洞察页查询接口（最小可用）**（P0）  
-  - DoD：可查询痛点排行、维度聚合、证据句列表；空态和错误态明确。
+- [x] **TB-5 洞察页查询接口（最小可用）**（P0，status: done）  
+  - DoD：可查询痛点排行、维度聚合、证据句列表；空态和错误态明确。  
+  - 交付：`GET /api/v1/insight-tasks/{id}/dashboard`（`dimension_counts`、`pain_ranking`、`evidence` 分页）；`TASK_NOT_READY` / `NO_ANALYSIS_DATA` 等 `empty_state`。
 
-- [ ] **TB-6 任务中心后端接口（任务查询/重试）**（P0）  
-  - DoD：支持按类型/状态/时间筛选任务；失败任务返回结构化错误；重试接口幂等。
+- [x] **TB-6 任务中心后端接口（任务查询/重试）**（P0，status: done）  
+  - DoD：支持按类型/状态/时间筛选任务；失败任务返回结构化错误；重试接口幂等。  
+  - 交付：`GET /api/v1/insight-tasks` 查询参数 + `error` 块；`POST .../retry`（`failed→pending`，`pending` no-op）；单条 `GET`/`PATCH` 返回亦含 `error` 字段。
 
-- [ ] **TB-7 任务中心前端页面（列表/状态/失败原因）**（P0）  
-  - DoD：页面可查看任务状态、耗时、失败原因并触发重试；RBAC 权限生效。
+- [x] **TB-7 任务中心前端页面（列表/状态/失败原因）**（P0，status: done）  
+  - DoD：页面可查看任务状态、耗时、失败原因并触发重试；RBAC 权限生效。  
+  - 交付：`TaskCenterPage` 筛选（状态、创建时间范围、limit）、状态标签、耗时、失败阶段/错误码/文案、`POST .../retry`；登录选择角色；侧边栏+路由 `allowedRoles`（管理员全量菜单，运营/只读隐藏系统设置与治理菜单；只读禁用重试）。
 
-- [ ] **TB-8 P0 单测/集成测试（洞察+任务中心链路）**（P0）  
-  - DoD：核心流程测试通过；关键失败路径（抓评失败/分析失败）可复现并被断言。
+- [x] **TB-8 P0 单测/集成测试（洞察+任务中心链路）**（P0，status: done）  
+  - DoD：核心流程测试通过；关键失败路径（抓评失败/分析失败）可复现并被断言。  
+  - 交付：`apps/api/pytest.ini` + `tests/`（状态机、`error` 增强、dashboard 空态、重试 API 409/成功重置）；`pytest` 绿。
 
 ## Phase 2 - 对比、翻译、权限（M2）
 
@@ -169,4 +174,4 @@
 
 **Task Version**: 1.2.1（与 Plan v1.2 对齐；补 Stage A 与「清洗→微调」叙事；归因：词典+规则+BERTopic 审核回灌）  
 **Status**: Review Required  
-**Execution**: Stage B 进行中（TB-1～TB-3 已交付）
+**Execution**: Stage B M1 核心（TB-1～TB-8）已交付；M2（TB-9 起）待模型与产品节奏

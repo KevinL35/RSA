@@ -8,6 +8,8 @@ from supabase import Client
 
 from app.core.config import get_settings
 from app.integrations.analysis_provider import AnalysisProviderError, analyze_reviews
+from app.modules.analysis_results.persist import replace_task_analysis
+from app.modules.tasks.listing import enrich_task_for_task_center
 
 
 def _utc_now_iso() -> str:
@@ -15,7 +17,7 @@ def _utc_now_iso() -> str:
 
 
 def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
-    """对任务已落库的 reviews 调用分析源；成功则 running→success，失败则 failed（failure_stage=analyze）。"""
+    """对任务已落库的 reviews 调用分析源；成功则写入 TB-4 表后 running→success，失败则 failed（failure_stage=analyze）。"""
     res = (
         sb.table("insight_tasks")
         .select("*")
@@ -85,6 +87,21 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
             detail=f"{e.code}: {e.message}",
         ) from e
 
+    try:
+        replace_task_analysis(
+            sb,
+            insight_task_id=str(task_id),
+            platform=task["platform"],
+            product_id=task["product_id"],
+            analysis_provider_id=effective_id,
+            review_analyses=normalized,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"分析结果落库失败：{e!s}",
+        ) from e
+
     up = (
         sb.table("insight_tasks")
         .update(
@@ -105,7 +122,7 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
     task_row = up.data[0]
 
     return {
-        "task": task_row,
+        "task": enrich_task_for_task_center(task_row),
         "analysis_provider_id_used": effective_id,
         "review_analyses": normalized,
     }
