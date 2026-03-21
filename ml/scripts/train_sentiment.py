@@ -90,21 +90,40 @@ def _narrow_for_training(df: pd.DataFrame, text_col: str, label_col: str) -> pd.
     return df[[text_col, label_col]].copy()
 
 
+def coerce_training_cfg(train_cfg: dict) -> dict:
+    """PyYAML 常把 2e-5 等读成 str，Torch 优化器要求数值类型。"""
+    out = dict(train_cfg)
+    for k in ("learning_rate", "weight_decay"):
+        if k in out and isinstance(out[k], str):
+            out[k] = float(out[k])
+    for k in (
+        "num_train_epochs",
+        "per_device_train_batch_size",
+        "per_device_eval_batch_size",
+        "logging_steps",
+        "seed",
+    ):
+        if k in out and isinstance(out[k], str):
+            out[k] = int(float(out[k]))
+    return out
+
+
 def build_training_arguments(train_cfg: dict, output_dir: Path) -> TrainingArguments:
     """兼容 transformers 4.x（evaluation_strategy）与 5.x（eval_strategy）。"""
+    train_cfg = coerce_training_cfg(train_cfg)
     params = inspect.signature(TrainingArguments.__init__).parameters
     kwargs: dict = {
         "output_dir": str(output_dir),
-        "learning_rate": train_cfg["learning_rate"],
-        "num_train_epochs": train_cfg["num_train_epochs"],
-        "per_device_train_batch_size": train_cfg["per_device_train_batch_size"],
-        "per_device_eval_batch_size": train_cfg["per_device_eval_batch_size"],
-        "weight_decay": train_cfg["weight_decay"],
-        "logging_steps": train_cfg["logging_steps"],
+        "learning_rate": float(train_cfg["learning_rate"]),
+        "num_train_epochs": int(train_cfg["num_train_epochs"]),
+        "per_device_train_batch_size": int(train_cfg["per_device_train_batch_size"]),
+        "per_device_eval_batch_size": int(train_cfg["per_device_eval_batch_size"]),
+        "weight_decay": float(train_cfg["weight_decay"]),
+        "logging_steps": int(train_cfg["logging_steps"]),
         "save_strategy": train_cfg["save_strategy"],
         "metric_for_best_model": train_cfg["metric_for_best_model"],
         "greater_is_better": train_cfg["greater_is_better"],
-        "seed": train_cfg["seed"],
+        "seed": int(train_cfg["seed"]),
         "load_best_model_at_end": True,
         "report_to": [],
     }

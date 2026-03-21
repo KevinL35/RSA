@@ -1,11 +1,5 @@
 <template>
   <div class="login-page">
-    <div class="login-lang">
-      <el-select v-model="locale" size="small" style="width: 130px" @change="onLocaleChange">
-        <el-option label="English" value="en" />
-        <el-option label="简体中文" value="zh-CN" />
-      </el-select>
-    </div>
     <div class="login-bg-orb orb-a" />
     <div class="login-bg-orb orb-b" />
     <el-card class="card" shadow="never">
@@ -31,13 +25,6 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item class="form-item" :label="t('login.role')">
-          <el-select v-model="selectedRole" size="large" style="width: 100%">
-            <el-option :label="t('login.roleAdmin')" value="admin" />
-            <el-option :label="t('login.roleOperator')" value="operator" />
-            <el-option :label="t('login.roleReadonly')" value="readonly" />
-          </el-select>
-        </el-form-item>
         <el-form-item class="remember-item">
           <el-checkbox v-model="rememberPassword">{{ t('login.remember') }}</el-checkbox>
         </el-form-item>
@@ -54,21 +41,15 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { persistLocale, type AppLocale } from '../../../app/i18n'
-import { useAuthStore, type UserRole } from '../store/auth.store'
+import { useAuthStore } from '../store/auth.store'
 
-const { t, locale } = useI18n()
-
-function onLocaleChange(v: string) {
-  persistLocale(v as AppLocale)
-}
+const { t } = useI18n()
 
 const DEMO_USER = 'admin'
 const DEMO_PASS = 'admin'
 
 const username = ref(DEMO_USER)
 const password = ref(DEMO_PASS)
-const selectedRole = ref<UserRole>('admin')
 const rememberPassword = ref(true)
 const loading = ref(false)
 const route = useRoute()
@@ -84,7 +65,7 @@ const passwordSvg =
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.login(username.value, password.value, selectedRole.value)
+    await auth.login(username.value, password.value, 'admin')
     if (rememberPassword.value) {
       localStorage.setItem(REMEMBER_KEY, '1')
       localStorage.setItem(
@@ -108,10 +89,6 @@ async function onSubmit() {
 }
 
 onMounted(() => {
-  const r = localStorage.getItem('rsa_user_role')
-  if (r === 'admin' || r === 'operator' || r === 'readonly') {
-    selectedRole.value = r
-  }
   const remember = localStorage.getItem(REMEMBER_KEY) === '1'
   rememberPassword.value = remember
   if (!remember) return
@@ -128,12 +105,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.login-lang {
-  position: absolute;
-  top: 18px;
-  right: 22px;
-  z-index: 2;
-}
 .login-page {
   position: relative;
   min-height: 100vh;

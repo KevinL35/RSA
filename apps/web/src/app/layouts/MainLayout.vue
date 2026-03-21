@@ -8,17 +8,6 @@
         <div v-show="!collapsed" class="brand-text">
           <strong>{{ t('brand.full') }}</strong>
         </div>
-        <el-select
-          v-show="!collapsed"
-          v-model="locale"
-          size="small"
-          class="locale-select"
-          :teleported="false"
-          @change="onLocaleChange"
-        >
-          <el-option label="English" value="en" />
-          <el-option label="简体中文" value="zh-CN" />
-        </el-select>
       </div>
 
       <el-scrollbar class="menu-wrap">
@@ -72,13 +61,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { APP_MENUS, type MenuItem } from '../config/menu.config'
 import { useAuthStore } from '../../modules/auth/store/auth.store'
-import { persistLocale, type AppLocale } from '../i18n'
 
-const { t, locale } = useI18n()
-
-function onLocaleChange(v: string) {
-  persistLocale(v as AppLocale)
-}
+const { t } = useI18n()
 
 const collapsed = ref(false)
 const route = useRoute()
@@ -153,12 +137,6 @@ async function onLogout() {
   justify-content: flex-start;
   gap: 10px;
   padding: 0 8px;
-  flex-wrap: wrap;
-}
-
-.locale-select {
-  width: 118px;
-  margin-left: auto;
 }
 
 .brand-text {
