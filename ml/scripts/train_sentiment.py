@@ -82,9 +82,34 @@ def load_train_dataframe(data_cfg: dict) -> pd.DataFrame:
     return df
 
 
+def _narrow_for_training(df: pd.DataFrame, text_col: str, label_col: str) -> pd.DataFrame:
+    for c in (text_col, label_col):
+        if c not in df.columns:
+            raise ValueError(f"Missing column {c!r}; have: {list(df.columns)}")
+    return df[[text_col, label_col]].copy()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fine-tune RoBERTa for sentiment.")
     parser.add_argument("--config", required=True, help="Path to train_roberta yaml.")
+    parser.add_argument(
+        "--max-train-rows",
+        type=int,
+        default=None,
+        help="Debug/Colab: only use first N train rows (reduces RAM).",
+    )
+    parser.add_argument(
+        "--max-val-rows",
+        type=int,
+        default=None,
+        help="Debug/Colab: only use first N val rows.",
+    )
+    parser.add_argument(
+        "--max-test-rows",
+        type=int,
+        default=None,
+        help="Debug/Colab: only use first N test rows.",
+    )
     args = parser.parse_args()
 
     cfg = load_yaml(Path(args.config))
@@ -107,6 +132,20 @@ def main() -> None:
     text_col = data_cfg["text_column"]
     label_col = data_cfg["label_column"]
 
+    if args.max_train_rows is not None:
+        df_train = df_train.head(args.max_train_rows)
+        print(f"--max-train-rows: using {len(df_train)} train rows")
+    if args.max_val_rows is not None:
+        df_val = df_val.head(args.max_val_rows)
+        print(f"--max-val-rows: using {len(df_val)} val rows")
+    if args.max_test_rows is not None:
+        df_test = df_test.head(args.max_test_rows)
+        print(f"--max-test-rows: using {len(df_test)} test rows")
+
+    df_train = _narrow_for_training(df_train, text_col, label_col)
+    df_val = _narrow_for_training(df_val, text_col, label_col)
+    df_test = _narrow_for_training(df_test, text_col, label_col)
+
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])
     model = AutoModelForSequenceClassification.from_pretrained(
         model_cfg["pretrained_name"],
@@ -120,9 +159,11 @@ def main() -> None:
     def _tokenize(batch):
         return tokenize_fn(batch, tokenizer, text_col, model_cfg["max_length"])
 
-    ds_train = ds_train.map(_tokenize, batched=True)
-    ds_val = ds_val.map(_tokenize, batched=True)
-    ds_test = ds_test.map(_tokenize, batched=True)
+    # num_proc=1 降低 Colab 上多进程 map 的内存峰值
+    _map_kw = {"batched": True, "num_proc": 1}
+    ds_train = ds_train.map(_tokenize, **_map_kw)
+    ds_val = ds_val.map(_tokenize, **_map_kw)
+    ds_test = ds_test.map(_tokenize, **_map_kw)
 
     # Trainer expects "labels"
     ds_train = ds_train.rename_column(label_col, "labels")

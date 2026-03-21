@@ -182,7 +182,7 @@ else:
 | 现象 | 处理 |
 |------|------|
 | **想确认 Colab 是否最新代码** | `!git -C /content/RSA log -1 --oneline`，与 GitHub 对比；不对则 `git pull` 或删目录后重新 `clone`。 |
-| **最后一行 `^C` 但没按键盘** | Colab 里常表示进程被中断：误点「停止」、**内存不足**、会话断连等。看顶部黄条；可先 `!free -h`；大数据试「高 RAM」运行时。 |
+| **最后一行 `^C` 但没按键盘** | Colab 里常表示进程被中断：误点「停止」、**内存不足**、会话断连等。模型下载完、出现 `Loading weights 100%` 之后，下一步会把 **CSV 全表 + tokenize** 载入内存，**数据很大时容易 RAM 爆**。看顶部黄条；`!wc -l ml/data/splits/train.csv` 看行数；**运行时选「高 RAM」**；或先**试跑子集**：`python ml/scripts/train_sentiment.py --config ... --max-train-rows 20000 --max-val-rows 2000 --max-test-rows 2000`（确认能跑通后再去掉参数全量训练）。 |
 | **LOAD REPORT 里 MISSING / UNEXPECTED** | **正常**；分类头随机初始化。最新脚本已压低日志；不要因此点停止。 |
 | **HF_TOKEN / unauthenticated** | 可选：`from huggingface_hub import login; login()`。 |
 | **CUDA out of memory** | `train_roberta_colab.yaml` 里 `per_device_train_batch_size` 改为 `4` 或 `2`。 |
