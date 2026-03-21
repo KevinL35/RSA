@@ -21,6 +21,8 @@
 
 ## 安装与启动
 
+本地若要 **同时** 起分析服务、本 API 与前端，可在仓库根目录执行：`bash scripts/dev-all.sh`（见 `apps/analysis-service/README.md`）。
+
 ```bash
 cd apps/api
 python -m venv .venv

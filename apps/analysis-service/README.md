@@ -6,6 +6,16 @@
 
 与 `apps/api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 `packages/contracts/src/analysis.ts` 对齐）。
 
+## 一键启动（分析 + API + 前端）
+
+在仓库根目录（需已建好 `apps/analysis-service/.venv` 与 `apps/api/.venv` 并 `npm install` 过 `apps/web`）：
+
+```bash
+bash scripts/dev-all.sh
+```
+
+按 `Ctrl+C` 会结束三个服务。单独启动仍见下文。
+
 ## 安装与启动
 
 在仓库根目录外亦可，建议：
