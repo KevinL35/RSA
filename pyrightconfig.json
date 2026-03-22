@@ -1,0 +1,12 @@
+{
+  "include": [
+    "apps/platform-api/app",
+    "apps/platform-api/tests",
+    "apps/analysis-api/app",
+    "apps/bertopic-api/app",
+    "apps/deepseek-adapter"
+  ],
+  "exclude": ["**/.venv", "**/node_modules", "**/__pycache__"],
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "basic"
+}

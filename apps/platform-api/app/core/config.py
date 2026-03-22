@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict  # pyright: ignore[reportMissingImports]
 
 # 勿依赖进程 cwd：从仓库根 / 其它目录启动 uvicorn 时仍能读到 apps/platform-api/.env
 _PLATFORM_API_ROOT = Path(__file__).resolve().parent.parent.parent

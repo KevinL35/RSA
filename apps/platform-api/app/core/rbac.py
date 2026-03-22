@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request  # pyright: ignore[reportMissingImports]
 
 RSA_ROLE_HEADER = "X-RSA-Role"
 RSA_USERNAME_HEADER = "X-RSA-Username"
