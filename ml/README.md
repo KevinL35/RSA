@@ -12,7 +12,7 @@
 **不要**与 `bash scripts/dev.sh` 一起常驻启动 **bertopic-api**：依赖重、耗时长。
 
 1. **挖掘**：仓库根目录 `bash scripts/bertopic.sh`，请求 **`POST /discover-from-supabase`**（见 `apps/bertopic-api/README.md`）。服务内从 Supabase 导出语料并调用 `run_bertopic_discovery`。
-2. **入队**：响应体含 `candidates`。需写入 `dictionary_review_queue` 时，先写成 JSONL，例如 `jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl`，再执行 `bash scripts/run-bertopic-local.sh import-queue <该文件>`（等价于 `python3 ml/scripts/import_bertopic_candidates_to_review_queue.py --jsonl …`）。联调导入可用 `ml/fixtures/bertopic_candidates_sample.jsonl`。
+2. **入队**：`POST /discover-from-supabase` 默认会把 `candidates` 自动写入 `dictionary_review_queue`（响应含 `review_queue_import`）。若关闭自动入队（`auto_import_review_queue: false`），可手写 JSONL：`jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl`，再执行 `bash scripts/run-bertopic-local.sh import-queue <该文件>`。联调导入可用 `ml/fixtures/bertopic_candidates_sample.jsonl`。
 3. **词典审核**：Web 端编辑后 → `POST /api/v1/dictionary/approve-entry` 写入 `taxonomy_entries` overlay。
 
 **维护/单测**（非日常）：`python ml/scripts/run_bertopic_offline.py --help`；导出子进程仍用 `ml/scripts/export_reviews_corpus_for_bertopic.py`。联调超参见 `configs/bertopic_*_local.yaml` 与 API 请求体 `use_local_configs`。
@@ -45,7 +45,8 @@
 | **`scripts/bertopic_offline_lib.py`** | TA-9：语料规范化、时间窗、切片与质量分 helper（无 bertopic 依赖，可单测）。 |
 | **`scripts/run_bertopic_offline.py`** | TA-9：按切片跑 BERTopic（**由 bertopic-api 调用**；CLI 仅维护/单测）。 |
 | **`scripts/export_reviews_corpus_for_bertopic.py`** | 从 Supabase `reviews` 导出 BERTopic 用 CSV；可选 **`--insight-task-id` + `--only-without-dimension-hits`** 仅导出 A 类（有 `review_analysis`、无 `review_dimension_analysis` 行）。 |
-| **`scripts/import_bertopic_candidates_to_review_queue.py`** | 将 `bertopic_candidates_*.jsonl` 写入 `dictionary_review_queue`，供词典审核页处理。 |
+| **`scripts/import_bertopic_candidates_to_review_queue.py`** | 将 `bertopic_candidates_*.jsonl` 写入 `dictionary_review_queue`（与 bertopic-api 默认自动入队逻辑一致，供补录/离线用）。 |
+| **`scripts/bertopic_review_queue_import_lib.py`** | 候选 → 队列 REST 载荷与入库（供 `import_…` CLI 与 `apps/bertopic-api` 共用）。 |
 | **`fixtures/bertopic_corpus_sample.csv`** | 极小样例（用于 `--dry-run` 验证流程；正式跑批需 ≥200 条/切片）。 |
 | **`tests/test_bertopic_offline_lib.py`** | TA-9：切片与窗口等纯逻辑测试（`pytest ml/tests/`，需已安装 `pandas`/`pyyaml`）。 |
 | **`fixtures/taxonomy/*.yaml`** | TA-6/TA-10：种子与各垂直 overlay 样例；**仅用于** `scripts/seed_taxonomy_yaml_to_supabase.py` 灌库；运行时以库为准。 |

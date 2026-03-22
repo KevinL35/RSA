@@ -326,7 +326,8 @@ export default {
   settings: {
     apiTitle: '接口配置',
     apiDesc: '维护平台对接接口、鉴权方式与调用状态。',
-    apiPageIntro: '配置洞察模型、智能 Agent、评论获取 API、翻译 API 与系统界面语言。',
+    apiPageIntro:
+      '维护洞察模型列表（含内置 DeepSeek）、智能 Agent、评论获取、翻译与系统语言；分析地址以服务端 .env 为准，deepseek_chat 默认指向本机适配层。',
     apiAdd: '新增',
     apiColName: '名称',
     apiColBaseUrl: '接口地址',
@@ -353,7 +354,7 @@ export default {
     formBaseUrl: 'API Base URL',
     formApiKey: 'API Key',
     formModel: '模型',
-    formModelOptional: '可选手填，如 deepseek-chat',
+      formModelOptional: '可选手填，如 deepseek-reasoner',
     dialogCancel: '取消',
     dialogSave: '保存',
     formRequired: '请填写必填项',

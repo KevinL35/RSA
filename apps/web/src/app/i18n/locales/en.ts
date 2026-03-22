@@ -332,7 +332,7 @@ export default {
     apiTitle: 'API configuration',
     apiDesc: 'Manage platform integrations, auth, and call status.',
     apiPageIntro:
-      'Configure insight models, smart agents, review-fetch APIs, translation APIs, and system language.',
+      'Manage insight models (includes built-in DeepSeek), agent, review-fetch, translation, and UI language; runtime URLs follow server .env, deepseek_chat defaults to local adapter.',
     apiAdd: 'Add',
     apiColName: 'Name',
     apiColBaseUrl: 'Endpoint URL',
@@ -359,7 +359,7 @@ export default {
     formBaseUrl: 'API Base URL',
     formApiKey: 'API Key',
     formModel: 'Model',
-    formModelOptional: 'Optional, e.g. deepseek-chat',
+      formModelOptional: 'Optional, e.g. deepseek-reasoner',
     dialogCancel: 'Cancel',
     dialogSave: 'Save',
     formRequired: 'Please fill required fields',

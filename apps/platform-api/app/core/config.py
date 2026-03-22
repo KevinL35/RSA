@@ -49,6 +49,24 @@ class Settings(BaseSettings):
     analysis_max_retries: int = 2
     analysis_provider_mock: bool = False
 
+    # 前端任务 analysis_provider_id=deepseek_chat 时，在未配置 ROUTES / 默认 URL 下的回退地址
+    deepseek_adapter_analyze_url: str = "http://127.0.0.1:9100/analyze"
+
+    # 可选：词典分析后的智能 Agent 增强（补洞 / 抽检）；见 agent_enrichment 模块
+    agent_enrichment_url: str | None = None
+    agent_enrichment_api_key: str | None = None
+    agent_enrichment_timeout_seconds: float = 120.0
+    agent_enrichment_max_retries: int = 2
+    agent_enrichment_batch_size: int = 50
+    # 为「词典无命中」的评论调用 Agent 补六维
+    agent_gap_fill_enabled: bool = False
+    # True：主分析不调 Agent，改由 POST .../agent-enrich
+    agent_gap_fill_deferred: bool = False
+    # 0~1：对已有词典命中的评论按比例抽检并合并 Agent 关键词
+    agent_sample_fraction: float = 0.0
+    # 固定种子便于复现抽检子集；None 为随机
+    agent_sample_seed: int | None = None
+
     # TB-11：可选翻译代理（LibreTranslate 兼容：POST JSON q/source/target/format）
     translation_api_url: str | None = None
     translation_api_key: str | None = None

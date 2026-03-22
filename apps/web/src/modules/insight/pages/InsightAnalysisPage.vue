@@ -348,7 +348,10 @@ import { genFileId } from 'element-plus'
 import type { UploadFile, UploadInstance, UploadRawFile } from 'element-plus'
 import { DocumentCopy, Download, Plus, Refresh } from '@element-plus/icons-vue'
 import type { ApiConfigRow } from '../../settings/apiConfig.shared'
-import { insightApiConfigRows } from '../../settings/apiConfig.shared'
+import {
+  insightApiConfigRows,
+  selectedInsightModelIdRef,
+} from '../../settings/apiConfig.shared'
 import { deleteInsightTask, fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import {
@@ -425,11 +428,11 @@ const uploadDictionaryVerticalId = ref('general')
 
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
-const insightModelId = ref<string>('ins_builtin')
+const insightModelId = ref<string>(selectedInsightModelIdRef.value)
 const dialogSubmitting = ref(false)
 const uploadDialogVisible = ref(false)
 const uploadLinkInput = ref('')
-const uploadInsightModelId = ref('ins_builtin')
+const uploadInsightModelId = ref<string>(selectedInsightModelIdRef.value)
 const uploadExcelFile = ref<File | null>(null)
 const uploadExcelRef = ref<UploadInstance | null>(null)
 const uploadSubmitting = ref(false)
@@ -511,7 +514,7 @@ function appendLinkRow() {
 
 function resetAddForm() {
   linkInputs.value = ['']
-  insightModelId.value = 'ins_builtin'
+  insightModelId.value = selectedInsightModelIdRef.value
   dictionaryVerticalId.value = 'general'
 }
 
@@ -979,6 +982,7 @@ async function submitAddProduct() {
     if (ok === 0) {
       return
     }
+    selectedInsightModelIdRef.value = id
     addDialogVisible.value = false
     resetAddForm()
     page.value = 1
@@ -1013,16 +1017,18 @@ const pagedRows = computed(() => {
 })
 
 function onAddProduct() {
+  insightModelId.value = selectedInsightModelIdRef.value
   addDialogVisible.value = true
 }
 
 function onUploadReviews() {
+  uploadInsightModelId.value = selectedInsightModelIdRef.value
   uploadDialogVisible.value = true
 }
 
 function resetUploadForm() {
   uploadLinkInput.value = ''
-  uploadInsightModelId.value = 'ins_builtin'
+  uploadInsightModelId.value = selectedInsightModelIdRef.value
   uploadDictionaryVerticalId.value = 'general'
   uploadExcelFile.value = null
   uploadExcelRef.value?.clearFiles()
@@ -1091,6 +1097,7 @@ async function submitUploadReviews() {
       dictionary_vertical_id: dvid,
     })
     const taskId = task.id
+    selectedInsightModelIdRef.value = id
     const imp = await postInsightTaskImportReviews(taskId, file)
     const n = imp.reviews_inserted ?? 0
     uploadDialogVisible.value = false

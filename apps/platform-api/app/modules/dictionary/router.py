@@ -111,6 +111,7 @@ def patch_dictionary_review_queue(
         raise HTTPException(status_code=400, detail="synonyms 不能为空")
     now = _utc_now_iso()
     try:
+        # postgrest 2.x：.eq() 后为 FilterRequestBuilder，不可再 .select()；默认 Prefer: return=representation
         res = (
             sb.table("dictionary_review_queue")
             .update(
@@ -122,7 +123,6 @@ def patch_dictionary_review_queue(
             )
             .eq("id", qid)
             .eq("status", "pending")
-            .select("*")
             .execute()
         )
     except Exception as e:  # noqa: BLE001
@@ -147,7 +147,6 @@ def delete_dictionary_review_queue(
             .delete()
             .eq("id", qid)
             .eq("status", "pending")
-            .select("*")
             .execute()
         )
     except Exception as e:  # noqa: BLE001

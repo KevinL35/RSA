@@ -14,6 +14,7 @@ from app.modules.audit_log.service import audit_actor_name, try_record_audit
 from app.modules.insight_dashboard.service import build_insight_dashboard
 
 from . import state_machine
+from .agent_enrich_task import run_agent_enrich_for_task
 from .analyze_task import run_analyze_for_task
 from .fetch_reviews import run_fetch_reviews_for_task
 from .import_reviews_excel import run_import_reviews_from_excel
@@ -448,6 +449,36 @@ def post_analyze_insight_task(
         menu_key="insight",
         message=f"执行洞察分析 insight_task_id={task_id}",
         detail={"task_id": str(task_id)},
+    )
+    return payload
+
+
+@router.post("/{task_id}/agent-enrich")
+def post_agent_enrich_insight_task(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    """词典分析已完成（success）后，按需调用智能 Agent 补洞/抽检并写回分析结果（异步由调度器/前端触发）。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        payload = run_agent_enrich_for_task(sb, task_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agent 增强异常：{e!s}",
+        ) from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"智能 Agent 增强 insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "stats": payload.get("agent_enrichment")},
     )
     return payload
 

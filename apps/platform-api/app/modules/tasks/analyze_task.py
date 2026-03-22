@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from supabase import Client
 
 from app.core.config import get_settings
+from app.integrations.agent_enrichment import enrich_normalized_analyses
 from app.integrations.analysis_provider import AnalysisProviderError, analyze_reviews
 from app.modules.analysis_results.persist import replace_task_analysis
 from app.modules.tasks.listing import enrich_task_for_task_center
@@ -63,6 +64,7 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
         )
 
     settings = get_settings()
+    agent_stats: dict | None = None
     try:
         effective_id, normalized, _raw = analyze_reviews(
             insight_task_id=str(task_id),
@@ -87,6 +89,27 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
             status_code=502,
             detail=f"{e.code}: {e.message}",
         ) from e
+
+    url = (settings.agent_enrichment_url or "").strip()
+    inline_agent = bool(url) and (
+        settings.agent_gap_fill_enabled or float(settings.agent_sample_fraction or 0) > 0
+    )
+    if inline_agent and not settings.agent_gap_fill_deferred:
+        try:
+            normalized, agent_stats = enrich_normalized_analyses(
+                settings=settings,
+                insight_task_id=str(task_id),
+                platform=task["platform"],
+                product_id=task["product_id"],
+                dictionary_vertical_id=task.get("dictionary_vertical_id"),
+                reviews=review_rows,
+                normalized=normalized,
+            )
+        except Exception as e:  # noqa: BLE001
+            agent_stats = {
+                "enabled": True,
+                "error": f"{type(e).__name__}: {e!s}",
+            }
 
     try:
         replace_task_analysis(
@@ -121,8 +144,11 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
         raise HTTPException(status_code=500, detail="更新任务为 success 失败")
     task_row = up.data[0]
 
-    return {
+    out: dict = {
         "task": enrich_task_for_task_center(task_row),
         "analysis_provider_id_used": effective_id,
         "review_analyses": normalized,
     }
+    if agent_stats is not None:
+        out["agent_enrichment"] = agent_stats
+    return out

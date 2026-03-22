@@ -2,6 +2,8 @@ import { ref, watch } from 'vue'
 
 const STORAGE_KEY = 'rsa_settings_api_config_v1'
 const LEGACY_INSIGHT_KEY = 'rsa_settings_insight_models_v1'
+export const INSIGHT_SELECTED_STORAGE_KEY = 'rsa_settings_selected_insight_api_id'
+export const DEFAULT_SELECTED_INSIGHT_ID = 'ins_builtin'
 
 export type ApiConfigRow = {
   id: string
@@ -16,17 +18,28 @@ export type ApiConfigRow = {
 /** @deprecated use ApiConfigRow */
 export type InsightApiConfigRow = ApiConfigRow
 
-const defaultInsightRows = (): ApiConfigRow[] => [
-  {
-    id: 'ins_builtin',
-    builtin: true,
-    name: '',
-    baseUrl: 'https://api.rsa.internal/v1/insight',
-    apiKey: '',
-    model: 'rsa-v1',
-    createdAt: '2026-01-01 00:00:00',
-  },
-]
+/** 与 platform-api resolve 中 deepseek_chat 回退地址对齐 */
+const INSIGHT_ROW_BUILTIN: ApiConfigRow = {
+  id: 'ins_builtin',
+  builtin: true,
+  name: '',
+  baseUrl: 'https://api.rsa.internal/v1/insight',
+  apiKey: '',
+  model: 'rsa-v1',
+  createdAt: '2026-01-01 00:00:00',
+}
+
+const INSIGHT_ROW_DEEPSEEK: ApiConfigRow = {
+  id: 'deepseek_chat',
+  builtin: true,
+  name: 'DeepSeek',
+  baseUrl: 'http://127.0.0.1:9100/analyze',
+  apiKey: '',
+  model: 'deepseek-reasoner',
+  createdAt: '2026-03-23 00:00:00',
+}
+
+const defaultInsightRows = (): ApiConfigRow[] => [INSIGHT_ROW_BUILTIN, INSIGHT_ROW_DEEPSEEK]
 
 const defaultAgentRows = (): ApiConfigRow[] => [
   {
@@ -34,7 +47,7 @@ const defaultAgentRows = (): ApiConfigRow[] => [
     name: '对比结论 Agent（占位）',
     baseUrl: 'https://api.deepseek.com/v1',
     apiKey: '',
-    model: 'deepseek-chat',
+    model: 'deepseek-reasoner',
     createdAt: '2026-03-05 14:02:09',
   },
 ]
@@ -67,15 +80,24 @@ function hasBuiltinInsight(rows: ApiConfigRow[]) {
   return rows.some((r) => r.builtin === true && r.id === 'ins_builtin')
 }
 
+function hasDeepseekInsight(rows: ApiConfigRow[]) {
+  return rows.some((r) => r.id === 'deepseek_chat')
+}
+
 function normalizeInsightRows(rows: unknown): ApiConfigRow[] {
   if (!Array.isArray(rows) || rows.length === 0) return defaultInsightRows()
-  const list = (rows as ApiConfigRow[]).map((r) =>
+  let list = (rows as ApiConfigRow[]).map((r) =>
     r.id === 'ins_builtin' && r.builtin && r.model === 'rsa-platform-v1'
       ? { ...r, model: 'rsa-v1' }
       : r,
   )
-  if (hasBuiltinInsight(list)) return list
-  return [...defaultInsightRows(), ...list.filter((r) => r.id !== 'ins_builtin')]
+  if (!hasBuiltinInsight(list)) {
+    list = [INSIGHT_ROW_BUILTIN, ...list.filter((r) => r.id !== 'ins_builtin')]
+  }
+  if (!hasDeepseekInsight(list)) {
+    list = [...list, { ...INSIGHT_ROW_DEEPSEEK }]
+  }
+  return list
 }
 
 function normalizeAgentRows(rows: unknown): ApiConfigRow[] {
@@ -173,6 +195,28 @@ function persistBundle(b: Bundle) {
 const initial = loadBundle()
 
 export const insightApiConfigRows = ref<ApiConfigRow[]>(initial.insight)
+
+function readSelectedInsightId(): string {
+  try {
+    const r = localStorage.getItem(INSIGHT_SELECTED_STORAGE_KEY)
+    if (r) return r
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_SELECTED_INSIGHT_ID
+}
+
+function writeSelectedInsightId(id: string) {
+  try {
+    localStorage.setItem(INSIGHT_SELECTED_STORAGE_KEY, id || DEFAULT_SELECTED_INSIGHT_ID)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 接口配置页与评论洞察新建任务默认使用的洞察模型 id（对应 insight 表行 id） */
+export const selectedInsightModelIdRef = ref(readSelectedInsightId())
+
 export const agentApiConfigRows = ref<ApiConfigRow[]>(initial.agent)
 export const reviewFetchApiConfigRows = ref<ApiConfigRow[]>(initial.reviewFetch)
 export const translateApiConfigRows = ref<ApiConfigRow[]>(initial.translate)
@@ -190,3 +234,18 @@ watch(insightApiConfigRows, persistAll, { deep: true })
 watch(agentApiConfigRows, persistAll, { deep: true })
 watch(reviewFetchApiConfigRows, persistAll, { deep: true })
 watch(translateApiConfigRows, persistAll, { deep: true })
+
+watch(selectedInsightModelIdRef, (v) => {
+  writeSelectedInsightId(v || DEFAULT_SELECTED_INSIGHT_ID)
+})
+
+watch(
+  insightApiConfigRows,
+  () => {
+    const sel = selectedInsightModelIdRef.value
+    if (sel && !insightApiConfigRows.value.some((x) => x.id === sel)) {
+      selectedInsightModelIdRef.value = DEFAULT_SELECTED_INSIGHT_ID
+    }
+  },
+  { deep: true },
+)

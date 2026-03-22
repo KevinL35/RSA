@@ -63,7 +63,7 @@
       <el-table :data="insightRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
         <el-table-column :label="t('settings.apiColName')" min-width="160">
           <template #default="{ row }">
-            {{ row.builtin ? t('settings.insightBuiltinModelName') : row.name }}
+            {{ insightTableName(row) }}
           </template>
         </el-table-column>
         <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
@@ -289,6 +289,13 @@ function rowList(key: ModuleKey) {
   if (key === 'agent') return agentRows
   if (key === 'reviewFetch') return reviewFetchRows
   return translateRows
+}
+
+function insightTableName(row: ApiConfigRow) {
+  const n = row.name?.trim()
+  if (row.builtin && n) return n
+  if (row.builtin) return t('settings.insightBuiltinModelName')
+  return row.name
 }
 
 const translateSelectOptions = computed(() =>

@@ -2,11 +2,22 @@ import type { ApiConfigRow } from '../../modules/settings/apiConfig.shared'
 
 type TFn = (key: string, values?: Record<string, string>) => string
 
-export type InsightModelFormatInput = Pick<ApiConfigRow, 'name' | 'model'> & { builtin?: boolean }
+export type InsightModelFormatInput = Pick<ApiConfigRow, 'name' | 'model'> & {
+  builtin?: boolean
+  id?: string
+}
+
+/** 内置行若填写了 name（如 DeepSeek）则展示该名称，否则展示「平台自研」文案 */
+export function insightModelDisplayName(row: InsightModelFormatInput, t: TFn): string {
+  const n = row.name?.trim()
+  if (row.builtin && n) return n
+  if (row.builtin) return t('settings.insightBuiltinModelName')
+  return n || ''
+}
 
 /** 列表 / 下拉 / 结果页统一：「名称：模型」；无模型时仅名称 */
 export function formatInsightModelLine(row: InsightModelFormatInput, t: TFn): string {
-  const name = row.builtin ? t('settings.insightBuiltinModelName') : row.name
+  const name = insightModelDisplayName(row, t)
   const m = row.model?.trim()
   if (m) return t('insight.insightModelLine', { name, model: m })
   return name
@@ -33,6 +44,6 @@ export function formatInsightModelShort(
   if (!cfg) return providerId
   const m = cfg.model?.trim()
   if (m) return m
-  const name = cfg.builtin ? t('settings.insightBuiltinModelName') : cfg.name?.trim()
+  const name = insightModelDisplayName(cfg, t)
   return name || providerId
 }

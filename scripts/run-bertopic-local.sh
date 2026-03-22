@@ -24,11 +24,12 @@ fi
 case "$MODE" in
   help | -h | --help)
     cat <<'EOF'
-BERTopic：日常用 HTTP 从 Supabase 挖掘（见 apps/bertopic-api/README.md），本脚本只负责把候选 JSONL 导入词典审核队列。
+BERTopic：日常用 HTTP 从 Supabase 挖掘（见 apps/bertopic-api/README.md）。POST /discover-from-supabase 默认已自动入词典审核队列（review_queue_import）。
+
+本脚本仅在关闭自动入队（auto_import_review_queue: false）或需补录 JSONL 时使用：
 
   bash scripts/bertopic.sh
-  # 然后 POST /discover-from-supabase；响应体含 candidates。可写成 JSONL 再导入，例如：
-  #   jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl
+  # POST /discover-from-supabase；若需手写 JSONL：jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl
 
 导入队列（需 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY，可读 apps/platform-api/.env）：
 

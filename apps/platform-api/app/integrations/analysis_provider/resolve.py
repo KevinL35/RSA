@@ -36,6 +36,9 @@ def resolve_analysis_endpoint(
             routes = {}
 
     url = routes.get(effective) if routes else None
+    # deepseek_chat 专用回退须优先于「全局 ANALYSIS_PROVIDER_URL」，避免与 ins_builtin 共用 8089 时串线
+    if not url and effective == "deepseek_chat":
+        url = (settings.deepseek_adapter_analyze_url or "").strip()
     if not url:
         url = (settings.analysis_provider_url or "").strip()
 

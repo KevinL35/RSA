@@ -58,3 +58,13 @@ body,
   outline: 2px solid var(--rsa-primary);
   outline-offset: 2px;
 }
+
+/**
+ * 暂时隐藏各菜单页副标题 / 导语（评论洞察、对比、接口配置、词典、痛点审核、操作日志等）。
+ * 需要恢复展示时删除本段即可。
+ */
+.page-subtitle,
+.intro-text,
+.panel-header-text > p {
+  display: none !important;
+}
