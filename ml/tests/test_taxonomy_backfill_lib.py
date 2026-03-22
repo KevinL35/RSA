@@ -1,15 +1,23 @@
-"""TA-10：taxonomy_backfill_lib 单测（需 PyYAML + pandas 非必须）。"""
+"""TA-10：taxonomy_backfill_lib 单测（需 PyYAML；pandas 非必须）。"""
 
 from __future__ import annotations
 
 import json
-import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
-sys.path.insert(0, str(SCRIPTS))
 
-import taxonomy_backfill_lib as t  # noqa: E402
+def _load_taxonomy_backfill_lib():
+    path = Path(__file__).resolve().parent.parent / "scripts" / "taxonomy_backfill_lib.py"
+    spec = spec_from_file_location("taxonomy_backfill_lib", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法加载 {path}")
+    mod = module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+t = _load_taxonomy_backfill_lib()
 
 
 def test_bump_patch_version():

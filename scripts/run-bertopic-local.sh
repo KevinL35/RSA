@@ -94,6 +94,11 @@ BERTopic 本地（按需运行，与前后端 dev-all 无关）
   bash scripts/run-bertopic-local.sh from-db-full  # 导出后用正式 v1 切片/超参跑 BERTopic（每平台+商品通常 ≥200 条）
   bash scripts/run-bertopic-local.sh from-db-dry --platform amazon --product-id B0XXXXXXXXX
 
+仅导出「A 类」评论（该洞察任务已有 review_analysis，但无任何六维命中行 → 词典未罩住，用于补洞挖掘）：
+
+  bash scripts/run-bertopic-local.sh from-db-full --insight-task-id <UUID> --only-without-dimension-hits
+  # 仍可附加 --platform / --product-id / --limit，传给 export_reviews_corpus_for_bertopic.py
+
 将 BERTopic 产出的 JSONL 写入 Supabase 词典审核队列（仅需系统 python3 + Supabase 环境变量）：
 
   bash scripts/run-bertopic-local.sh import-queue ml/reports/bertopic_candidates_xxx.jsonl --skip-existing
