@@ -54,13 +54,13 @@
   - 交付：`ml/scripts/taxonomy_backfill_lib.py`、`publish_taxonomy_backfill.py`、`rollback_taxonomy_overlay.py`；`ml/configs/taxonomy_dictionary_general_overlay_v1.yaml`；`docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`；`ml/fixtures/taxonomy_decisions_sample.jsonl`；`ml/tests/test_taxonomy_backfill_lib.py`；API `taxonomy_yaml` 合并 general overlay；分析服务按 `dictionary_vertical_id` 合并词典并文档更新。
 - **TA-11 封装推理服务与统一协议**（P0，status: done）  
   - DoD：RoBERTa 情感 + 六维归因引擎（词典/规则）在线链路提供统一请求/响应契约，可作为 `analysis_provider_id` 被调用。  
-  - 交付：`apps/analysis-service`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/analysis-service/README.md` 与 `apps/api/.env.example`。
+  - 交付：`apps/rsa-model-api`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/rsa-model-api/README.md` 与 `apps/api/.env.example`。
 - **TA-12a 模型版本临时基线发布（无回灌）**（P0，status: done）  
   - DoD：形成可追踪版本号、评估报告与发布说明（明确“未接入 BERTopic 回灌”），供 Stage B 先行接入与联调。  
-  - 交付（已闭合）：**可追踪版本**以 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 的 `version` / `taxonomy_id`（当前 `1.0.0` / `taxonomy-seed-v1`）及分析服务部署镜像/提交为准。**发布说明**：`apps/analysis-service/README.md`、`apps/api/.env.example`（分析源 URL、`analysis_provider_id` 契约）。**Stage B 联调形态**：情感层可为占位/星级启发式或可选 `SENTIMENT_MODEL_DIR` 权重，不依赖 BERTopic 批次产物即可跑通洞察/落库/看板（与 DoD「无回灌」语义一致：联调基线不绑定离线主题回灌）。**专项准确率报告**仍以 **TA-5** 独立交付为准，不阻塞本基线作为产品化生产入口。
+  - 交付（已闭合）：**可追踪版本**以 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 的 `version` / `taxonomy_id`（当前 `1.0.0` / `taxonomy-seed-v1`）及分析服务部署镜像/提交为准。**发布说明**：`apps/rsa-model-api/README.md`、`apps/api/.env.example`（分析源 URL、`analysis_provider_id` 契约）。**Stage B 联调形态**：情感层可为占位/星级启发式或可选 `SENTIMENT_MODEL_DIR` 权重，不依赖 BERTopic 批次产物即可跑通洞察/落库/看板（与 DoD「无回灌」语义一致：联调基线不绑定离线主题回灌）。**专项准确率报告**仍以 **TA-5** 独立交付为准，不阻塞本基线作为产品化生产入口。
 - **TA-12b 模型版本正式基线发布（含回灌）**（P0，status: done）  
   - DoD：在 TA-8～TA-10 完成后，形成可追踪版本号、评估报告、回灌记录与发布说明，作为 Stage B 生产候选基线。  
-  - 交付（已闭合）：在 TA-8～TA-10 **done** 前提下，**回灌路径**为 `docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md` + `ml/scripts/publish_taxonomy_backfill.py` / `rollback_taxonomy_overlay.py` + `ml/fixtures/taxonomy_decisions_sample.jsonl`；**线上治理闭环**含词典 overlay 合并（`apps/api` `taxonomy_yaml`）、分析服务按 `dictionary_vertical_id` 合并词典（`apps/analysis-service`）、Web 词典审核/管理/API `approve-entry` 与审计。**发布说明**：同 TA-12a 另附 TA-10 文档。**生产基线认定**：当前仓库 Stage B P0 主链（TB-1～TB-14）与上述词典/分析契约一并冻结为 v1 生产候选；RoBERTa 离线评估报告仍归 **TA-5** 补齐。
+  - 交付（已闭合）：在 TA-8～TA-10 **done** 前提下，**回灌路径**为 `docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md` + `ml/scripts/publish_taxonomy_backfill.py` / `rollback_taxonomy_overlay.py` + `ml/fixtures/taxonomy_decisions_sample.jsonl`；**线上治理闭环**含词典 overlay 合并（`apps/api` `taxonomy_yaml`）、分析服务按 `dictionary_vertical_id` 合并词典（`apps/rsa-model-api`）、Web 词典审核/管理/API `approve-entry` 与审计。**发布说明**：同 TA-12a 另附 TA-10 文档。**生产基线认定**：当前仓库 Stage B P0 主链（TB-1～TB-14）与上述词典/分析契约一并冻结为 v1 生产候选；RoBERTa 离线评估报告仍归 **TA-5** 补齐。
 
 ## Stage B - 前后端产品化（后续）
 

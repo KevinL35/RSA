@@ -79,7 +79,7 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 
 规则说明见 **`docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md`**。
 
-在线 **`apps/api` → `analyze`** 调用该归因引擎时，请运行 **`apps/analysis-service`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
+在线 **`apps/api` → `analyze`** 调用该归因引擎时，请运行 **`apps/rsa-model-api`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
 
 ## 本地流水线（概要）
 

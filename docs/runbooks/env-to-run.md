@@ -42,9 +42,10 @@ cd apps/web && npm install && npm run dev
 
 ---
 
-## 3. 仅部署前端（Vercel）
+## 3. 仅部署前端（Vercel 等静态托管）
 
-- 仓库根目录已有 **`vercel.json`**（构建 `apps/web` + SPA 回退）。Vercel 项目 **Root Directory 留空为仓库根** 即可与当前配置一致。
+- **构建**：在 `apps/web` 执行 `npm ci && npm run build`，产物为 `apps/web/dist`。若平台支持 monorepo，可将 **Root Directory** 设为 `apps/web`，或在根目录用自定义 **Install / Build** 命令指向该目录。
+- **SPA 路由**：需将任意路径 **回写到 `index.html`**（各平台称 rewrites / fallback，依文档配置）。
 - **Production** 环境变量：**`VITE_API_BASE_URL`** = 你的 HTTPS API 根地址；后端 **`CORS_ORIGINS`** 需包含该前端域名。
 
 ---

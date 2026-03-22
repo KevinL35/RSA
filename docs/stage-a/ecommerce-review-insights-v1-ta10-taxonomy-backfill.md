@@ -93,5 +93,5 @@ python ml/scripts/rollback_taxonomy_overlay.py \
 
 ## 7. 版本与变更
 
-- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/analysis-service/app/taxonomy_config.py` 与本文档。
+- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/rsa-model-api/app/taxonomy_config.py` 与本文档。
 - overlay 的 `taxonomy_id` 语义不变时，仅升 `version` 补丁位即可；破坏性重命名需另发迁移说明。
