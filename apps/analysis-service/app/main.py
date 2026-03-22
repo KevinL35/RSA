@@ -28,6 +28,7 @@ class AnalyzeRequest(BaseModel):
     platform: str | None = None
     product_id: str | None = None
     analysis_provider_id: str | None = None
+    dictionary_vertical_id: str | None = None
     reviews: list[dict] = Field(default_factory=list)
 
 

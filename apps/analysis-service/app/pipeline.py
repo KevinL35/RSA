@@ -19,23 +19,34 @@ from attribution_engine import (  # noqa: E402
 )
 
 from .sentiment import predict_sentiment
+from .taxonomy_config import load_merged_taxonomy_dict
 
-_patterns: list[PatternRow] | None = None
+_patterns_by_vertical: dict[str, list[PatternRow]] = {}
 
 
-def get_patterns(taxonomy_path: Path | None) -> list[PatternRow]:
-    global _patterns
-    if _patterns is not None:
-        return _patterns
-    path = taxonomy_path or (_REPO_ROOT / "ml" / "configs" / "taxonomy_dictionary_seed_v1.yaml")
-    data = load_taxonomy_yaml(path)
-    _patterns = build_patterns(data)
-    return _patterns
+def get_patterns(
+    *,
+    dictionary_vertical_id: str | None,
+    taxonomy_path: Path | None,
+) -> list[PatternRow]:
+    """TAXONOMY_YAML 显式指定时忽略 vertical；否则按 vertical 合并 seed+overlay（与 API 预览一致）。"""
+    global _patterns_by_vertical
+    if taxonomy_path is not None:
+        cache_key = f"file:{taxonomy_path.resolve()}"
+        if cache_key not in _patterns_by_vertical:
+            data = load_taxonomy_yaml(taxonomy_path)
+            _patterns_by_vertical[cache_key] = build_patterns(data)
+        return _patterns_by_vertical[cache_key]
+    vid = (dictionary_vertical_id or "general").strip() or "general"
+    if vid not in _patterns_by_vertical:
+        data = load_merged_taxonomy_dict(vid)
+        _patterns_by_vertical[vid] = build_patterns(data)
+    return _patterns_by_vertical[vid]
 
 
 def reset_patterns_cache() -> None:
-    global _patterns
-    _patterns = None
+    global _patterns_by_vertical
+    _patterns_by_vertical = {}
 
 
 def analyze_reviews_body(
@@ -46,7 +57,10 @@ def analyze_reviews_body(
     reviews = body.get("reviews") or []
     if not isinstance(reviews, list):
         reviews = []
-    patterns = get_patterns(taxonomy_path)
+    dvid = body.get("dictionary_vertical_id")
+    if dvid is not None:
+        dvid = str(dvid).strip() or None
+    patterns = get_patterns(dictionary_vertical_id=dvid, taxonomy_path=taxonomy_path)
     out: list[dict[str, Any]] = []
     for r in reviews:
         if not isinstance(r, dict):

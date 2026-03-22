@@ -1,0 +1,7 @@
+# TA-10：通用垂直在 seed 之上的回灌层（BERTopic 审核通过词条写入此文件）。
+# 与 electronics overlay 相同合并规则：同 dimension_6way + canonical 时以后写入/overlay 为准。
+version: "1.0.0"
+taxonomy_id: "taxonomy-general-overlay-v1"
+description: "General backfill overlay merged on top of taxonomy_dictionary_seed_v1.yaml."
+
+entries: []

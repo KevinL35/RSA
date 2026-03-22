@@ -132,7 +132,10 @@
           <el-select
             v-model="pageSize"
             class="pager-size-select"
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
             @change="onPageSizeChange"
           >
             <el-option v-for="s in pageSizeOptions" :key="s" :label="String(s)" :value="s" />
@@ -187,7 +190,10 @@
           <el-select
             v-model="dictionaryVerticalId"
             class="insight-model-select"
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
           >
             <el-option
               v-for="opt in dictionaryVerticalOptions"
@@ -202,7 +208,10 @@
             v-model="insightModelId"
             class="insight-model-select"
             clearable
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
           >
             <el-option
               v-for="opt in insightModelOptions"
@@ -265,8 +274,8 @@
             class="insight-model-select"
             :teleported="true"
             placement="bottom-start"
-            :fallback-placements="['bottom-start', 'bottom', 'bottom-end']"
-            :popper-options="uploadInsightSelectPopperOptions"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
           >
             <el-option
               v-for="opt in dictionaryVerticalOptions"
@@ -281,9 +290,10 @@
             v-model="uploadInsightModelId"
             class="insight-model-select"
             clearable
+            :teleported="true"
             placement="bottom-start"
-            :fallback-placements="['bottom-start', 'bottom', 'bottom-end']"
-            :popper-options="uploadInsightSelectPopperOptions"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
           >
             <el-option
               v-for="opt in insightModelOptions"
@@ -363,11 +373,17 @@ import {
 import { getStoredUsername, useAuthStore } from '../../auth/store/auth.store'
 import type { DictionaryVerticalItem } from '../../dictionary/api'
 import { fetchDictionaryVerticals } from '../../dictionary/api'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const canMutateInsightTasks = computed(() => auth.canRetryInsightTasks.value)
+
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
 type InsightProductRow = {
   imageUrl: string
@@ -393,7 +409,7 @@ type InsightProductRow = {
    * Amazon 对无效 ASIN 常返回 200 + 1×1 GIF，需配合 @load 尺寸判断。
    */
   imageThumbPhase?: 'extra' | 'amazon_primary' | 'amazon_fallback' | 'exhausted'
-  /** 真实洞察任务 UUID；缺省则结果页使用 demo 数据 */
+  /** 洞察任务 UUID */
   taskId?: string
   dictionaryVerticalLabel: string
 }
@@ -419,10 +435,6 @@ const uploadExcelRef = ref<UploadInstance | null>(null)
 const uploadSubmitting = ref(false)
 /** 与后端 import-reviews 一致 */
 const UPLOAD_REVIEW_MAX_BYTES = 10 * 1024 * 1024
-/** 上传弹窗内下拉固定向下展开（避免在 dialog 内被 flip 到上方） */
-const uploadInsightSelectPopperOptions = {
-  modifiers: [{ name: 'flip', enabled: false }],
-}
 const downloadReviewingId = ref<string | null>(null)
 const deletingTaskId = ref<string | null>(null)
 
@@ -501,78 +513,6 @@ function resetAddForm() {
   linkInputs.value = ['']
   insightModelId.value = 'ins_builtin'
   dictionaryVerticalId.value = 'general'
-}
-
-function buildDefaultRows(zh: boolean): InsightProductRow[] {
-  const demoLine = formatInsightModelLine(
-    { name: t('insight.demoInsightProviderName'), model: 'deepseek-chat' },
-    t,
-  )
-  const demoList = 'deepseek-chat'
-  return [
-    {
-      imageUrl: 'https://picsum.photos/seed/insight1/96/96',
-      asin: 'B0XXXXTEST1',
-      title: zh
-        ? '示例商品标题一（用于列表展示，过长时省略号截断）'
-        : 'Sample product title one (truncated with ellipsis when too long)',
-      countryLabel: zh ? '美国' : 'United States',
-      priceLabel: '$59.99',
-      rating: 4.6,
-      reviewCount: 12840,
-      creator: zh ? '超级管理员' : 'Super admin',
-      createdAt: '2026-03-18 14:22',
-      aiModel: demoLine,
-      aiModelList: demoList,
-      reviewStatus: 'completed',
-      reviewStatusLabel: t('insight.reviewStatus.completed'),
-      statusLabel: t('insight.flowStatus.done'),
-      taskStatus: 'success',
-      taskId: 'demo',
-      imageThumbPhase: 'exhausted',
-      dictionaryVerticalLabel: zh ? '电子产品' : 'Electronics',
-    },
-    {
-      imageUrl: 'https://picsum.photos/seed/insight2/96/96',
-      asin: 'B0XXXXTEST2',
-      title: zh ? '示例商品标题二' : 'Sample product title two',
-      countryLabel: zh ? '美国' : 'United States',
-      priceLabel: '$24.50',
-      rating: 4.2,
-      reviewCount: 3201,
-      creator: zh ? '分析师' : 'Analyst',
-      createdAt: '2026-03-17 09:05',
-      aiModel: demoLine,
-      aiModelList: demoList,
-      reviewStatus: 'completed',
-      reviewStatusLabel: t('insight.reviewStatus.completed'),
-      statusLabel: t('insight.flowStatus.done'),
-      taskStatus: 'success',
-      taskId: 'demo',
-      imageThumbPhase: 'exhausted',
-      dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
-    },
-    {
-      imageUrl: 'https://picsum.photos/seed/insight3/96/96',
-      asin: 'B0XXXXTEST3',
-      title: zh ? '示例商品标题三' : 'Sample product title three',
-      countryLabel: zh ? '英国' : 'United Kingdom',
-      priceLabel: '£19.99',
-      rating: 3.9,
-      reviewCount: 892,
-      creator: zh ? '超级管理员' : 'Super admin',
-      createdAt: '2026-03-16 18:40',
-      aiModel: demoLine,
-      aiModelList: demoList,
-      reviewStatus: 'fetching',
-      reviewStatusLabel: t('insight.reviewStatus.fetching'),
-      statusLabel: t('insight.flowStatus.analyzing'),
-      taskStatus: 'running',
-      taskId: 'demo',
-      imageThumbPhase: 'exhausted',
-      dictionaryVerticalLabel: zh ? '默认词典' : 'Default dictionary',
-    },
-  ]
 }
 
 const rows = ref<InsightProductRow[]>([])
@@ -871,7 +811,7 @@ async function loadTasks() {
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
-    rows.value = buildDefaultRows(locale.value === 'zh-CN')
+    rows.value = []
   } finally {
     loading.value = false
   }
@@ -891,17 +831,17 @@ function onPageSizeChange() {
 
 function downloadReviewsDisabled(row: InsightProductRow): boolean {
   const tid = row.taskId
-  return !tid || tid === 'demo' || row.reviewStatus !== 'completed'
+  return !tid || row.reviewStatus !== 'completed'
 }
 
 function deleteInsightDisabled(row: InsightProductRow): boolean {
   const tid = row.taskId
-  return !canMutateInsightTasks.value || !tid || tid === 'demo'
+  return !canMutateInsightTasks.value || !tid
 }
 
 async function onDeleteInsight(row: InsightProductRow) {
   const tid = row.taskId
-  if (!tid || tid === 'demo' || !canMutateInsightTasks.value) return
+  if (!tid || !canMutateInsightTasks.value) return
   try {
     await ElMessageBox.confirm(t('insight.deleteConfirm'), t('insight.deleteTitle'), {
       type: 'warning',
@@ -926,7 +866,7 @@ async function onDeleteInsight(row: InsightProductRow) {
 
 async function onDownloadReviews(row: InsightProductRow) {
   const tid = row.taskId
-  if (!tid || tid === 'demo') {
+  if (!tid) {
     ElMessage.warning(t('insight.downloadReviewsNoTask'))
     return
   }
@@ -1168,7 +1108,11 @@ function viewResultsDisabled(row: InsightProductRow): boolean {
 }
 
 function onViewResults(row: InsightProductRow) {
-  const tid = row.taskId ?? 'demo'
+  const tid = row.taskId?.trim()
+  if (!tid) {
+    ElMessage.warning(t('insight.viewResultsNoTask'))
+    return
+  }
   const q: Record<string, string> = {
     title: row.title,
     asin: row.asin,

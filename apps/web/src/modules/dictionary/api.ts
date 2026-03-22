@@ -1,4 +1,4 @@
-import { apiGetJson, apiPostJson } from '../../shared/services/api'
+import { apiDeleteJson, apiGetJson, apiPatchJson, apiPostJson } from '../../shared/services/api'
 
 export type DictionaryVerticalItem = {
   id: string
@@ -61,4 +61,68 @@ export type RejectSynonymResponse = {
 
 export function postDictionaryRejectSynonym(body: RejectSynonymBody) {
   return apiPostJson<RejectSynonymResponse>('/api/v1/dictionary/reject-synonym', body)
+}
+
+export type ApproveDictionaryEntryBody = {
+  vertical_ids: string[]
+  dimension_6way: string
+  canonical: string
+  aliases: string[]
+  batch_id?: string | null
+  source_topic_id?: string | null
+  /** 对应 Supabase dictionary_review_queue.id，通过后标记 approved */
+  review_queue_id?: string | null
+}
+
+export type ApproveDictionaryEntryResponse = {
+  ok: boolean
+  vertical_ids?: string[]
+  dimension_6way?: string
+  canonical?: string
+  updated?: Array<{ vertical_id: string; path: string; version: string; entry_count: number }>
+  hint?: string
+}
+
+export function postDictionaryApproveEntry(body: ApproveDictionaryEntryBody) {
+  return apiPostJson<ApproveDictionaryEntryResponse>('/api/v1/dictionary/approve-entry', body)
+}
+
+export type DictionaryReviewQueueItem = {
+  id: string
+  kind: 'new_discovery' | 'existing'
+  canonical: string
+  synonyms: string[]
+  vertical_id: string
+  dimension_6way?: string | null
+  batch_id?: string | null
+  source_topic_id?: string | null
+  quality_score?: number | null
+}
+
+export type PatchDictionaryReviewQueueBody = {
+  canonical: string
+  synonyms: string[]
+}
+
+export type PatchDictionaryReviewQueueResponse = {
+  ok: boolean
+  item: DictionaryReviewQueueItem
+}
+
+export function patchDictionaryReviewQueue(id: string, body: PatchDictionaryReviewQueueBody) {
+  const q = encodeURIComponent(id)
+  return apiPatchJson<PatchDictionaryReviewQueueResponse>(`/api/v1/dictionary/review-queue/${q}`, body)
+}
+
+export function deleteDictionaryReviewQueue(id: string) {
+  const q = encodeURIComponent(id)
+  return apiDeleteJson<{ ok: boolean; id: string }>(`/api/v1/dictionary/review-queue/${q}`)
+}
+
+export type DictionaryReviewQueueResponse = {
+  items: DictionaryReviewQueueItem[]
+}
+
+export function fetchDictionaryReviewQueue() {
+  return apiGetJson<DictionaryReviewQueueResponse>('/api/v1/dictionary/review-queue')
 }

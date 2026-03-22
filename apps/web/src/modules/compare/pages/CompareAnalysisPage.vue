@@ -56,7 +56,10 @@
           <el-select
             v-model="pageSize"
             class="pager-size-select"
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
             @change="onPageSizeChange"
           >
             <el-option v-for="s in pageSizeOptions" :key="s" :label="String(s)" :value="s" />
@@ -91,7 +94,10 @@
             filterable
             clearable
             :loading="insightTasksLoading"
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
             :placeholder="t('compare.formAsinPh')"
             class="asin-select"
           >
@@ -109,7 +115,10 @@
             filterable
             clearable
             :loading="insightTasksLoading"
-            :teleported="false"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
             :placeholder="t('compare.formAsinPh')"
             class="asin-select"
           >
@@ -149,11 +158,17 @@ import {
   fetchCompareRunsList,
   type CompareRunListItem,
 } from '../api'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const canMutateCompare = computed(() => auth.canRetryInsightTasks.value)
+
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
 type CompareTableRow = {
   id: string

@@ -7,7 +7,10 @@
           <el-select
             v-model="verticalId"
             class="dict-vertical-select"
-            :teleported="true"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
             @change="onVerticalChange"
           >
             <el-option
@@ -104,8 +107,14 @@ import {
   fetchTaxonomyPreview,
   postDictionaryRejectSynonym,
 } from '../../dictionary/api'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 
 const { t, locale } = useI18n()
+
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
 const loading = ref(false)
 const loadError = ref(false)

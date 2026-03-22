@@ -59,7 +59,7 @@ def merge_entries(base: list[dict[str, Any]], overlay: list[dict[str, Any]]) -> 
 
 
 def load_merged_entries_for_vertical(vertical_id: str) -> list[dict[str, Any]]:
-    """general：仅种子；其他垂直：种子 + 垂直 overlay 合并。"""
+    """general：种子 + general overlay（TA-10 回灌）；其他垂直：种子 + 垂直 overlay 合并。"""
     vid = vertical_id.strip()
     if vid not in VERTICAL_IDS:
         raise ValueError(f"未知 vertical：{vertical_id!r}")
@@ -68,7 +68,9 @@ def load_merged_entries_for_vertical(vertical_id: str) -> list[dict[str, Any]]:
     base = _load_yaml_entries(seed_path)
 
     if vid == "general":
-        return base
+        overlay_path = _configs_dir() / "taxonomy_dictionary_general_overlay_v1.yaml"
+        overlay = _load_yaml_entries(overlay_path)
+        return merge_entries(base, overlay)
 
     overlay_name = f"taxonomy_dictionary_{vid}_overlay_v1.yaml"
     overlay_path = _configs_dir() / overlay_name

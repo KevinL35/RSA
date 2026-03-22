@@ -1,14 +1,6 @@
 <template>
   <div class="result-page" v-loading="loading">
     <el-alert
-      v-if="isDemo"
-      type="info"
-      :closable="false"
-      show-icon
-      class="demo-banner"
-      :title="t('insightResult.demoBanner')"
-    />
-    <el-alert
       v-if="errorMsg"
       type="error"
       :closable="false"
@@ -17,7 +9,7 @@
       :title="errorMsg"
     />
     <el-alert
-      v-if="emptyState && !isDemo"
+      v-if="emptyState"
       type="warning"
       :closable="false"
       show-icon
@@ -91,7 +83,14 @@
       <div class="panel half wordcloud-panel">
         <div class="wordcloud-panel-head">
           <h3 class="subpanel-title">{{ t('insightResult.wordCloudTitle') }}</h3>
-          <el-select v-model="wordCloudDimension" class="wordcloud-dim-select" filterable>
+          <el-select
+            v-model="wordCloudDimension"
+            class="wordcloud-dim-select"
+            filterable
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
+          >
             <el-option :label="t('insightResult.wordCloudDimAll')" value="all" />
             <el-option v-for="d in dimensionOrder" :key="d" :label="dimTitle(d)" :value="d" />
           </el-select>
@@ -116,7 +115,14 @@
       <div class="panel pain-panel">
         <div class="pain-panel-head">
           <h3 class="subpanel-title">{{ t('insightResult.dimensionListTitle') }}</h3>
-          <el-select v-model="painListDimension" class="pain-list-dim-select" filterable>
+          <el-select
+            v-model="painListDimension"
+            class="pain-list-dim-select"
+            filterable
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
+          >
             <el-option v-for="d in dimensionOrder" :key="d" :label="dimTitle(d)" :value="d" />
           </el-select>
         </div>
@@ -201,6 +207,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import ReviewTrendChart from '../components/ReviewTrendChart.vue'
 import WordCloudChart from '../components/WordCloudChart.vue'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 import { fetchInsightDashboard } from '../api'
 import { fetchTaxonomyPreview, type TaxonomyPreviewResponse } from '../../dictionary/api'
 import type {
@@ -214,6 +224,8 @@ import type {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
 const dimensionOrder: Dimension6Key[] = [
   'pros',
@@ -272,90 +284,6 @@ function primaryDimensionForPainKeyword(keyword: string): Dimension6Key {
   return primaryDimensionFromRankDims(row.dimensions)
 }
 
-const MOCK_DASHBOARD: InsightDashboardResponse = {
-  insight_task_id: 'demo',
-  platform: 'amazon',
-  product_id: 'B0DEMO0001',
-  task_status: 'success',
-  analysis_provider_id: 'ins_builtin',
-  analyzed_at: '2026-03-21T08:45:28.000Z',
-  product_snapshot: {
-    title: 'Demo product',
-    image_url: 'https://picsum.photos/seed/insight-result/144/144',
-  },
-  dictionary_vertical_id: 'general',
-  empty_state: null,
-  dimension_counts: {
-    pros: 186,
-    cons: 312,
-    return_reasons: 48,
-    purchase_motivation: 124,
-    user_expectation: 96,
-    usage_scenario: 88,
-  },
-  pain_ranking: [
-    { keyword: 'fast charging', count: 142, dimensions: ['pros'] },
-    { keyword: 'compact design', count: 118, dimensions: ['pros'] },
-    { keyword: 'good build quality', count: 96, dimensions: ['pros'] },
-    { keyword: 'battery life', count: 186, dimensions: ['cons'] },
-    { keyword: 'charging speed', count: 124, dimensions: ['cons'] },
-    { keyword: 'heat under load', count: 76, dimensions: ['cons'] },
-    { keyword: 'not as described', count: 28, dimensions: ['return_reasons'] },
-    { keyword: 'gift for travel', count: 64, dimensions: ['purchase_motivation'] },
-    { keyword: 'longer cable', count: 52, dimensions: ['user_expectation'] },
-    { keyword: 'office desk setup', count: 58, dimensions: ['usage_scenario'] },
-  ],
-  evidence: {
-    items: [
-      {
-        id: 'e1',
-        dimension: 'cons',
-        keywords: ['battery life'],
-        evidence_quote: 'The battery drains faster than expected when using multiple ports.',
-        highlight_spans: [],
-        review_id: 'rev-demo-8821',
-        insight_task_id: 'demo',
-        review: {
-          raw_text:
-            'The battery drains faster than expected when using multiple ports. After two weeks of daily use with a laptop and phone plugged in, I have to recharge the unit twice a day. Compared with my older Anker brick this is disappointing, especially given the price point and the marketing around all-day power.',
-          rating: 3,
-          reviewed_at: '2026-03-10',
-        },
-      },
-      {
-        id: 'e2',
-        dimension: 'cons',
-        keywords: ['battery life'],
-        evidence_quote: 'Not happy with battery life under heavy load.',
-        highlight_spans: [],
-        review_id: 'rev-demo-8750',
-        insight_task_id: 'demo',
-        review: { raw_text: 'Not happy with battery life under heavy load.', rating: 2, reviewed_at: '2026-03-09' },
-      },
-      {
-        id: 'e3',
-        dimension: 'pros',
-        keywords: ['fast charging'],
-        evidence_quote: 'Charges my phone incredibly fast, very satisfied.',
-        highlight_spans: [],
-        review_id: 'rev-demo-8601',
-        insight_task_id: 'demo',
-        review: { raw_text: 'Charges my phone incredibly fast, very satisfied.', rating: 5, reviewed_at: '2026-03-08' },
-      },
-    ],
-    total: 3,
-    limit: 50,
-    offset: 0,
-  },
-  review_timeseries: [
-    { date: '2026-03-01', count: 8 },
-    { date: '2026-03-05', count: 14 },
-    { date: '2026-03-10', count: 22 },
-    { date: '2026-03-15', count: 18 },
-    { date: '2026-03-20', count: 31 },
-  ],
-}
-
 const loading = ref(false)
 const errorMsg = ref('')
 const dashboard = ref<InsightDashboardResponse | null>(null)
@@ -363,7 +291,6 @@ const dashboard = ref<InsightDashboardResponse | null>(null)
 const taxonomyPreview = ref<TaxonomyPreviewResponse | null>(null)
 
 const taskId = computed(() => String(route.params.taskId || ''))
-const isDemo = computed(() => taskId.value === 'demo')
 
 type WordCloudDimFilter = 'all' | Dimension6Key
 
@@ -389,7 +316,6 @@ function formatLocalDateTime(iso: string): string {
 
 /** 主标题：商品 ID（如 ASIN） */
 const mainAsinTitle = computed(() => {
-  if (isDemo.value) return 'B0DEMO0001'
   const d = dashboard.value
   if (d?.product_id) return d.product_id
   const a = (route.query.asin as string | undefined)?.trim()
@@ -398,14 +324,12 @@ const mainAsinTitle = computed(() => {
 
 /** 副标题仅展示短模型名：内置源统一 rsa-v1，其它为 analysis_provider_id（不用列表页「平台自研：…」长文案） */
 const insightModelDisplay = computed(() => {
-  if (isDemo.value) return 'rsa-v1'
   const id = dashboard.value?.analysis_provider_id
   if (id && String(id).trim() !== '' && id !== 'ins_builtin') return String(id).trim()
   return 'rsa-v1'
 })
 
 const analyzedAtFormatted = computed(() => {
-  if (isDemo.value) return '2026-03-21 16:45:28'
   const iso = dashboard.value?.analyzed_at
   if (iso) return formatLocalDateTime(iso)
   const q = (route.query.analyzedAt as string | undefined)?.trim()
@@ -420,10 +344,6 @@ function isHeaderImageUrl(s: string): boolean {
 
 /** 主图：优先接口 product_snapshot，其次列表跳转带来的 query.imageUrl */
 const headerProductImageUrl = computed(() => {
-  if (isDemo.value) {
-    const u = MOCK_DASHBOARD.product_snapshot?.image_url
-    return typeof u === 'string' && isHeaderImageUrl(u) ? u.trim() : ''
-  }
   const snap = dashboard.value?.product_snapshot
   const fromApi = typeof snap?.image_url === 'string' ? snap.image_url.trim() : ''
   if (fromApi && isHeaderImageUrl(fromApi)) return fromApi
@@ -742,13 +662,6 @@ async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {
 
 async function load() {
   errorMsg.value = ''
-  if (isDemo.value) {
-    dashboard.value = MOCK_DASHBOARD
-    painListDimension.value = 'pros'
-    selectedKeyword.value = null
-    await loadTaxonomyForDashboard(MOCK_DASHBOARD)
-    return
-  }
   loading.value = true
   try {
     dashboard.value = await fetchInsightDashboard(taskId.value, { evidence_limit: 120, evidence_offset: 0 })
@@ -782,7 +695,6 @@ watch(
   padding: 8px 4px 32px;
 }
 
-.demo-banner,
 .err-banner {
   margin-bottom: 12px;
 }

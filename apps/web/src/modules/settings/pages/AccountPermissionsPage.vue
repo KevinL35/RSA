@@ -102,7 +102,14 @@
           />
         </el-form-item>
         <el-form-item :label="t('settings.accColStatus')">
-          <el-select v-model="editForm.status" class="status-select">
+          <el-select
+            v-model="editForm.status"
+            class="status-select"
+            teleported
+            placement="bottom-start"
+            :fallback-placements="selectFallbackPlacementsBottom"
+            :popper-options="selectPopperOptionsNoFlip"
+          >
             <el-option :label="t('settings.accStatusActive')" value="active" />
             <el-option :label="t('settings.accStatusDisabled')" value="disabled" />
           </el-select>
@@ -140,8 +147,13 @@ import {
   updatePlatformUser,
   type PlatformUserRow,
 } from '../platformUsersApi'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 
 const { t, locale } = useI18n()
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 const auth = useAuthStore()
 
 const menuOptions = [

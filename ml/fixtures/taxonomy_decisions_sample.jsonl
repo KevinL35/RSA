@@ -1,0 +1,2 @@
+{"decision": "approve", "vertical_id": "general", "batch_id": "topic-demo", "source_topic_id": "2", "dimension_6way": "cons", "canonical": "demo pain phrase", "aliases": ["demo alias one"], "priority": 48, "weight": 1.0, "reviewer": "qa-bot", "reviewed_at": "2025-03-22T10:00:00Z"}
+{"decision": "reject", "vertical_id": "general", "batch_id": "topic-demo", "source_topic_id": "9", "reviewer": "qa-bot", "notes": "noise cluster"}

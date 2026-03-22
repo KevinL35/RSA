@@ -1,0 +1,50 @@
+# TA-8：BERTopic 离线语料切片与批次默认参数（v1）。
+# 说明文档：docs/stage-a/ecommerce-review-insights-v1-ta8-bertopic-corpus-batch-strategy.md
+
+version: "1.0.0"
+task: "bertopic_offline_stage_a"
+corpus_schema_version: "ta8-v1"
+
+# 语料列（导出/Parquet/CSV 与 DB 映射）
+corpus_fields:
+  text_column: "text_en" # 值等于 TA-2 analysis_input_en
+  required_metadata:
+    - platform
+    - product_id
+    - created_at
+  optional_metadata:
+    - id # review_id，证据回链强烈建议保留
+
+# 时间窗口：created_at 为 Unix 秒 UTC
+window:
+  window_days: 90
+  # batch_end 由运行时注入（跑批日 00:00:00 UTC）
+
+# 切片：默认按平台+商品各跑一批
+slice:
+  primary_keys:
+    - platform
+    - product_id
+  min_documents_product_slice: 200
+  min_documents_platform_wide: 800 # slice_mode: platform_wide 时使用
+
+# 与 TA-3 清洗对齐的计数约束（用于 min_documents 统计）
+text_constraints:
+  min_length: 5
+  max_length: 1024
+  dedupe_keys:
+    - id
+
+# 调度默认值（实现层 cron / 手工触发可覆盖）
+schedule:
+  planned_cadence: "weekly" # weekly | monthly | on_demand
+  recommended_planned_utc: "W-MON 02:00"
+
+# 幂等：同一自然键在多久内重复提交视为重试
+idempotency:
+  duplicate_submit_ttl_hours: 24
+  natural_key_fields:
+    - platform
+    - product_id
+    - batch_end
+    - window_days

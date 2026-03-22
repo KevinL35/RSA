@@ -5,6 +5,7 @@
 ## 依赖
 
 - `requirements-finetune.txt`：RoBERTa 微调与评估所需 Python 包。
+- `requirements-bertopic.txt`：TA-9 离线 BERTopic（在 finetune 依赖基础上增加 `bertopic` / `sentence-transformers` 等）。
 
 ## 目录与文件说明
 
@@ -30,6 +31,18 @@
 | **`data/`** | 放置 `raw` / `processed` / `splits`（大文件勿提交 Git，见仓库 `.gitignore`）。 |
 | **`artifacts/`** | 训练产出的模型与 checkpoint（勿提交 Git）。 |
 | **`reports/`** | 清洗报告、评估 JSON 等输出（勿提交 Git）。 |
+| **`configs/bertopic_batch_strategy_v1.yaml`** | TA-8：BERTopic 离线语料字段、时间窗口、最小样本量、切片与调度默认值。 |
+| **`configs/bertopic_run_v1.yaml`** | TA-9：嵌入模型、`min_topic_size`、代表词/证据条数等运行超参。 |
+| **`scripts/bertopic_offline_lib.py`** | TA-9：语料规范化、时间窗、切片与质量分 helper（无 bertopic 依赖，可单测）。 |
+| **`scripts/run_bertopic_offline.py`** | TA-9：按切片跑 BERTopic → `ml/reports/bertopic_run_{batch_id}.json` + `bertopic_candidates_{batch_id}.jsonl`。 |
+| **`fixtures/bertopic_corpus_sample.csv`** | 极小样例（用于 `--dry-run` 验证流程；正式跑批需 ≥200 条/切片）。 |
+| **`tests/test_bertopic_offline_lib.py`** | TA-9：切片与窗口等纯逻辑测试（`pytest ml/tests/`，需已安装 `pandas`/`pyyaml`）。 |
+| **`configs/taxonomy_dictionary_general_overlay_v1.yaml`** | TA-10：通用垂直回灌层（初始空 `entries`，发布脚本写入）。 |
+| **`scripts/taxonomy_backfill_lib.py`** | TA-10：决策校验、overlay 读写、版本补丁、快照与审计行。 |
+| **`scripts/publish_taxonomy_backfill.py`** | TA-10：将审核 JSONL 合并进 overlay，写快照 + `taxonomy_backfill_audit.jsonl`。 |
+| **`scripts/rollback_taxonomy_overlay.py`** | TA-10：用快照覆盖 overlay 并记审计。 |
+| **`fixtures/taxonomy_decisions_sample.jsonl`** | TA-10：决策文件样例（approve + reject）。 |
+| **`tests/test_taxonomy_backfill_lib.py`** | TA-10：`pytest ml/tests/test_taxonomy_backfill_lib.py`（需 `pyyaml`）。 |
 | **`configs/taxonomy_dictionary_seed_v1.yaml`** | TA-6：六维词典种子（`dimension_6way`、别名、`weight`/`priority`）。 |
 | **`fixtures/attribution_eval_sample.csv`** | TA-7：抽检样例（可选列 `expected_dimensions`）。 |
 | **`scripts/attribution_engine.py`** | TA-7：对 `analysis_input_en` 做词典匹配，产出与 `packages/contracts` 对齐的 `dimensions`（含 `evidence_quote` / `highlight_spans`）。 |
@@ -45,3 +58,7 @@
 2. `train_sentiment.py` → `evaluate_sentiment.py`
 
 Colab 仅用 Drive 数据时，见 **`docs/colab-minimal-start.md`**。
+
+BERTopic 离线发现（TA-9）：见 **`docs/stage-a/ecommerce-review-insights-v1-ta9-bertopic-offline-discovery.md`**；安装 `requirements-bertopic.txt` 后于仓库根目录执行 `python ml/scripts/run_bertopic_offline.py --help`。
+
+词典回灌（TA-10）：见 **`docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`**；`python ml/scripts/publish_taxonomy_backfill.py --help`。

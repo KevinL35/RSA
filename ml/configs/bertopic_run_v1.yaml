@@ -1,0 +1,16 @@
+# TA-9：BERTopic 运行超参（v1）。语料切片与窗口见 bertopic_batch_strategy_v1.yaml。
+
+version: "1.0.0"
+task: "bertopic_offline_discovery"
+
+embedding_model: "all-MiniLM-L6-v2"
+min_topic_size: 12
+# null = BERTopic 自动估计主题数
+nr_topics: null
+calculate_probabilities: false
+verbose: false
+
+# 每个主题写入候选的别名数（c-TF-IDF 排名，不含 canonical 用词）
+max_alias_terms: 10
+# 每条候选最多保留的代表句（供人工复核）
+max_evidence_snippets: 4

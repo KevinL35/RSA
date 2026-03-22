@@ -1,10 +1,10 @@
 # RSA 本地分析服务（评论洞察 / TA-11）
 
-在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py` + `ml/configs/taxonomy_dictionary_seed_v1.yaml`）。
+在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时，按请求体 `dictionary_vertical_id` 合并 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 与对应 overlay（含 TA-10 `taxonomy_dictionary_general_overlay_v1.yaml`），与 API 词典预览一致；显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用）。
 
 ## 请求与响应
 
-与 `apps/api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 `packages/contracts/src/analysis.ts` 对齐）。
+与 `apps/api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、可选 `dictionary_vertical_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 `packages/contracts/src/analysis.ts` 对齐）。
 
 ## 一键启动（分析 + API + 前端）
 
@@ -34,7 +34,8 @@ pip install -r requirements.txt
 ```bash
 cd apps/analysis-service
 source .venv/bin/activate
-export TAXONOMY_YAML="../../ml/configs/taxonomy_dictionary_seed_v1.yaml"   # 可选，默认即用仓库内该文件
+# 可选：强制单文件词典；不设则按 dictionary_vertical_id 合并 seed+overlay（TA-10）
+# export TAXONOMY_YAML="../../ml/configs/taxonomy_dictionary_seed_v1.yaml"
 # export SENTIMENT_MODEL_DIR="../../ml/artifacts/roberta-sentiment-v0-colab-10pct/checkpoint-59601"
 uvicorn app.main:app --host 127.0.0.1 --port 8089
 ```
@@ -48,6 +49,8 @@ ANALYSIS_PROVIDER_ROUTES_JSON={"ins_builtin":"http://127.0.0.1:8089/analyze","de
 ```
 
 未配置 `SENTIMENT_MODEL_DIR` 时，情感使用 **星级**（若有）+ **轻量关键词启发式**；配置后优先 **RoBERTa**。
+
+词典回灌（TA-10）更新 overlay 后，调用 `POST /admin/reload-taxonomy` 或重启进程以清空内存缓存。
 
 ## 健康检查
 

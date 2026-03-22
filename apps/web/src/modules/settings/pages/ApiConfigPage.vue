@@ -8,7 +8,15 @@
     <section class="config-block config-block--lang">
       <div class="system-row">
         <h3 class="block-title">{{ t('settings.moduleSystemLang') }}</h3>
-        <el-select v-model="locale" class="system-select" :teleported="false" @change="onSystemLangChange">
+        <el-select
+          v-model="locale"
+          class="system-select"
+          teleported
+          placement="bottom-start"
+          :fallback-placements="selectFallbackPlacementsBottom"
+          :popper-options="selectPopperOptionsNoFlip"
+          @change="onSystemLangChange"
+        >
           <el-option :label="t('settings.langEnglish')" value="en" />
           <el-option :label="t('settings.langZhCN')" value="zh-CN" />
         </el-select>
@@ -18,7 +26,10 @@
         <el-select
           v-model="selectedTranslateApiId"
           class="system-select"
-          :teleported="false"
+          teleported
+          placement="bottom-start"
+          :fallback-placements="selectFallbackPlacementsBottom"
+          :popper-options="selectPopperOptionsNoFlip"
           :placeholder="t('settings.selectTranslateApi')"
           @change="onTranslateApiChange"
         >
@@ -31,7 +42,10 @@
         <el-select
           v-model="selectedReviewFetchApiId"
           class="system-select"
-          :teleported="false"
+          teleported
+          placement="bottom-start"
+          :fallback-placements="selectFallbackPlacementsBottom"
+          :popper-options="selectPopperOptionsNoFlip"
           :placeholder="t('settings.selectReviewFetchApi')"
           @change="onReviewFetchApiChange"
         >
@@ -220,10 +234,15 @@ import {
   reviewFetchApiConfigRows as reviewFetchRows,
   translateApiConfigRows as translateRows,
 } from '../apiConfig.shared'
+import {
+  SELECT_FALLBACK_PLACEMENTS_BOTTOM,
+  selectPopperOptionsNoFlip,
+} from '../../../shared/ui/elementSelectPlacement'
 
 type ModuleKey = 'insight' | 'agent' | 'reviewFetch' | 'translate'
 
 const { t, locale } = useI18n()
+const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 const TRANSLATE_SELECTED_KEY = 'rsa_settings_selected_translate_api_id'
 const REVIEW_FETCH_SELECTED_KEY = 'rsa_settings_selected_review_fetch_api_id'
 const DEFAULT_TRANSLATE_ID = 'tr_default'

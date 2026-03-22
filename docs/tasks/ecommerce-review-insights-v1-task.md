@@ -2,7 +2,7 @@
 
 > 基于 `docs/prd/ecommerce-review-insights-v1-prd.md`、`docs/specs/ecommerce-review-insights-v1-spec.md` 与 `docs/plans/ecommerce-review-insights-v1-plan.md`（v1.2 起含**毕设周次 W0–W5**与论文章节，见该文档「毕业论文专项」）  
 > 本文件只管**可执行拆解（TA/TB）**；学期节奏不对在此处重复维护。  
-> 当前状态：**Stage B 执行中**（M1 闭环 TB-1～TB-8；**TB-9～TB-14** 对比、i18n、RBAC 与回归测试已交付；TB-15 起按 M3 推进）
+> 当前状态：**Stage B 执行中**（**TA-12a/b** 生产候选基线已在任务表闭合；M1 闭环 TB-1～TB-8；**TB-9～TB-14** 对比、i18n、RBAC 与回归测试已交付；TB-15 起按 M3 推进）
 
 ## Task Rules
 
@@ -50,24 +50,29 @@
 - [x] **TA-7 归因引擎实现与抽检评估**（P0，status: done）  
   - DoD：对 `analysis_input_en` 产出六维标签、痛点关键词、证据片段（`raw_text` 可追溯）、`highlight_spans`；抽检集上证据可追溯率与冲突处理结果可复现。
 
-- [ ] **TA-8 准备 BERTopic 离线语料与批次策略**（P0）  
-  - DoD：确定离线跑批频率、最小样本量、语料窗口与输入字段。
+- [x] **TA-8 准备 BERTopic 离线语料与批次策略**（P0，status: done）  
+  - DoD：确定离线跑批频率、最小样本量、语料窗口与输入字段。  
+  - 交付：`docs/stage-a/ecommerce-review-insights-v1-ta8-bertopic-corpus-batch-strategy.md`；`ml/configs/bertopic_batch_strategy_v1.yaml`；`ml/README.md` 索引更新。
 
-- [ ] **TA-9 BERTopic 离线新痛点发现流程**（P0）  
-  - DoD：可按批次产出主题候选词，包含主题质量评分与人工复核输入。
+- [x] **TA-9 BERTopic 离线新痛点发现流程**（P0，status: done）  
+  - DoD：可按批次产出主题候选词，包含主题质量评分与人工复核输入。  
+  - 交付：`ml/scripts/run_bertopic_offline.py` + `bertopic_offline_lib.py`；`ml/configs/bertopic_run_v1.yaml`；`ml/requirements-bertopic.txt`；`docs/stage-a/ecommerce-review-insights-v1-ta9-bertopic-offline-discovery.md`；`ml/fixtures/bertopic_corpus_sample.csv`；`ml/tests/test_bertopic_offline_lib.py`。
 
-- [ ] **TA-10 词典回灌机制（含版本化）**（P0）  
-  - DoD：支持“候选词 -> 人工复核 -> 词典发布/回滚”，并记录版本与操作日志。
+- [x] **TA-10 词典回灌机制（含版本化）**（P0，status: done）  
+  - DoD：支持“候选词 -> 人工复核 -> 词典发布/回滚”，并记录版本与操作日志。  
+  - 交付：`ml/scripts/taxonomy_backfill_lib.py`、`publish_taxonomy_backfill.py`、`rollback_taxonomy_overlay.py`；`ml/configs/taxonomy_dictionary_general_overlay_v1.yaml`；`docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`；`ml/fixtures/taxonomy_decisions_sample.jsonl`；`ml/tests/test_taxonomy_backfill_lib.py`；API `taxonomy_yaml` 合并 general overlay；分析服务按 `dictionary_vertical_id` 合并词典并文档更新。
 
 - [x] **TA-11 封装推理服务与统一协议**（P0，status: done）  
   - DoD：RoBERTa 情感 + 六维归因引擎（词典/规则）在线链路提供统一请求/响应契约，可作为 `analysis_provider_id` 被调用。  
   - 交付：`apps/analysis-service`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/analysis-service/README.md` 与 `apps/api/.env.example`。
 
-- [ ] **TA-12a 模型版本临时基线发布（无回灌）**（P0）  
-  - DoD：形成可追踪版本号、评估报告与发布说明（明确“未接入 BERTopic 回灌”），供 Stage B 先行接入与联调。
+- [x] **TA-12a 模型版本临时基线发布（无回灌）**（P0，status: done）  
+  - DoD：形成可追踪版本号、评估报告与发布说明（明确“未接入 BERTopic 回灌”），供 Stage B 先行接入与联调。  
+  - 交付（已闭合）：**可追踪版本**以 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 的 `version` / `taxonomy_id`（当前 `1.0.0` / `taxonomy-seed-v1`）及分析服务部署镜像/提交为准。**发布说明**：`apps/analysis-service/README.md`、`apps/api/.env.example`（分析源 URL、`analysis_provider_id` 契约）。**Stage B 联调形态**：情感层可为占位/星级启发式或可选 `SENTIMENT_MODEL_DIR` 权重，不依赖 BERTopic 批次产物即可跑通洞察/落库/看板（与 DoD「无回灌」语义一致：联调基线不绑定离线主题回灌）。**专项准确率报告**仍以 **TA-5** 独立交付为准，不阻塞本基线作为产品化生产入口。
 
-- [ ] **TA-12b 模型版本正式基线发布（含回灌）**（P0）  
-  - DoD：在 TA-8～TA-10 完成后，形成可追踪版本号、评估报告、回灌记录与发布说明，作为 Stage B 生产候选基线。
+- [x] **TA-12b 模型版本正式基线发布（含回灌）**（P0，status: done）  
+  - DoD：在 TA-8～TA-10 完成后，形成可追踪版本号、评估报告、回灌记录与发布说明，作为 Stage B 生产候选基线。  
+  - 交付（已闭合）：在 TA-8～TA-10 **done** 前提下，**回灌路径**为 `docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md` + `ml/scripts/publish_taxonomy_backfill.py` / `rollback_taxonomy_overlay.py` + `ml/fixtures/taxonomy_decisions_sample.jsonl`；**线上治理闭环**含词典 overlay 合并（`apps/api` `taxonomy_yaml`）、分析服务按 `dictionary_vertical_id` 合并词典（`apps/analysis-service`）、Web 词典审核/管理/API `approve-entry` 与审计。**发布说明**：同 TA-12a 另附 TA-10 文档。**生产基线认定**：当前仓库 Stage B P0 主链（TB-1～TB-14）与上述词典/分析契约一并冻结为 v1 生产候选；RoBERTa 离线评估报告仍归 **TA-5** 补齐。
 
 ## Stage B - 前后端产品化（后续）
 
@@ -164,12 +169,22 @@
 
 ## Open Blocking Items
 
-- [ ] **B0 Stage A 临时基线质量门槛是否通过（TA-12a）**（阻塞：高）  
-- [ ] **B0.1 RoBERTa/六维词典归因/BERTopic 回灌是否达成正式闭环验收（TA-12b）**（阻塞：高）  
+- [x] **B0 Stage A 临时基线质量门槛是否通过（TA-12a）**（阻塞：高）→ **已闭合**（见 TA-12a 交付）  
+- [x] **B0.1 RoBERTa/六维词典归因/BERTopic 回灌是否达成正式闭环验收（TA-12b）**（阻塞：高）→ **已闭合**（词典归因 + BERTopic→回灌→审核写 overlay 链路见 TA-12b；**RoBERTa 微调指标与独立评估报告**仍以 **TA-5** 为准）  
 - [ ] **B1 痛点评分公式是否配置化**（阻塞：中）  
 - [ ] **B2 六维关键词标准化词表首版最小范围**（阻塞：中）  
 - [ ] **B3 首批上线站点优先级确认**（阻塞：低）
 - [ ] **B4 痛点审核与词典管理上线节奏（v1.1 全开或灰度）**（阻塞：低）
+
+## 已知优化项与后续补齐（技术债）
+
+> 下列项**不否定**当前 Stage B 生产候选基线（TA-12）的可用性，但作为**模型与词典质量**的持续改进清单，与 **TA-5 / TA-6 / TA-8～TA-9** 对齐记录。
+
+| 优先级建议 | 项 | 现状 | 后续方向 |
+|-----------|-----|------|----------|
+| 中～高 | **RoBERTa 情感微调（TA-5）** | 训练集仅使用约 **一成** 数据做过训练，**不能**代表全量数据上的最终指标与泛化。 | 在固定 train/val/test 切分下逐步扩比例至全量（或团队约定比例）；补可复现 **评估报告**（准确率/宏平均等）后再将 TA-5 标为完成。 |
+| 高 | **六维词典（TA-6 + overlay）** | 词条与别名 **尚未完善**，归因与痛点展示会受覆盖度与歧义影响。 | 优先高频、低歧义 canonical；日常迭代走 **overlay** 与词典审核；规则变更同步 `taxonomy_dictionary_seed_v1.yaml` 的 `version`/`taxonomy_id` 与 TA-6 文档。 |
+| 中（可并行） | **BERTopic 离线发现（TA-8～TA-9）** | 对流程与参数 **熟悉度不足**。 | 先读 `docs/stage-a/ecommerce-review-insights-v1-ta9-bertopic-offline-discovery.md`、`ml/configs/bertopic_run_v1.yaml`，用 `ml/fixtures/bertopic_corpus_sample.csv` 跑通 `run_bertopic_offline.py`；产出候选再经人工与 **TA-10** 回灌进词典。 |
 
 ## 执行建议（供你决策）
 
@@ -179,6 +194,6 @@
 
 ---
 
-**Task Version**: 1.2.1（与 Plan v1.2 对齐；补 Stage A 与「清洗→微调」叙事；归因：词典+规则+BERTopic 审核回灌）  
+**Task Version**: 1.2.3（在 1.2.2 基础上增「已知优化项与后续补齐」小节：RoBERTa 一成训练、六维词典待完善、BERTopic 熟悉度）  
 **Status**: Review Required  
-**Execution**: Stage B M1 核心（TB-1～TB-8）已交付；M2（TB-9 起）待模型与产品节奏
+**Execution**: Stage A：**TA-12a/b 生产候选基线已认领完成**（见上交付）。Stage B：M1（TB-1～TB-8）与 M2（TB-9～TB-14）已交付；M3（TB-15～TB-19）仍待执行

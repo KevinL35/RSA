@@ -1,0 +1,6 @@
+# TA-9 离线主题发现（与 RoBERTa 微调依赖分开安装，避免默认环境过重）
+-r requirements-finetune.txt
+bertopic>=0.16.0,<0.19.0
+sentence-transformers>=2.2.0
+umap-learn>=0.5.0
+hdbscan>=0.8.0

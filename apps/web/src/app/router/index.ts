@@ -28,7 +28,12 @@ const router = createRouter({
         { path: 'insight-analysis/result/:taskId', component: InsightResultPage },
         { path: 'compare-analysis', component: CompareAnalysisPage },
         { path: 'compare-analysis/result/:compareId', component: CompareResultPage },
-        { path: 'pain-audit', component: PainAuditPage, meta: { allowedRoles: ['admin'] } },
+        {
+          path: 'dictionary-review',
+          component: PainAuditPage,
+          meta: { allowedRoles: ['admin'] },
+        },
+        { path: 'pain-audit', redirect: '/dictionary-review' },
         { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
         { path: 'task-center', redirect: '/insight-analysis' },
         { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
