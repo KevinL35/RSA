@@ -339,7 +339,7 @@ export default {
     moduleSmartAgent: '智能 Agent',
     moduleReviewFetchApi: '评论获取 API',
     moduleReviewFetchApiHint:
-      '用于记录 TB-2 评论抓取接口（POST JSON：platform、product_id）。实际调用仍以服务端 apps/api/.env 的 REVIEW_PROVIDER_* 为准；此处便于联调与文档对齐。',
+      '用于记录 TB-2 评论抓取接口（POST JSON：platform、product_id）。实际调用仍以服务端 apps/platform-api/.env 的 REVIEW_PROVIDER_* 为准；此处便于联调与文档对齐。',
     moduleTranslateApi: '翻译 API',
     translateShort: '翻译',
     reviewFetchShort: '评论获取',

@@ -344,7 +344,7 @@ export default {
     moduleSmartAgent: 'Smart agent',
     moduleReviewFetchApi: 'Review fetch API',
     moduleReviewFetchApiHint:
-      'TB-2 fetch endpoint (POST JSON: platform, product_id). Runtime still uses server REVIEW_PROVIDER_* in apps/api/.env; this list is for notes and alignment.',
+      'TB-2 fetch endpoint (POST JSON: platform, product_id). Runtime still uses server REVIEW_PROVIDER_* in apps/platform-api/.env; this list is for notes and alignment.',
     moduleTranslateApi: 'Translation API',
     translateShort: 'Translation',
     reviewFetchShort: 'Review fetch',

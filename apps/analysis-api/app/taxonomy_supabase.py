@@ -1,4 +1,4 @@
-"""从 Supabase taxonomy_entries 拉取 seed/overlay，与 apps/api 合并语义一致。"""
+"""从 Supabase taxonomy_entries 拉取 seed/overlay，与 apps/platform-api 合并语义一致。"""
 
 from __future__ import annotations
 

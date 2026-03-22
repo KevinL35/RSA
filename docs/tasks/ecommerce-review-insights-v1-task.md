@@ -54,13 +54,13 @@
   - 交付：`ml/scripts/taxonomy_backfill_lib.py`、`publish_taxonomy_backfill.py`、`rollback_taxonomy_overlay.py`；`ml/fixtures/taxonomy/`（灌库用 YAML）；`docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`；`ml/fixtures/taxonomy_decisions_sample.jsonl`；`ml/tests/test_taxonomy_backfill_lib.py`；API `taxonomy_yaml` 合并 general overlay；分析服务按 `dictionary_vertical_id` 合并词典并文档更新。
 - **TA-11 封装推理服务与统一协议**（P0，status: done）  
   - DoD：RoBERTa 情感 + 六维归因引擎（词典/规则）在线链路提供统一请求/响应契约，可作为 `analysis_provider_id` 被调用。  
-  - 交付：`apps/rsa-model-api`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/rsa-model-api/README.md` 与 `apps/api/.env.example`。
+  - 交付：`apps/analysis-api`（`POST /analyze`；可选 `SENTIMENT_MODEL_DIR` 加载微调权重；否则星级+启发式）；联调说明见 `apps/analysis-api/README.md` 与 `apps/platform-api/.env.example`。
 - **TA-12a 模型版本临时基线发布（无回灌）**（P0，status: done）  
   - DoD：形成可追踪版本号、评估报告与发布说明（明确“未接入 BERTopic 回灌”），供 Stage B 先行接入与联调。  
-  - 交付（已闭合）：**可追踪版本**以 Supabase `taxonomy_entries` 与灌库样例 `ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml` 的 `version` / `taxonomy_id`（当前 `1.0.0` / `taxonomy-seed-v1`）及分析服务部署镜像/提交为准。**发布说明**：`apps/rsa-model-api/README.md`、`apps/api/.env.example`（分析源 URL、`analysis_provider_id` 契约）。**Stage B 联调形态**：情感层可为占位/星级启发式或可选 `SENTIMENT_MODEL_DIR` 权重，不依赖 BERTopic 批次产物即可跑通洞察/落库/看板（与 DoD「无回灌」语义一致：联调基线不绑定离线主题回灌）。**专项准确率报告**仍以 **TA-5** 独立交付为准，不阻塞本基线作为产品化生产入口。
+  - 交付（已闭合）：**可追踪版本**以 Supabase `taxonomy_entries` 与灌库样例 `ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml` 的 `version` / `taxonomy_id`（当前 `1.0.0` / `taxonomy-seed-v1`）及分析服务部署镜像/提交为准。**发布说明**：`apps/analysis-api/README.md`、`apps/platform-api/.env.example`（分析源 URL、`analysis_provider_id` 契约）。**Stage B 联调形态**：情感层可为占位/星级启发式或可选 `SENTIMENT_MODEL_DIR` 权重，不依赖 BERTopic 批次产物即可跑通洞察/落库/看板（与 DoD「无回灌」语义一致：联调基线不绑定离线主题回灌）。**专项准确率报告**仍以 **TA-5** 独立交付为准，不阻塞本基线作为产品化生产入口。
 - **TA-12b 模型版本正式基线发布（含回灌）**（P0，status: done）  
   - DoD：在 TA-8～TA-10 完成后，形成可追踪版本号、评估报告、回灌记录与发布说明，作为 Stage B 生产候选基线。  
-  - 交付（已闭合）：在 TA-8～TA-10 **done** 前提下，**回灌路径**为 `docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md` + `ml/scripts/publish_taxonomy_backfill.py` / `rollback_taxonomy_overlay.py` + `ml/fixtures/taxonomy_decisions_sample.jsonl`；**线上治理闭环**含词典 overlay 合并（`apps/api` `taxonomy_yaml`）、分析服务按 `dictionary_vertical_id` 合并词典（`apps/rsa-model-api`）、Web 词典审核/管理/API `approve-entry` 与审计。**发布说明**：同 TA-12a 另附 TA-10 文档。**生产基线认定**：当前仓库 Stage B P0 主链（TB-1～TB-14）与上述词典/分析契约一并冻结为 v1 生产候选；RoBERTa 离线评估报告仍归 **TA-5** 补齐。
+  - 交付（已闭合）：在 TA-8～TA-10 **done** 前提下，**回灌路径**为 `docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md` + `ml/scripts/publish_taxonomy_backfill.py` / `rollback_taxonomy_overlay.py` + `ml/fixtures/taxonomy_decisions_sample.jsonl`；**线上治理闭环**含词典 overlay 合并（`apps/platform-api` `taxonomy_yaml`）、分析服务按 `dictionary_vertical_id` 合并词典（`apps/analysis-api`）、Web 词典审核/管理/API `approve-entry` 与审计。**发布说明**：同 TA-12a 另附 TA-10 文档。**生产基线认定**：当前仓库 Stage B P0 主链（TB-1～TB-14）与上述词典/分析契约一并冻结为 v1 生产候选；RoBERTa 离线评估报告仍归 **TA-5** 补齐。
 
 ## Stage B - 前后端产品化（后续）
 
@@ -89,7 +89,7 @@
   - 交付：`TaskCenterPage` 筛选（状态、创建时间范围、limit）、状态标签、耗时、失败阶段/错误码/文案、`POST .../retry`；登录选择角色；侧边栏+路由 `allowedRoles`（管理员全量菜单，运营/只读隐藏系统设置与治理菜单；只读禁用重试）。
 - **TB-8 P0 单测/集成测试（洞察+任务中心链路）**（P0，status: done）  
   - DoD：核心流程测试通过；关键失败路径（抓评失败/分析失败）可复现并被断言。  
-  - 交付：`apps/api/pytest.ini` + `tests/`（状态机、`error` 增强、dashboard 空态、重试 API 409/成功重置）；`pytest` 绿。
+  - 交付：`apps/platform-api/pytest.ini` + `tests/`（状态机、`error` 增强、dashboard 空态、重试 API 409/成功重置）；`pytest` 绿。
 
 ## Phase 2 - 对比、翻译、权限（M2）
 
@@ -98,10 +98,10 @@
   - 交付：`GET /api/v1/compare/products`（按两商品各自**最近一次成功**洞察任务聚合 `review_analysis` / `review_dimension_analysis`）；`packages/contracts/src/compare.ts`；`tests/test_compare_service.py`。
 - **TB-10 对比前置校验与引导**（P0，status: done）  
   - DoD：任一商品缺失分析数据时，返回可读提示并引导先做洞察。  
-  - 交付：区分 `no_success_task` 与 `empty_analysis`；400 `detail` 含双语 `messages`/`guidance`/`next_step`；`apps/api/app/modules/compare/guidance.py`；`tests/test_compare_guidance.py`；Web `compare/api.ts` + 对比页展示引导；`packages/contracts` 补充 `ComparePrerequisiteErrorDetail`。
+  - 交付：区分 `no_success_task` 与 `empty_analysis`；400 `detail` 含双语 `messages`/`guidance`/`next_step`；`apps/platform-api/app/modules/compare/guidance.py`；`tests/test_compare_guidance.py`；Web `compare/api.ts` + 对比页展示引导；`packages/contracts` 补充 `ComparePrerequisiteErrorDetail`。
 - **TB-11 翻译展示策略实现**（P0，status: done）  
   - DoD：UI 非 English 时展示英文+译文；证据句始终原文；未配翻译 API 时不阻断。  
-  - 交付：`POST /api/v1/translate`（LibreTranslate 兼容 JSON；未配置 `TRANSLATION_API_URL` 时 `configured=false`）；`translateApi.ts` + `BilingualBlock.vue`；对比结论在中文界面下英文主文+可选译文+机器翻译提示；证据句说明文案；`apps/api/.env.example`。
+  - 交付：`POST /api/v1/translate`（LibreTranslate 兼容 JSON；未配置 `TRANSLATION_API_URL` 时 `configured=false`）；`translateApi.ts` + `BilingualBlock.vue`；对比结论在中文界面下英文主文+可选译文+机器翻译提示；证据句说明文案；`apps/platform-api/.env.example`。
 - **TB-12 双语 UI 文案覆盖（en/zh-CN）**（P0，status: done）  
   - DoD：所有新增用户可见文案均提供 en 与 zh-CN。  
   - 交付：`vue-i18n` + `app/i18n/locales/en.ts` & `zh-CN.ts`；登录/侧栏/任务中心/对比/洞察/治理占位/设置演示表；`ElConfigProvider` 对齐 Element Plus 语言；`localStorage rsa_locale`。
@@ -110,7 +110,7 @@
   - 交付：请求头 `X-RSA-Role`（`admin`|`operator`|`readonly`）；变更类接口 `require_mutator_role`；`rsa.audit` 记录 403；前端 `api.ts` / 登录角色选择；与菜单、任务重试能力对齐。
 - **TB-14 权限回归测试**（P0，status: done）  
   - DoD：3 角色关键路径与负路径（越权）测试通过。  
-  - 交付：`apps/api/tests/test_rbac.py`（401/403/operator/admin 正路径）；`apps/web` `npm run test`（`api.test.ts` 角色头契约）；既有 `test_retry_router` 已带 mutator 头。
+  - 交付：`apps/platform-api/tests/test_rbac.py`（401/403/operator/admin 正路径）；`apps/web` `npm run test`（`api.test.ts` 角色头契约）；既有 `test_retry_router` 已带 mutator 头。
 
 ## Phase 3 - 稳定性与上线准备（M3）
 

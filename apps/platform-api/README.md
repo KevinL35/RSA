@@ -1,4 +1,4 @@
-# RSA API（FastAPI）
+# Platform API（FastAPI，主业务后端）
 
 业务编排层，**真实读写 Supabase（Postgres）**。
 
@@ -6,7 +6,7 @@
 
 ## 环境
 
-1. 复制 `apps/api/.env.example` 为 `apps/api/.env`
+1. 复制 `apps/platform-api/.env.example` 为 `apps/platform-api/.env`
 2. 填入 `SUPABASE_URL`（**Project URL**，`https://…supabase.co`，勿填 JWT）、`SUPABASE_SERVICE_ROLE_KEY`（**service_role**，仅后端持有，勿提交前端）
 
 ## 数据库
@@ -21,24 +21,26 @@
 - `infra/migrations/006_insight_tasks_created_by.sql`（洞察任务 `created_by` 创建人用户名；创建任务时由前端 `X-RSA-Username` 传入）
 - `infra/migrations/007_compare_runs.sql`（对比分析历史，前端列表/结果走 `GET|POST|DELETE /api/v1/compare/runs`）
 
-然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/api/.env`。
+然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/platform-api/.env`。
 
 ## 安装与启动
 
-本地若要 **同时** 起 Model API、本 API 与前端，可在仓库根目录执行：`bash scripts/dev-all.sh`（见 `apps/rsa-model-api/README.md`）。
+本地若要 **同时** 起 Analysis API、本服务与前端，可在仓库根目录执行：`bash scripts/dev-all.sh`（见 `apps/analysis-api/README.md`）。
 
 ```bash
-cd apps/api
+cd apps/platform-api
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+若目录曾从 `apps/api` 重命名而来，旧的 `.venv` 里脚本的 shebang 仍指向旧路径，会出现 `bad interpreter` 或 `ModuleNotFoundError`（如 `openpyxl`）。请删除 `apps/platform-api/.venv` 后按上文重新 `python -m venv .venv` 并 `pip install -r requirements.txt`。`apps/analysis-api` 同理（旧路径 `apps/rsa-model-api`）。
+
 ## 测试（TB-8）
 
 ```bash
-cd apps/api
+cd apps/platform-api
 source .venv/bin/activate
 pytest
 ```
@@ -59,7 +61,7 @@ pytest
 - `DELETE /api/v1/insight-tasks/{id}`：删除任务（`admin`/`operator`）；关联 `reviews` / `review_analysis` / `review_dimension_analysis` 随库级 `ON DELETE CASCADE` 清理；不存在返回 404
 - `GET /api/v1/compare/products?platform_a=&product_id_a=&platform_b=&product_id_b=`：TB-9 双商品对比；按各自最近一次 `success` 任务聚合情感分布、`dimensions` 六维计数、关键词 Top 与相对偏多侧、`conclusion_cards`（规则模板）。**TB-10 前置校验**：任一侧无 `success` 任务、或任务成功但 `review_analysis` 为空（无落库分析）时 **400**，响应体 `{"detail": { ... }}` 内含 `code: MISSING_INSIGHT_DATA`、`messages.zh_CN` / `messages.en`、`guidance`、`next_step`（引导至评论洞察）、`reasons`（`no_success_task` | `empty_analysis`）、`products`（含 `insight_task_id`）
 
-**评论抓取（TB-2）环境变量**（`apps/api/.env`）：
+**评论抓取（TB-2）环境变量**（`apps/platform-api/.env`）：
 
 - `REVIEW_PROVIDER_MODE`：`http`（默认）、`apify` 或 `pangolin`
 - **`http`**：`REVIEW_PROVIDER_URL` 为完整 `POST` URL，JSON body：`platform`, `product_id`；可选 `REVIEW_PROVIDER_API_KEY` → `Authorization: Bearer`；响应须为顶层数组或 `reviews`/`items`/`data`/`results`/`records`；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等
@@ -80,7 +82,7 @@ pytest
 - `ANALYSIS_PROVIDER_TIMEOUT_SECONDS`：默认 120
 - `ANALYSIS_MAX_RETRIES`：默认 2（429/5xx/超时等退避重试）
 - `ANALYSIS_PROVIDER_MOCK=true`：不请求外网，返回占位情感+六维结果；**无需**配置 `ANALYSIS_PROVIDER_URL` / `ROUTES_JSON`
-- **本地闭环（自建情感+词典归因）**：另起进程运行 `apps/rsa-model-api`（见该目录 `README.md`），并在 `ANALYSIS_PROVIDER_ROUTES_JSON` 中为前端默认的 `ins_builtin` 配置 `http://127.0.0.1:8089/analyze`（详见 `apps/api/.env.example` 注释）
+- **本地闭环（自建情感+词典归因）**：另起进程运行 `apps/analysis-api`（见该目录 `README.md`），并在 `ANALYSIS_PROVIDER_ROUTES_JSON` 中为前端默认的 `ins_builtin` 配置 `http://127.0.0.1:8089/analyze`（详见 `apps/platform-api/.env.example` 注释）
 
 **分析源请求体（本系统 POST）**：`insight_task_id`, `platform`, `product_id`, `analysis_provider_id`（解析后的生效 id）, `reviews`（`id`, `raw_text`, …）。
 

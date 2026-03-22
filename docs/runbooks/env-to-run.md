@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 后端 `apps/api/.env`（从 `.env.example` 复制）
+## 1. 后端 `apps/platform-api/.env`（从 `.env.example` 复制）
 
 | 变量 | 是否必填 | 说明 |
 |------|----------|------|
@@ -12,7 +12,7 @@
 | **`SUPABASE_SERVICE_ROLE_KEY`** | **必填** | 同一页里的 **service_role** secret（仅后端持有）。 |
 | **`CORS_ORIGINS`** | 本地建议填 | 默认含 `http://localhost:5173`；若前端用别的端口或 Vercel 域名，用英文逗号追加。 |
 
-**数据库**：在 Supabase **SQL Editor** 执行 `infra/migrations/` 下 `001`、`002`、`003`（见 `apps/api/README.md`）。
+**数据库**：在 Supabase **SQL Editor** 执行 `infra/migrations/` 下 `001`、`002`、`003`（见 `apps/platform-api/README.md`）。
 
 **可选（有功能再配）**：
 
@@ -22,7 +22,7 @@
 启动：
 
 ```bash
-cd apps/api && source .venv/bin/activate  # 先 python -m venv .venv && pip install -r requirements.txt
+cd apps/platform-api && source .venv/bin/activate  # 先 python -m venv .venv && pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """从 Supabase `public.reviews` 导出 BERTopic 语料 CSV（与 TA-8 列约定对齐）。
 
-需环境变量（与 apps/api 一致）：
+需环境变量（与 apps/platform-api 一致）：
   SUPABASE_URL       — Project URL，如 https://xxx.supabase.co
   SUPABASE_SERVICE_ROLE_KEY — service_role（仅本机/CI 使用，勿提交）
 
-可选从仓库 `apps/api/.env` 自动加载（若变量尚未设置）。
+可选从仓库 `apps/platform-api/.env` 自动加载（若变量尚未设置）。
 
 模式
   默认：导出 reviews 表（可选 platform / product-id 过滤）。
@@ -42,7 +42,7 @@ def _repo_root() -> Path:
 
 
 def _load_api_dotenv() -> None:
-    p = _repo_root() / "apps" / "api" / ".env"
+    p = _repo_root() / "apps" / "platform-api" / ".env"
     if not p.is_file():
         return
     for line in p.read_text(encoding="utf-8").splitlines():

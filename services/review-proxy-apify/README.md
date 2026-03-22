@@ -48,7 +48,7 @@ uvicorn main:app --host 0.0.0.0 --port 8090
 
 ### 4. 接上 RSA
 
-`apps/api/.env`：
+`apps/platform-api/.env`：
 
 ```env
 REVIEW_PROVIDER_MOCK=false

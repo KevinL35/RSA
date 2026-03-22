@@ -1,5 +1,5 @@
 """
-按 dictionary_vertical_id 合并 seed + overlay；**仅**从 Supabase 读取，与 apps/api taxonomy_yaml 口径一致。
+按 dictionary_vertical_id 合并 seed + overlay；**仅**从 Supabase 读取，与 apps/platform-api taxonomy_yaml 口径一致。
 未配置 Supabase 或 seed 为空时会报错（请用 ml/fixtures/taxonomy/ + seed 脚本初始化库表）。
 """
 
@@ -31,7 +31,7 @@ def load_merged_taxonomy_dict(vertical_id: str | None) -> dict[str, Any]:
     sb = get_supabase_optional()
     if sb is None:
         raise RuntimeError(
-            "词典仅从 Supabase 读取：请为 rsa-model-api 配置环境变量 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY。"
+            "词典仅从 Supabase 读取：请为 analysis-api 配置环境变量 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY。"
         )
     vid = (vertical_id or "general").strip() or "general"
     if vid not in _KNOWN_VERTICALS:

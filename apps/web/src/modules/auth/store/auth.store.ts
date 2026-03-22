@@ -8,7 +8,7 @@ const USE_PLATFORM_AUTH_KEY = 'rsa_use_platform_auth'
 
 export type UserRole = 'admin' | 'operator' | 'readonly'
 
-/** 与 apps/api platform_users.constants ADMIN_MENU_KEYS 一致 */
+/** 与 apps/platform-api platform_users.constants ADMIN_MENU_KEYS 一致 */
 const ADMIN_MENU_KEYS = new Set([
   'pain-audit',
   'dictionary',

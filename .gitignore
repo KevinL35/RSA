@@ -4,13 +4,14 @@
 # Environment / secrets
 .env
 .env.local
-apps/api/.env
+apps/platform-api/.env
+apps/analysis-api/.env
 apps/web/.env
 
 # Python virtual environments
 .venv/
 venv/
-apps/api/.venv/
+apps/platform-api/.venv/
 ml/.venv-bertopic/
 
 # Python cache

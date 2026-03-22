@@ -3,9 +3,9 @@
 
 每行 JSON 须符合 TA-9 候选结构（suggested_canonical、aliases、batch_id、source_topic_id、quality_score 等）。
 
-环境变量（与 apps/api 一致）：
+环境变量（与 apps/platform-api 一致）：
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-可选读取 apps/api/.env（若变量尚未设置）。
+可选读取 apps/platform-api/.env（若变量尚未设置）。
 
 审核人在 Web「词典审核」中补/选六维、确认规范词与同义词后，走 POST /api/v1/dictionary/approve-entry 写入 overlay。
 """
@@ -39,7 +39,7 @@ def _repo_root() -> Path:
 
 
 def _load_api_dotenv() -> None:
-    p = _repo_root() / "apps" / "api" / ".env"
+    p = _repo_root() / "apps" / "platform-api" / ".env"
     if not p.is_file():
         return
     for line in p.read_text(encoding="utf-8").splitlines():

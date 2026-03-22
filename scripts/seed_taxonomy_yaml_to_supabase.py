@@ -7,8 +7,8 @@
   export SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
   python scripts/seed_taxonomy_yaml_to_supabase.py
 
-可选：从 apps/api/.env 加载
-  set -a && source apps/api/.env && set +a && python scripts/seed_taxonomy_yaml_to_supabase.py
+可选：从 apps/platform-api/.env 加载
+  set -a && source apps/platform-api/.env && set +a && python scripts/seed_taxonomy_yaml_to_supabase.py
 """
 
 from __future__ import annotations

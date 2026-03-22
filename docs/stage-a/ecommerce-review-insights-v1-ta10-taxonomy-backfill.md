@@ -28,7 +28,7 @@
 
 合并规则与 TA-6 一致：**seed + overlay**，同一 `(dimension_6way, canonical)` 以 overlay 为准。
 
-API `GET /api/v1/dictionary/taxonomy-preview` 与 rsa-model-api `POST /analyze`（未设置 `TAXONOMY_YAML` 时）均 **仅从 Supabase 读取** 上述合并结果。
+API `GET /api/v1/dictionary/taxonomy-preview` 与 analysis-api `POST /analyze`（未设置 `TAXONOMY_YAML` 时）均 **仅从 Supabase 读取** 上述合并结果。
 
 ## 3. 决策 JSONL 格式（每行一个 JSON）
 
@@ -95,5 +95,5 @@ python ml/scripts/rollback_taxonomy_overlay.py \
 
 ## 7. 版本与变更
 
-- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/rsa-model-api/app/taxonomy_config.py`（仅读 Supabase） 与本文档。
+- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/analysis-api/app/taxonomy_config.py`（仅读 Supabase） 与本文档。
 - overlay 的 `taxonomy_id` 语义不变时，仅升 `version` 补丁位即可；破坏性重命名需另发迁移说明。

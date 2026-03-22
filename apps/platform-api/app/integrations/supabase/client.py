@@ -28,6 +28,6 @@ def require_supabase() -> Client:
     client = get_supabase()
     if client is None:
         raise RuntimeError(
-            "Supabase 未配置：请在 apps/api/.env 设置 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY"
+            "Supabase 未配置：请在 apps/platform-api/.env 设置 SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY"
         )
     return client

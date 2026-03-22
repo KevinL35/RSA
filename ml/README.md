@@ -23,7 +23,7 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 - 小样本配置：`configs/bertopic_batch_strategy_local.yaml`、`configs/bertopic_run_local.yaml`；**正式语料**请改回 `bertopic_batch_strategy_v1.yaml` / `bertopic_run_v1.yaml`（每切片通常 ≥200 条）。
 - 自定义语料：`bash scripts/run-bertopic-local.sh custom --corpus-csv path/to.csv …`（其余参数同 `run_bertopic_offline.py`）。
 - **从 Supabase 拉评论**：洞察任务写入的 `public.reviews` 可先导出为 BERTopic CSV（`text_en` ← `raw_text`，`created_at` 转 Unix 秒），再跑离线脚本：
-  - `python ml/scripts/export_reviews_corpus_for_bertopic.py --out ml/data/bertopic_corpus_from_supabase.csv`（需 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`，可读 `apps/api/.env`）
+  - `python ml/scripts/export_reviews_corpus_for_bertopic.py --out ml/data/bertopic_corpus_from_supabase.csv`（需 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`，可读 `apps/platform-api/.env`）
   - 仅「已分析但六维零命中」：`--insight-task-id <UUID> --only-without-dimension-hits`（A 类，用于词典补洞后再走词典审核 → `approve-entry`）
   - 或一键：`bash scripts/run-bertopic-local.sh from-db-dry` / `from-db-full`（支持附加 `--platform` / `--product-id` / `--limit` 等导出参数）
 
@@ -78,9 +78,9 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 
 规则说明见 **`docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md`**。
 
-在线 **`apps/api` → `analyze`** 调用该归因引擎时，请运行 **`apps/rsa-model-api`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
+在线 **`apps/platform-api` → `analyze`** 调用该归因引擎时，请运行 **`apps/analysis-api`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
 
-**自研情感模型（RoBERTa）推理路径**：推荐 **`ml/artifacts/rsa-v1/`**（一成训练见 `configs/train_roberta_10pct.yaml` 的 `output_dir`）；`apps/rsa-model-api` 通过环境变量 **`SENTIMENT_MODEL_DIR`** 指向具体 checkpoint 目录。权重仅存部署机，**不**放 Supabase。
+**自研情感模型（RoBERTa）推理路径**：推荐 **`ml/artifacts/rsa-v1/`**（一成训练见 `configs/train_roberta_10pct.yaml` 的 `output_dir`）；`apps/analysis-api` 通过环境变量 **`SENTIMENT_MODEL_DIR`** 指向具体 checkpoint 目录。权重仅存部署机，**不**放 Supabase。
 
 ## 本地流水线（概要）
 

@@ -7,8 +7,10 @@ import argparse
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from bertopic_offline_lib import (
     RunManifest,
@@ -122,6 +124,168 @@ def fit_and_extract_topics(
     return candidates, slice_stats
 
 
+def run_bertopic_discovery(
+    *,
+    corpus_csv: Path,
+    reports_dir: Path,
+    batch_strategy: Path | None = None,
+    run_config: Path | None = None,
+    batch_id: str | None = None,
+    batch_end: str | None = None,
+    platform: str | None = None,
+    product_id: str | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+) -> dict[str, Any]:
+    """
+    程序化入口：与 CLI 逻辑一致，返回 manifest + 候选列表（供 HTTP 服务等）。
+    若输出文件已存在且 force=False，抛出 FileExistsError。
+    """
+    root = _repo_root()
+    bs = batch_strategy or (root / "ml/configs/bertopic_batch_strategy_v1.yaml")
+    rc = run_config or (root / "ml/configs/bertopic_run_v1.yaml")
+
+    strat = load_yaml(bs)
+    run_cfg = load_yaml(rc)
+
+    bid = batch_id or f"topic-{uuid.uuid4().hex[:12]}"
+    batch_end_ts = utc_batch_end_timestamp(batch_end)
+    window_days = int(strat["window"]["window_days"])
+    min_docs = int(strat["slice"]["min_documents_product_slice"])
+    key_cols = list(strat["slice"]["primary_keys"])
+    tc = strat["text_constraints"]
+
+    manifest_path = reports_dir / f"bertopic_run_{bid}.json"
+    candidates_path = reports_dir / f"bertopic_candidates_{bid}.jsonl"
+    if manifest_path.exists() or candidates_path.exists():
+        if not force:
+            raise FileExistsError(
+                f"输出已存在: {manifest_path} 或 {candidates_path}，请设 force=True 或更换 reports_dir/batch_id"
+            )
+        if candidates_path.exists():
+            candidates_path.unlink()
+
+    notes: list[str] = []
+
+    df = read_corpus_csv(corpus_csv)
+    df = normalize_corpus_columns(df)
+    df = apply_text_constraints(df, int(tc["min_length"]), int(tc["max_length"]))
+    df = dedupe_corpus(df, list(tc["dedupe_keys"]))
+
+    df, had_window = filter_by_time_window(df, batch_end_ts, window_days)
+    if not had_window:
+        notes.append("CSV 无 created_at，已跳过时间窗口过滤（与 TA-8 不完全一致）")
+
+    if platform is not None:
+        df = df[df["platform"].astype(str) == str(platform)]
+    if product_id is not None:
+        if platform is None:
+            raise ValueError("指定 product_id 时必须同时指定 platform")
+        df = df[df["product_id"].astype(str) == str(product_id)]
+
+    manifest = RunManifest(
+        batch_id=bid,
+        batch_end_ts=batch_end_ts,
+        window_days=window_days,
+        corpus_schema_version=str(strat.get("corpus_schema_version", "ta8-v1")),
+    )
+
+    if not df.empty:
+        grouped = df.groupby(key_cols, sort=True)
+        for key, g in grouped:
+            key_t = (key,) if isinstance(key, str) else tuple(str(x) for x in key)
+            if len(g) < min_docs:
+                manifest.skipped.append(
+                    {
+                        "platform": key_t[0],
+                        "product_id": key_t[1] if len(key_t) > 1 else "",
+                        "reason": "insufficient_n",
+                        "n": int(len(g)),
+                        "min_documents": min_docs,
+                    }
+                )
+
+    all_candidates: list[dict[str, Any]] = []
+
+    if dry_run:
+        for key_t, g in iter_slices(df, key_cols, min_docs):
+            manifest.slices.append(
+                {
+                    "platform": key_t[0],
+                    "product_id": key_t[1] if len(key_t) > 1 else "",
+                    "n_docs": len(g),
+                    "dry_run": True,
+                }
+            )
+        manifest.write(manifest_path)
+        return {
+            "batch_id": bid,
+            "dry_run": True,
+            "manifest": manifest.to_json(),
+            "candidates": [],
+            "n_candidates": 0,
+            "notes": notes,
+            "output_files": {
+                "manifest": str(manifest_path.resolve()),
+                "candidates_jsonl": str(candidates_path.resolve()),
+            },
+        }
+
+    nr_topics = run_cfg.get("nr_topics")
+    if nr_topics is not None:
+        nr_topics = int(nr_topics)
+
+    for key_t, g in iter_slices(df, key_cols, min_docs):
+        plat, pid = key_t[0], key_t[1] if len(key_t) > 1 else ""
+        try:
+            cands, stats = fit_and_extract_topics(
+                g,
+                batch_id=bid,
+                platform=plat,
+                product_id=pid,
+                embedding_model=str(run_cfg["embedding_model"]),
+                min_topic_size=int(run_cfg["min_topic_size"]),
+                nr_topics=nr_topics,
+                calculate_probabilities=bool(run_cfg.get("calculate_probabilities", False)),
+                verbose=bool(run_cfg.get("verbose", False)),
+                max_alias_terms=int(run_cfg.get("max_alias_terms", 10)),
+                max_evidence_snippets=int(run_cfg.get("max_evidence_snippets", 4)),
+            )
+        except Exception as e:
+            manifest.skipped.append(
+                {
+                    "platform": plat,
+                    "product_id": pid,
+                    "reason": "bertopic_failed",
+                    "error": str(e),
+                    "n": len(g),
+                }
+            )
+            continue
+
+        manifest.slices.append(stats)
+        for row in cands:
+            append_jsonl(candidates_path, row)
+            all_candidates.append(row)
+
+    if not candidates_path.exists():
+        candidates_path.write_text("", encoding="utf-8")
+
+    manifest.write(manifest_path)
+    return {
+        "batch_id": bid,
+        "dry_run": False,
+        "manifest": manifest.to_json(),
+        "candidates": all_candidates,
+        "n_candidates": len(all_candidates),
+        "notes": notes,
+        "output_files": {
+            "manifest": str(manifest_path.resolve()),
+            "candidates_jsonl": str(candidates_path.resolve()),
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="TA-9 BERTopic offline discovery.")
     parser.add_argument("--corpus-csv", type=Path, required=True, help="含 text_en 或 analysis_input_en + platform + product_id 的 CSV")
@@ -144,120 +308,36 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="覆盖已存在的同 batch 输出文件")
     args = parser.parse_args()
 
-    strat = load_yaml(args.batch_strategy)
-    run_cfg = load_yaml(args.run_config)
+    try:
+        out = run_bertopic_discovery(
+            corpus_csv=args.corpus_csv,
+            reports_dir=args.reports_dir,
+            batch_strategy=args.batch_strategy,
+            run_config=args.run_config,
+            batch_id=args.batch_id,
+            batch_end=args.batch_end,
+            platform=args.platform,
+            product_id=args.product_id,
+            dry_run=args.dry_run,
+            force=args.force,
+        )
+    except FileExistsError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
 
-    batch_id = args.batch_id or f"topic-{uuid.uuid4().hex[:12]}"
-    batch_end_ts = utc_batch_end_timestamp(args.batch_end)
-    window_days = int(strat["window"]["window_days"])
-    min_docs = int(strat["slice"]["min_documents_product_slice"])
-    key_cols = list(strat["slice"]["primary_keys"])
-    tc = strat["text_constraints"]
-
-    manifest_path = args.reports_dir / f"bertopic_run_{batch_id}.json"
-    candidates_path = args.reports_dir / f"bertopic_candidates_{batch_id}.jsonl"
-    if manifest_path.exists() or candidates_path.exists():
-        if not args.force:
-            print(f"输出已存在: {manifest_path} 或 {candidates_path}，请加 --force", file=sys.stderr)
-            return 2
-        if candidates_path.exists():
-            candidates_path.unlink()
-
-    df = read_corpus_csv(args.corpus_csv)
-    df = normalize_corpus_columns(df)
-    df = apply_text_constraints(df, int(tc["min_length"]), int(tc["max_length"]))
-    df = dedupe_corpus(df, list(tc["dedupe_keys"]))
-
-    df, had_window = filter_by_time_window(df, batch_end_ts, window_days)
-    if not had_window:
-        print("警告: CSV 无 created_at，已跳过时间窗口过滤（与 TA-8 不完全一致）", file=sys.stderr)
-
-    if args.platform is not None:
-        df = df[df["platform"].astype(str) == str(args.platform)]
-    if args.product_id is not None:
-        if args.platform is None:
-            print("--product-id 需要同时指定 --platform", file=sys.stderr)
-            return 2
-        df = df[df["product_id"].astype(str) == str(args.product_id)]
-
-    manifest = RunManifest(
-        batch_id=batch_id,
-        batch_end_ts=batch_end_ts,
-        window_days=window_days,
-        corpus_schema_version=str(strat.get("corpus_schema_version", "ta8-v1")),
-    )
-
-    # 记录未达最小样本的切片
-    if not df.empty:
-        grouped = df.groupby(key_cols, sort=True)
-        for key, g in grouped:
-            key_t = (key,) if isinstance(key, str) else tuple(str(x) for x in key)
-            if len(g) < min_docs:
-                manifest.skipped.append(
-                    {
-                        "platform": key_t[0],
-                        "product_id": key_t[1] if len(key_t) > 1 else "",
-                        "reason": "insufficient_n",
-                        "n": int(len(g)),
-                        "min_documents": min_docs,
-                    }
-                )
+    for n in out.get("notes") or []:
+        print(f"警告: {n}", file=sys.stderr)
 
     if args.dry_run:
-        for key_t, g in iter_slices(df, key_cols, min_docs):
-            manifest.slices.append(
-                {
-                    "platform": key_t[0],
-                    "product_id": key_t[1] if len(key_t) > 1 else "",
-                    "n_docs": len(g),
-                    "dry_run": True,
-                }
-            )
-        manifest.write(manifest_path)
-        print(f"dry-run 已写入 {manifest_path}")
-        return 0
-
-    nr_topics = run_cfg.get("nr_topics")
-    if nr_topics is not None:
-        nr_topics = int(nr_topics)
-
-    for key_t, g in iter_slices(df, key_cols, min_docs):
-        platform, product_id = key_t[0], key_t[1] if len(key_t) > 1 else ""
-        try:
-            cands, stats = fit_and_extract_topics(
-                g,
-                batch_id=batch_id,
-                platform=platform,
-                product_id=product_id,
-                embedding_model=str(run_cfg["embedding_model"]),
-                min_topic_size=int(run_cfg["min_topic_size"]),
-                nr_topics=nr_topics,
-                calculate_probabilities=bool(run_cfg.get("calculate_probabilities", False)),
-                verbose=bool(run_cfg.get("verbose", False)),
-                max_alias_terms=int(run_cfg.get("max_alias_terms", 10)),
-                max_evidence_snippets=int(run_cfg.get("max_evidence_snippets", 4)),
-            )
-        except Exception as e:
-            manifest.skipped.append(
-                {
-                    "platform": platform,
-                    "product_id": product_id,
-                    "reason": "bertopic_failed",
-                    "error": str(e),
-                    "n": len(g),
-                }
-            )
-            continue
-
-        manifest.slices.append(stats)
-        for row in cands:
-            append_jsonl(candidates_path, row)
-
-    if not candidates_path.exists():
-        candidates_path.write_text("", encoding="utf-8")
-
-    manifest.write(manifest_path)
-    print(f"完成 batch_id={batch_id} manifest={manifest_path} candidates={candidates_path}")
+        print(f"dry-run 已写入 {out['output_files']['manifest']}")
+    else:
+        print(
+            f"完成 batch_id={out['batch_id']} manifest={out['output_files']['manifest']} "
+            f"candidates={out['output_files']['candidates_jsonl']}"
+        )
     return 0
 
 

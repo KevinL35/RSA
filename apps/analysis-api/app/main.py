@@ -1,6 +1,6 @@
 """
-RSA Model API（TA-11）：POST /analyze
-请求体与 apps/api 调用分析源时一致；响应为 { "reviews": [...] }。
+Analysis API（TA-11）：POST /analyze
+请求体与 apps/platform-api 调用分析源时一致；响应为 { "reviews": [...] }。
 """
 
 from __future__ import annotations
@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from .pipeline import analyze_reviews_body, reset_patterns_cache
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("rsa.model_api")
+log = logging.getLogger("rsa.analysis_api")
 
-app = FastAPI(title="RSA Model API", version="0.1.0")
+app = FastAPI(title="Analysis API", version="0.1.0")
 
 
 class AnalyzeRequest(BaseModel):
@@ -34,7 +34,7 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "rsa-model-api"}
+    return {"ok": True, "service": "analysis-api"}
 
 
 @app.post("/analyze")
@@ -55,7 +55,7 @@ def analyze(req: AnalyzeRequest) -> dict:
         raise HTTPException(status_code=500, detail=str(e)) from e
     return {
         "reviews": items,
-        "_analysis_provider": "rsa-model-api-v1",
+        "_analysis_provider": "analysis-api-v1",
     }
 
 

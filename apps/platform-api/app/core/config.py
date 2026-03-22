@@ -10,7 +10,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "RSA API"
+    app_name: str = "Platform API"
     env: str = "dev"
     cors_origins: str = "http://localhost:5173,http://localhost:5174"
 

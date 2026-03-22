@@ -88,7 +88,7 @@ BERTopic 本地（按需运行，与前后端 dev-all 无关）
   bash scripts/run-bertopic-local.sh dry-run   # 校验切片与 manifest，不加载深度学习模型
   bash scripts/run-bertopic-local.sh full      # 用 fixtures 小 CSV 跑通全流程，产出见 ml/reports/
 
-从 Supabase reviews 表导出再跑（需 apps/api/.env 或环境中已有 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY）：
+从 Supabase reviews 表导出再跑（需 apps/platform-api/.env 或环境中已有 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY）：
 
   bash scripts/run-bertopic-local.sh from-db-dry   # 先导出 ml/data/bertopic_corpus_from_supabase.csv，再 dry-run
   bash scripts/run-bertopic-local.sh from-db-full  # 导出后用正式 v1 切片/超参跑 BERTopic（每平台+商品通常 ≥200 条）

@@ -8,7 +8,7 @@
 
 可选请求头：`Authorization: Bearer <REVIEW_PROVIDER_API_KEY>`（与 `REVIEW_PROVIDER_API_KEY` 一致）。
 
-响应需为 **JSON**，且能从 **顶层数组** 或 `reviews` / `items` / `data` / `results` / `records` 中取出对象列表；每条评论至少要有可被识别的正文（见 `apps/api/app/integrations/review_provider/normalize.py` 中的 `raw_text` / `text` / `body` / `reviewText` 等别名）。
+响应需为 **JSON**，且能从 **顶层数组** 或 `reviews` / `items` / `data` / `results` / `records` 中取出对象列表；每条评论至少要有可被识别的正文（见 `apps/platform-api/app/integrations/review_provider/normalize.py` 中的 `raw_text` / `text` / `body` / `reviewText` 等别名）。
 
 **Apify Actor 的 REST 接口、鉴权方式、入参字段与此不同**，不能直接把 Apify 的「Run URL」填进 `REVIEW_PROVIDER_URL` 就期望能跑通。可选：**内置 Apify**（`REVIEW_PROVIDER_MODE=apify`）、**薄代理**、或任意 **`http` 契约** 的第三方服务。
 
@@ -31,7 +31,7 @@
 
 目录：**[`services/review-proxy-apify`](../../services/review-proxy-apify/)**（FastAPI + Apify `run-sync-get-dataset-items`）。
 
-按其中 **`README.md`** 操作：`APIFY_TOKEN` / `APIFY_ACTOR_ID` → 启动 `uvicorn` → 在 RSA 的 `apps/api/.env` 设 `REVIEW_PROVIDER_URL=http://<代理主机>:<端口>/fetch`（及可选 `REVIEW_PROVIDER_API_KEY` 与代理的 `REVIEW_PROXY_API_KEY` 对齐）。
+按其中 **`README.md`** 操作：`APIFY_TOKEN` / `APIFY_ACTOR_ID` → 启动 `uvicorn` → 在 RSA 的 `apps/platform-api/.env` 设 `REVIEW_PROVIDER_URL=http://<代理主机>:<端口>/fetch`（及可选 `REVIEW_PROVIDER_API_KEY` 与代理的 `REVIEW_PROXY_API_KEY` 对齐）。
 
 ### 2.2 自建代理（任意语言）
 
@@ -51,7 +51,7 @@
 
 ## 三、方案 B：RSA 内置 Apify（无需薄代理）
 
-在 `apps/api/.env` 设置：
+在 `apps/platform-api/.env` 设置：
 
 ```env
 REVIEW_PROVIDER_MOCK=false
@@ -103,4 +103,4 @@ REVIEW_PROVIDER_MOCK=true
 
 ## 六、接口配置页（前端）
 
-「评论获取 API」表格仅作 **备忘**；**真正生效**的仍是 **`apps/api/.env` 的 `REVIEW_PROVIDER_*`**。代理 URL 填好后，可与表格中的名称/地址对齐记录，便于团队协作。
+「评论获取 API」表格仅作 **备忘**；**真正生效**的仍是 **`apps/platform-api/.env` 的 `REVIEW_PROVIDER_*`**。代理 URL 填好后，可与表格中的名称/地址对齐记录，便于团队协作。

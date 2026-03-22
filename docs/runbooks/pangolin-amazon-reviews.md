@@ -12,7 +12,7 @@ Body：`{ "email", "password" }`
 
 响应 `code === 0` 时，**`data` 字段**即为长期有效的 Bearer Token（勿提交 Git）。
 
-## 2. RSA 配置（`apps/api/.env`）
+## 2. RSA 配置（`apps/platform-api/.env`）
 
 ```env
 REVIEW_PROVIDER_MOCK=false
@@ -41,7 +41,7 @@ PANGOLIN_TIMEOUT_SECONDS=180
 
 ## 4. 实现说明
 
-- 代码：`apps/api/app/integrations/review_provider/pangolin.py`
+- 代码：`apps/platform-api/app/integrations/review_provider/pangolin.py`
 - 将返回中 `data.json[].data.results[]` 的 `content`、`reviewId`、`title`、`star`、`date` 等映射为内部 `reviews` 行。
 
 ## 5. 与 `http` / `apify` 的关系
