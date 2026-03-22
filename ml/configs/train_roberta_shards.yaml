@@ -1,7 +1,9 @@
-# 一成子集：先运行 scripts/subset_splits.py 生成 ml/data/splits_10pct/ 再训。
-# 产物与全量分开，避免覆盖 checkpoint。
+# 可选：仅当 train 因体积过大被拆成多个 CSV 时使用（TA-5）。
+# 默认请用 `train_roberta_splits.yaml` + 单个 `train.csv`。
+# glob 示例：train.csv.part5-000 … 004；可改 train_csv_shard_glob 或 train_csv_shards。
+
 version: "1.0.0"
-experiment_name: "rsa-v1"
+experiment_name: "roberta-sentiment-v0"
 
 model:
   pretrained_name: "roberta-base"
@@ -10,9 +12,11 @@ model:
 
 data:
   cleaned_csv: "ml/data/processed/reviews_cleaned.csv"
-  train_csv: "ml/data/splits_10pct/train.csv"
-  val_csv: "ml/data/splits_10pct/val.csv"
-  test_csv: "ml/data/splits_10pct/test.csv"
+  train_csv: "ml/data/splits/train.csv"
+  train_csv_shard_glob: "ml/data/splits/train.csv.part5-*"
+  dedupe_train_on_id: true
+  val_csv: "ml/data/splits/val.csv"
+  test_csv: "ml/data/splits/test.csv"
   text_column: "analysis_input_en"
   label_column: "label_sentiment"
   split:
@@ -22,7 +26,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/rsa-v1"
+  output_dir: "ml/artifacts/roberta-sentiment-v0"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8
@@ -36,4 +40,4 @@ training:
   seed: 42
 
 evaluation:
-  report_output: "ml/reports/sentiment_eval_v0_colab_10pct.json"
+  report_output: "ml/reports/sentiment_eval_v0.json"

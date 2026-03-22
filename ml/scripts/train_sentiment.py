@@ -151,19 +151,19 @@ def main() -> None:
         "--max-train-rows",
         type=int,
         default=None,
-        help="Debug/Colab: only use first N train rows (reduces RAM).",
+        help="Debug: only use first N train rows (reduces RAM).",
     )
     parser.add_argument(
         "--max-val-rows",
         type=int,
         default=None,
-        help="Debug/Colab: only use first N val rows.",
+        help="Debug: only use first N val rows.",
     )
     parser.add_argument(
         "--max-test-rows",
         type=int,
         default=None,
-        help="Debug/Colab: only use first N test rows.",
+        help="Debug: only use first N test rows.",
     )
     parser.add_argument(
         "--tokenized-cache-dir",

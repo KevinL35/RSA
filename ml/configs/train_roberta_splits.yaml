@@ -1,7 +1,7 @@
-# Colab 默认：train.csv / val.csv / test.csv 放在 ml/data/splits/。
-# 若 train 仅拆成多文件上传，见 train_roberta_colab_shards.yaml 与 scripts/merge_train_shards.py。
+# 默认：`train.csv` / `val.csv` / `test.csv` 放在 `ml/data/splits/`。
+# 若 train 拆成多文件，见 `train_roberta_shards.yaml` 与 `scripts/merge_train_shards.py`。
 version: "1.0.0"
-experiment_name: "roberta-sentiment-v0-colab"
+experiment_name: "roberta-sentiment-v0"
 
 model:
   pretrained_name: "roberta-base"
@@ -22,7 +22,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/roberta-sentiment-v0-colab"
+  output_dir: "ml/artifacts/roberta-sentiment-v0"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8
@@ -36,5 +36,4 @@ training:
   seed: 42
 
 evaluation:
-  report_output: "ml/reports/sentiment_eval_v0_colab.json"
-
+  report_output: "ml/reports/sentiment_eval_v0.json"
