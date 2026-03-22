@@ -22,6 +22,10 @@
 
 然后将该项目的 **Project URL** 与 **service_role** 密钥填入 `apps/platform-api/.env`。
 
+## IDE / 类型检查
+
+在仓库根目录用 Cursor / VS Code 打开子路径时，请将 **Python 解释器** 选为 **`apps/platform-api/.venv`**（或先 `cd apps/platform-api` 再打开该文件夹），否则可能误报「找不到 `fastapi` / `pydantic_settings`」等依赖。本目录下的 `pyrightconfig.json` 供 Pylance/Pyright 指向上述 venv。
+
 ## 安装与启动
 
 本地若要 **同时** 起 Analysis API、本服务与前端，可在仓库根目录执行：`bash scripts/dev.sh`（见 `apps/analysis-api/README.md`）。
