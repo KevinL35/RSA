@@ -1,5 +1,7 @@
 # AGENTS
 
+`.agents/skills/` 与 `.claude/skills/` **已写入 `.gitignore`，不会进入 Git**；克隆仓库后需在本地自行放置同名技能目录，或通过 `npx openskills` 等从其它来源安装。
+
 <skills_system priority="1">
 
 ## Available Skills

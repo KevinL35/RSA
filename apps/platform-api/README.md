@@ -63,9 +63,8 @@ pytest
 
 **评论抓取（TB-2）环境变量**（`apps/platform-api/.env`）：
 
-- `REVIEW_PROVIDER_MODE`：`http`（默认）、`apify` 或 `pangolin`
+- `REVIEW_PROVIDER_MODE`：`http`（默认）或 `pangolin`
 - **`http`**：`REVIEW_PROVIDER_URL` 为完整 `POST` URL，JSON body：`platform`, `product_id`；可选 `REVIEW_PROVIDER_API_KEY` → `Authorization: Bearer`；响应须为顶层数组或 `reviews`/`items`/`data`/`results`/`records`；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等
-- **`apify`**：内置调用 Apify `run-sync-get-dataset-items`，**无需** `REVIEW_PROVIDER_URL`；需 `APIFY_TOKEN`、`APIFY_ACTOR_ID`；可选 `APIFY_INPUT_STYLE`（`asins`|`productUrls`）、`APIFY_MAX_REVIEWS`、`APIFY_RUN_TIMEOUT_SECONDS`（≤300，同步接口上限）
 - **`pangolin`**：[Pangolinfo Amazon Review API](https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI)：`POST …/api/v1/scrape`，需 `PANGOLIN_TOKEN`（`POST …/api/v1/auth` 返回的 `data`）；可选 `PANGOLIN_AMAZON_URL`（默认 `https://www.amazon.com`，英亚等可改域名）、`PANGOLIN_PAGE_COUNT`（每页扣费见对方文档）、`PANGOLIN_FILTER_BY_STAR`、`PANGOLIN_SORT_BY`、`PANGOLIN_PARSER_NAME`、`PANGOLIN_TIMEOUT_SECONDS`；详见 `docs/runbooks/pangolin-amazon-reviews.md`
 - `REVIEW_PROVIDER_TIMEOUT_SECONDS`：`http` 模式下的客户端超时（秒）
 - `REVIEW_FETCH_MAX_RETRIES`：默认 3（429/5xx 等可重试错误）

@@ -1,4 +1,4 @@
-/** 与 packages/contracts/src/insight-dashboard.ts 对齐（web 未依赖 contracts 包） */
+/** 洞察看板 API 响应形状（与 GET .../dashboard 一致） */
 
 export type Dimension6Key =
   | 'pros'

@@ -74,7 +74,7 @@
   - 交付：`reviews` 表 + `review_provider`（HTTP + 可配置重试 + `REVIEW_PROVIDER_MOCK` 联调）；`POST /api/v1/insight-tasks/{id}/fetch-reviews`；失败时任务 `failed` 且 `failure_stage=fetch` 与结构化 `error_code`。
 - **TB-3 接入分析源调用链路（对接 Stage A 模型）**（P0，status: done）  
   - DoD：支持 `analysis_provider_id` 显式选择与默认回退；返回情感/六维/证据句结构。  
-  - 交付：`POST /api/v1/insight-tasks/{id}/analyze`；`analysis_provider` 适配层；契约 `packages/contracts/src/analysis.ts`；分析成功后结果写入 TB-4 表。
+  - 交付：`POST /api/v1/insight-tasks/{id}/analyze`；`analysis_provider` 适配层；分析响应与前端/落库字段约定一致；分析成功后结果写入 TB-4 表。
 - **TB-4 设计并落地分析结果存储结构**（P0，status: done）  
   - DoD：可按商品、任务、维度检索；证据句可反查原评论。  
   - 交付：表 `review_analysis`、`review_dimension_analysis`（迁移 `003_review_analysis.sql`）；`analyze` 成功路径落库；`GET /api/v1/insight-tasks/{id}/analysis`；`GET /api/v1/analysis/by-product`（可选 `dimension`）；`review_id` 联接 `reviews.raw_text`。
@@ -95,10 +95,10 @@
 
 - **TB-9 对比分析聚合接口**（P0，status: done）  
   - DoD：输出情感分布差异、六维差异、关键词差异、结论卡片。  
-  - 交付：`GET /api/v1/compare/products`（按两商品各自**最近一次成功**洞察任务聚合 `review_analysis` / `review_dimension_analysis`）；`packages/contracts/src/compare.ts`；`tests/test_compare_service.py`。
+  - 交付：`GET /api/v1/compare/products`（按两商品各自**最近一次成功**洞察任务聚合 `review_analysis` / `review_dimension_analysis`）；Web `compare/types.ts` 与接口对齐；`tests/test_compare_service.py`。
 - **TB-10 对比前置校验与引导**（P0，status: done）  
   - DoD：任一商品缺失分析数据时，返回可读提示并引导先做洞察。  
-  - 交付：区分 `no_success_task` 与 `empty_analysis`；400 `detail` 含双语 `messages`/`guidance`/`next_step`；`apps/platform-api/app/modules/compare/guidance.py`；`tests/test_compare_guidance.py`；Web `compare/api.ts` + 对比页展示引导；`packages/contracts` 补充 `ComparePrerequisiteErrorDetail`。
+  - 交付：区分 `no_success_task` 与 `empty_analysis`；400 `detail` 含双语 `messages`/`guidance`/`next_step`；`apps/platform-api/app/modules/compare/guidance.py`；`tests/test_compare_guidance.py`；Web `compare/api.ts` + 对比页展示引导；类型与 `ComparePrerequisiteErrorDetail` 等在前端契约中维护。
 - **TB-11 翻译展示策略实现**（P0，status: done）  
   - DoD：UI 非 English 时展示英文+译文；证据句始终原文；未配翻译 API 时不阻断。  
   - 交付：`POST /api/v1/translate`（LibreTranslate 兼容 JSON；未配置 `TRANSLATION_API_URL` 时 `configured=false`）；`translateApi.ts` + `BilingualBlock.vue`；对比结论在中文界面下英文主文+可选译文+机器翻译提示；证据句说明文案；`apps/platform-api/.env.example`。

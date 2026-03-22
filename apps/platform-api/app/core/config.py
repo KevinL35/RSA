@@ -17,18 +17,13 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
-    # TB-2：评论抓取 — http：POST REVIEW_PROVIDER_URL；apify：直连 Apify sync dataset
+    # TB-2：评论抓取 — http：POST REVIEW_PROVIDER_URL；pangolin：Pangolinfo
     review_provider_mode: str = "http"
     review_provider_url: str | None = None
     review_provider_api_key: str | None = None
     review_provider_timeout_seconds: float = 30.0
     review_fetch_max_retries: int = 3
     review_provider_mock: bool = False
-    apify_token: str | None = None
-    apify_actor_id: str | None = None
-    apify_input_style: str = "asins"
-    apify_max_reviews: int = 50
-    apify_run_timeout_seconds: float = 240.0
 
     # Pangolin Amazon Review API（REVIEW_PROVIDER_MODE=pangolin）
     pangolin_token: str | None = None

@@ -39,4 +39,10 @@ ml/reports/
 # macOS metadata
 .AppleDouble
 .LSOverride
-.vercel
+
+# Vercel CLI（若本地再运行 `vercel link` 会生成，勿提交）
+.vercel/
+
+# Agent / Claude 技能（本机自备，不纳入版本库）
+.agents/skills/
+.claude/skills/

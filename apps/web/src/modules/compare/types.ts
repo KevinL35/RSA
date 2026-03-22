@@ -1,4 +1,4 @@
-/** 与 packages/contracts/src/compare.ts 对齐（TB-9/TB-10） */
+/** 对比分析 API 相关类型（TB-9/TB-10） */
 
 export type CompareMissingReason = 'no_success_task' | 'empty_analysis'
 

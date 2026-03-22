@@ -156,7 +156,7 @@ def attribute_review(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     Returns (dimensions_for_contract, debug_meta).
-    dimensions shape aligns with packages/contracts Analysis DimensionAnalysis:
+    dimensions shape aligns with API / 前端约定字段：
       dimension, keywords, evidence_quote, highlight_spans
     """
     ain = analysis_input_en or ""

@@ -51,18 +51,10 @@ def fetch_reviews_normalized(
 
     mode = (cfg.review_provider_mode or "http").strip().lower()
     if mode == "apify":
-        from .apify import fetch_reviews_via_apify
-
-        attempts = max(1, cfg.review_fetch_max_retries)
-        for attempt in range(attempts):
-            try:
-                return fetch_reviews_via_apify(platform, product_id, settings=cfg)
-            except ReviewProviderError as e:
-                if e.code == "REVIEW_PROVIDER_TRANSIENT" and attempt < attempts - 1:
-                    time.sleep(0.4 * (2**attempt))
-                    continue
-                raise
-
+        raise ReviewProviderError(
+            "REVIEW_PROVIDER_NOT_CONFIGURED",
+            "REVIEW_PROVIDER_MODE=apify 已移除，请改用 pangolin（见 docs/runbooks/pangolin-amazon-reviews.md）或 http + REVIEW_PROVIDER_URL",
+        )
     if mode == "pangolin":
         from .pangolin import fetch_reviews_via_pangolin
 
@@ -80,7 +72,7 @@ def fetch_reviews_normalized(
     if not url:
         raise ReviewProviderError(
             "REVIEW_PROVIDER_NOT_CONFIGURED",
-            "未配置 REVIEW_PROVIDER_URL，或改用 REVIEW_PROVIDER_MODE=apify|pangolin 并配置对应变量；联调可设 REVIEW_PROVIDER_MOCK=true",
+            "未配置 REVIEW_PROVIDER_URL，或改用 REVIEW_PROVIDER_MODE=pangolin 并配置 PANGOLIN_TOKEN 等；联调可设 REVIEW_PROVIDER_MOCK=true",
         )
 
     headers: dict[str, str] = {

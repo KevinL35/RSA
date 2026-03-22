@@ -42,7 +42,6 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 | **`configs/train_roberta_splits.yaml`** | **`ml/data/splits/`** 下 `train.csv` / `val.csv` / `test.csv` 的全量训练配置。 |
 | **`configs/train_roberta_shards.yaml`** | 可选：`train` 拆成多 CSV 时用 glob 合并（见脚本说明）。 |
 | **`configs/train_roberta_10pct.yaml`** | 一成子集：`ml/data/splits_10pct/`，产物目录 **`ml/artifacts/rsa-v1/`**（与线上一致）。 |
-| **`notebooks/ta5_roberta_autodl.ipynb`** | **AutoDL JupyterLab**：学术加速、`splits_10pct` / 全量可切换、训练与可选评估（长时间训练仍建议 SSH + `tmux`）。 |
 | **`scripts/clean_data.py`** | 按 `data_contract.yaml` 清洗原始 CSV → `reviews_cleaned.csv`。 |
 | **`scripts/split_dataset.py`** | 将清洗后数据按配置切分为 train/val/test。 |
 | **`scripts/import_amazon2018_reviews_jsonl.py`** | 将 Amazon 2018 JSONL 转为契约 CSV（可选数据源）。 |
@@ -73,7 +72,7 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 | **`fixtures/taxonomy_decisions_sample.jsonl`** | TA-10：决策文件样例（approve + reject）。 |
 | **`tests/test_taxonomy_backfill_lib.py`** | TA-10：`pytest ml/tests/test_taxonomy_backfill_lib.py`（需 `pyyaml`）。 |
 | **`fixtures/attribution_eval_sample.csv`** | TA-7：抽检样例（可选列 `expected_dimensions`）。 |
-| **`scripts/attribution_engine.py`** | TA-7：对 `analysis_input_en` 做词典匹配，产出与 `packages/contracts` 对齐的 `dimensions`（含 `evidence_quote` / `highlight_spans`）。 |
+| **`scripts/attribution_engine.py`** | TA-7：对 `analysis_input_en` 做词典匹配，产出与 API/前端约定一致的 `dimensions`（含 `evidence_quote` / `highlight_spans`）。 |
 | **`scripts/evaluate_attribution.py`** | TA-7：批量跑抽检 CSV → `ml/reports/attribution_eval_v1.json`（可追溯率、双次运行确定性摘要）。 |
 
 规则说明见 **`docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md`**。

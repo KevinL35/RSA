@@ -10,13 +10,13 @@
 |------|----------|------|
 | **`SUPABASE_URL`** | **必填** | Supabase Dashboard → **Project Settings → API → Project URL**，形如 `https://xxxxx.supabase.co`。**不要**填 anon/service 的 JWT。 |
 | **`SUPABASE_SERVICE_ROLE_KEY`** | **必填** | 同一页里的 **service_role** secret（仅后端持有）。 |
-| **`CORS_ORIGINS`** | 本地建议填 | 默认含 `http://localhost:5173`；若前端用别的端口或 Vercel 域名，用英文逗号追加。 |
+| **`CORS_ORIGINS`** | 本地建议填 | 默认含 `http://localhost:5173`；若前端用别的端口或线上前端域名，用英文逗号追加。 |
 
 **数据库**：在 Supabase **SQL Editor** 执行 `infra/migrations/` 下 `001`、`002`、`003`（见 `apps/platform-api/README.md`）。
 
 **可选（有功能再配）**：
 
-- `REVIEW_PROVIDER_*`、`ANALYSIS_PROVIDER_*`：抓评 / 分析外接 API；无真实源时可 `REVIEW_PROVIDER_MOCK=true`。接 Apify：**`REVIEW_PROVIDER_MODE=apify`** + `APIFY_*`（`docs/runbooks/apify-amazon-reviews.md`）。接 Pangolinfo：**`REVIEW_PROVIDER_MODE=pangolin`** + `PANGOLIN_TOKEN` 等（`docs/runbooks/pangolin-amazon-reviews.md`）。或 **`REVIEW_PROVIDER_MODE=http`** + 自建/仓库内 **`services/review-proxy-apify`**。
+- `REVIEW_PROVIDER_*`、`ANALYSIS_PROVIDER_*`：抓评 / 分析外接 API；无真实源时可 `REVIEW_PROVIDER_MOCK=true`。接 Pangolinfo：**`REVIEW_PROVIDER_MODE=pangolin`** + `PANGOLIN_TOKEN` 等（`docs/runbooks/pangolin-amazon-reviews.md`）。或 **`REVIEW_PROVIDER_MODE=http`** + 任意实现 TB-2 `POST /fetch` 契约的 HTTP 服务。
 - `TRANSLATION_API_*`：中文界面下的译文；不配则只显示英文分析文案。
 
 启动：
@@ -42,7 +42,7 @@ cd apps/web && npm install && npm run dev
 
 ---
 
-## 3. 仅部署前端（Vercel 等静态托管）
+## 3. 仅部署前端（静态托管）
 
 - **构建**：在 `apps/web` 执行 `npm ci && npm run build`，产物为 `apps/web/dist`。若平台支持 monorepo，可将 **Root Directory** 设为 `apps/web`，或在根目录用自定义 **Install / Build** 命令指向该目录。
 - **SPA 路由**：需将任意路径 **回写到 `index.html`**（各平台称 rewrites / fallback，依文档配置）。

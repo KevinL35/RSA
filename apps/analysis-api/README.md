@@ -4,7 +4,7 @@
 
 ## 请求与响应
 
-与 `apps/platform-api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、可选 `dictionary_vertical_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 `packages/contracts/src/analysis.ts` 对齐）。
+与 `apps/platform-api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、可选 `dictionary_vertical_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 Platform API 落库及前端分析展示字段一致）。
 
 ## 一键启动（Analysis API + Platform API + 前端）
 

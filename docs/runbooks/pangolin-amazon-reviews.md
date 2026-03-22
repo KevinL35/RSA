@@ -37,13 +37,13 @@ PANGOLIN_TIMEOUT_SECONDS=180
 ## 3. 任务侧约定
 
 - 洞察任务 `platform` 须为 **`amazon`**，`product_id` 为 **ASIN**（10 位）。
-- 与 Apify 模式相同：通过 `POST /api/v1/insight-tasks/{id}/fetch-reviews` 触发。
+- 通过 `POST /api/v1/insight-tasks/{id}/fetch-reviews` 触发（与 `http` 模式同一入口）。
 
 ## 4. 实现说明
 
 - 代码：`apps/platform-api/app/integrations/review_provider/pangolin.py`
 - 将返回中 `data.json[].data.results[]` 的 `content`、`reviewId`、`title`、`star`、`date` 等映射为内部 `reviews` 行。
 
-## 5. 与 `http` / `apify` 的关系
+## 5. 与 `http` 的关系
 
-三者互斥，由 `REVIEW_PROVIDER_MODE` 选择；`pangolin` 模式下**不需要**配置 `REVIEW_PROVIDER_URL`。
+`pangolin` 与 `http` 由 `REVIEW_PROVIDER_MODE` 二选一；`pangolin` 模式下**不需要**配置 `REVIEW_PROVIDER_URL`。
