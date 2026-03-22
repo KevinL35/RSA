@@ -7,6 +7,22 @@ from uuid import UUID
 from supabase import Client
 
 
+def _count_reviews_for_task(sb: Client, task_id: UUID) -> int:
+    """任务下已入库评论条数。"""
+    try:
+        res = (
+            sb.table("reviews")
+            .select("id", count="exact")
+            .eq("insight_task_id", str(task_id))
+            .limit(1)
+            .execute()
+        )
+        c = res.count
+        return c if isinstance(c, int) else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def _review_volume_by_reviewed_date(sb: Client, task_id: UUID) -> list[dict[str, Any]]:
     """按评论 reviewed_at 的 UTC 日期聚合条数，供前端时间趋势图。"""
     rv = (
@@ -58,6 +74,7 @@ def build_insight_dashboard(
         return {"_not_found": True}
     task = trows[0]
     status = task["status"]
+    review_total_count = _count_reviews_for_task(sb, task_id)
 
     base = {
         "insight_task_id": str(task_id),
@@ -68,6 +85,8 @@ def build_insight_dashboard(
         "analyzed_at": task.get("updated_at"),
         "product_snapshot": task.get("product_snapshot"),
         "dictionary_vertical_id": task.get("dictionary_vertical_id") or "general",
+        "review_total_count": review_total_count,
+        "matched_review_count": 0,
     }
 
     empty_template = {
@@ -93,9 +112,17 @@ def build_insight_dashboard(
         .eq("insight_task_id", str(task_id))
         .execute()
     )
-    hits: list[dict[str, Any]] = dim_res.data or []
+    hits_all: list[dict[str, Any]] = dim_res.data or []
+    matched_review_count = len(
+        {
+            str(h["review_id"])
+            for h in hits_all
+            if h.get("review_id") is not None and str(h.get("review_id", "")).strip()
+        }
+    )
+    hits: list[dict[str, Any]] = list(hits_all)
 
-    if not hits:
+    if not hits_all:
         empty_template["empty_state"] = {
             "code": "NO_ANALYSIS_DATA",
             "message": "任务已成功，但未找到维度命中数据",
@@ -172,6 +199,7 @@ def build_insight_dashboard(
     return {
         **base,
         "empty_state": None,
+        "matched_review_count": matched_review_count,
         "dimension_counts": dict(sorted(dimension_counts.items())),
         "pain_ranking": pain_ranking,
         "evidence": {

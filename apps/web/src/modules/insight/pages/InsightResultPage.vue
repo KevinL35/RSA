@@ -352,10 +352,22 @@ const headerProductImageUrl = computed(() => {
   return ''
 })
 
+const headerReviewTotal = computed(() => {
+  const n = dashboard.value?.review_total_count
+  return typeof n === 'number' && Number.isFinite(n) ? n : null
+})
+
+const headerMatchedReviews = computed(() => {
+  const n = dashboard.value?.matched_review_count
+  return typeof n === 'number' && Number.isFinite(n) ? n : null
+})
+
 const metaSubtitle = computed(() =>
   t('insightResult.headerMetaLine', {
     model: insightModelDisplay.value,
     time: analyzedAtFormatted.value,
+    total: headerReviewTotal.value ?? '—',
+    matched: headerMatchedReviews.value ?? '—',
   }),
 )
 

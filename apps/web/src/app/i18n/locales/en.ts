@@ -198,7 +198,8 @@ export default {
   },
   insightResult: {
     back: 'Back to list',
-    headerMetaLine: 'Insight model: {model}  ·  Analyzed at: {time}',
+    headerMetaLine:
+      'Insight model: {model}  ·  Analyzed at: {time}  ·  Total reviews: {total}  ·  Matched: {matched}',
     reviewTrendTitle: 'Trend over time',
     reviewTrendEmpty: 'No daily review volume data',
     productFallback: 'Insight result',

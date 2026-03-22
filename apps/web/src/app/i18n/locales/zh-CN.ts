@@ -195,7 +195,7 @@ export default {
   },
   insightResult: {
     back: '返回列表',
-    headerMetaLine: '洞察模型：{model} 分析时间：{time}',
+    headerMetaLine: '洞察模型：{model} 分析时间：{time} 评论总数：{total} 成功匹配：{matched}',
     reviewTrendTitle: '时间趋势',
     reviewTrendEmpty: '暂无按日期的评论量数据',
     productFallback: '商品洞察结果',

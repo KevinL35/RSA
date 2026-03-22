@@ -51,6 +51,10 @@ export type InsightDashboardResponse = {
   platform: string
   product_id: string
   task_status: string
+  /** 任务下已入库评论条数 */
+  review_total_count?: number
+  /** 至少有一条六维归因行的去重评论数 */
+  matched_review_count?: number
   analysis_provider_id?: string | null
   analyzed_at?: string | null
   product_snapshot?: InsightTaskProductSnapshot | null
