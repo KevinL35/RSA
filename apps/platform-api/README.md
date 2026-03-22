@@ -6,8 +6,7 @@
 
 ## 环境
 
-1. 复制 `apps/platform-api/.env.example` 为 `apps/platform-api/.env`
-2. 填入 `SUPABASE_URL`（**Project URL**，`https://…supabase.co`，勿填 JWT）、`SUPABASE_SERVICE_ROLE_KEY`（**service_role**，仅后端持有，勿提交前端）
+在 `apps/platform-api/` 下新建 **`.env`**（勿提交 Git），按 `docs/runbooks/env-to-run.md` 填入至少 **`SUPABASE_URL`**（**Project URL**，`https://…supabase.co`，勿填 JWT）、**`SUPABASE_SERVICE_ROLE_KEY`**（**service_role**，仅后端持有）。
 
 ## 数据库
 
@@ -81,7 +80,7 @@ pytest
 - `ANALYSIS_PROVIDER_TIMEOUT_SECONDS`：默认 120
 - `ANALYSIS_MAX_RETRIES`：默认 2（429/5xx/超时等退避重试）
 - `ANALYSIS_PROVIDER_MOCK=true`：不请求外网，返回占位情感+六维结果；**无需**配置 `ANALYSIS_PROVIDER_URL` / `ROUTES_JSON`
-- **本地闭环（自建情感+词典归因）**：另起进程运行 `apps/analysis-api`（见该目录 `README.md`），并在 `ANALYSIS_PROVIDER_ROUTES_JSON` 中为前端默认的 `ins_builtin` 配置 `http://127.0.0.1:8089/analyze`（详见 `apps/platform-api/.env.example` 注释）
+- **本地闭环（自建情感+词典归因）**：另起进程运行 `apps/analysis-api`（见该目录 `README.md`），并在本目录 **`.env`** 的 `ANALYSIS_PROVIDER_ROUTES_JSON` 中为前端默认的 `ins_builtin` 配置 `http://127.0.0.1:8089/analyze`（变量说明见上表）
 
 **分析源请求体（本系统 POST）**：`insight_task_id`, `platform`, `product_id`, `analysis_provider_id`（解析后的生效 id）, `reviews`（`id`, `raw_text`, …）。
 

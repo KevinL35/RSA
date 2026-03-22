@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-环境变量见 **`.env.example`**。完整「要填什么」清单：**`docs/runbooks/env-to-run.md`**。
+可选：在 `apps/web/` 新建 **`.env.local`**（勿提交 Git）。完整「要填什么」清单：**`docs/runbooks/env-to-run.md`**。
 
 ## 部署（静态托管）
 

@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 后端 `apps/platform-api/.env`（从 `.env.example` 复制）
+## 1. 后端 `apps/platform-api/.env`（在 `apps/platform-api/` 下自行新建）
 
 | 变量 | 是否必填 | 说明 |
 |------|----------|------|
@@ -28,7 +28,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 2. 前端 `apps/web/.env.local`（从 `.env.example` 复制，勿提交 Git）
+## 2. 前端 `apps/web/.env.local`（自行新建，勿提交 Git）
 
 | 变量 | 是否必填 | 说明 |
 |------|----------|------|
