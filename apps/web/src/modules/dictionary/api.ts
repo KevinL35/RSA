@@ -1,4 +1,10 @@
-import { apiDeleteJson, apiGetJson, apiPatchJson, apiPostJson } from '../../shared/services/api'
+import {
+  apiDeleteJson,
+  apiGetJson,
+  apiPatchJson,
+  apiPostFormData,
+  apiPostJson,
+} from '../../shared/services/api'
 
 export type DictionaryVerticalItem = {
   id: string
@@ -125,4 +131,19 @@ export type DictionaryReviewQueueResponse = {
 
 export function fetchDictionaryReviewQueue() {
   return apiGetJson<DictionaryReviewQueueResponse>('/api/v1/dictionary/review-queue')
+}
+
+export type DictionaryImportExcelResponse = {
+  ok: boolean
+  imported: number
+  warnings?: string[]
+  updated?: { vertical_id: string; path: string; version: string; entry_count: number }
+  hint?: string
+}
+
+export function postDictionaryImportExcel(verticalId: string, file: File) {
+  const fd = new FormData()
+  fd.append('vertical_id', verticalId)
+  fd.append('file', file)
+  return apiPostFormData<DictionaryImportExcelResponse>('/api/v1/dictionary/import-excel', fd)
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div>
     <section class="config-block config-block--intro">
       <h2 class="page-title">{{ t('governance.painAuditTitle') }}</h2>
       <p class="intro-text">{{ t('governance.painAuditIntro') }}</p>
@@ -367,10 +367,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page {
-  max-width: 960px;
-}
-
 .config-block {
   margin-bottom: 28px;
   padding: 18px 20px 20px;

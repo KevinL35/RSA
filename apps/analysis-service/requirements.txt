@@ -3,6 +3,7 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic>=2.0.0
 pyyaml>=6.0
+supabase>=2.0.0,<3
 
 # 可选：与 ml/requirements-finetune.txt 对齐，启用 SENTIMENT_MODEL_DIR 时安装
 # transformers>=4.46,<6

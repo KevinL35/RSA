@@ -1,4 +1,4 @@
-"""将词典审核通过的词条写入 ml/configs 下各垂直 overlay YAML（与 TA-10 脚本语义一致）。"""
+"""构建审核词条结构；已生效写入 Supabase `taxonomy_entries`（overlay 层）。YAML 工具仍供 TA-10 等离线脚本使用。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from supabase import Client
 
+from .taxonomy_db import bulk_upsert_overlay_entries
 from .taxonomy_yaml import merge_entries
 from .verticals import VERTICAL_IDS
 
@@ -74,6 +76,9 @@ def build_dictionary_review_entry(
     actor_username: str | None,
     batch_id: str | None,
     source_topic_id: str | None,
+    weight: float = 1.0,
+    priority: int = 50,
+    entry_source: str = "dictionary_review",
 ) -> dict[str, Any]:
     dim = dimension_6way.strip().lower()
     can = canonical.strip()
@@ -81,13 +86,21 @@ def build_dictionary_review_entry(
         raise ValueError("canonical 至少 2 字符")
     als = [str(a).strip() for a in aliases if str(a).strip()]
     iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        w = float(weight)
+    except (TypeError, ValueError):
+        w = 1.0
+    try:
+        pr = int(priority)
+    except (TypeError, ValueError):
+        pr = 50
     return {
         "dimension_6way": dim,
         "canonical": can,
         "aliases": als,
-        "weight": 1.0,
-        "priority": 50,
-        "entry_source": "dictionary_review",
+        "weight": w,
+        "priority": pr,
+        "entry_source": entry_source,
         "provenance": {
             "batch_id": batch_id,
             "source_topic_id": source_topic_id,
@@ -97,16 +110,46 @@ def build_dictionary_review_entry(
     }
 
 
-def merge_entry_into_vertical_overlay(vertical_id: str, entry: dict[str, Any]) -> dict[str, Any]:
-    """写入单个 vertical 的 overlay，返回 { vertical_id, path, version }。"""
+def merge_entry_into_vertical_overlay(
+    sb: Client,
+    vertical_id: str,
+    entry: dict[str, Any],
+) -> dict[str, Any]:
+    """写入单个 vertical 的 overlay（Supabase），返回 { vertical_id, path, version, entry_count }。"""
+    return merge_entries_bulk_into_vertical_overlay(sb, vertical_id, [entry])
+
+
+def merge_entries_bulk_into_vertical_overlay(
+    sb: Client,
+    vertical_id: str,
+    entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """批量 upsert 至 overlay 层。"""
+    return bulk_upsert_overlay_entries(sb, vertical_id, entries)
+
+
+def merge_entry_into_vertical_overlay_yaml(
+    vertical_id: str,
+    entry: dict[str, Any],
+) -> dict[str, Any]:
+    """离线：写入 ml/configs overlay YAML（TA-10 / 应急）。"""
+    return merge_entries_bulk_into_vertical_overlay_yaml(vertical_id, [entry])
+
+
+def merge_entries_bulk_into_vertical_overlay_yaml(
+    vertical_id: str,
+    entries: list[dict[str, Any]],
+) -> dict[str, Any]:
     vid = vertical_id.strip()
     if vid not in VERTICAL_IDS:
         raise ValueError(f"无效 vertical_id：{vertical_id!r}")
+    if not entries:
+        raise ValueError("entries 不能为空")
 
     path = overlay_yaml_path(vid)
     doc = load_overlay_document(path)
     prev_entries = list(doc.get("entries") or [])
-    merged_list = merge_entries(prev_entries, [entry])
+    merged_list = merge_entries(prev_entries, entries)
     doc["entries"] = merged_list
     doc["version"] = bump_patch_version(str(doc.get("version") or "1.0.0"))
     write_overlay_document(path, doc)

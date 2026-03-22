@@ -4,15 +4,20 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from app.core.rbac import get_rsa_role, get_rsa_username_optional, require_mutator_role
-from app.integrations.supabase import require_supabase
+from app.integrations.supabase import get_supabase, require_supabase
 from app.modules.audit_log.service import audit_actor_name, try_record_audit
 from supabase import Client
 
-from .overlay_publish import build_dictionary_review_entry, merge_entry_into_vertical_overlay
+from .import_dictionary_excel import MAX_DICTIONARY_FILE_BYTES, parse_dictionary_excel_rows
+from .overlay_publish import (
+    build_dictionary_review_entry,
+    merge_entries_bulk_into_vertical_overlay,
+    merge_entry_into_vertical_overlay,
+)
 from .taxonomy_yaml import SIX_WAY_DIMENSION_ORDER, group_by_dimension, load_merged_entries_for_vertical
 from .verticals import DICTIONARY_VERTICALS, assert_valid_vertical_id
 
@@ -164,7 +169,7 @@ def get_taxonomy_preview(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     try:
-        entries = load_merged_entries_for_vertical(vid)
+        entries = load_merged_entries_for_vertical(vid, sb=get_supabase())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:  # noqa: BLE001
@@ -186,8 +191,98 @@ def get_taxonomy_preview(
     }
 
 
+@router.post("/import-excel")
+async def post_dictionary_import_excel(
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    vertical_id: str = Form(..., description="词典垂直 id，如 general / electronics"),
+    file: UploadFile = File(..., description="词典 Excel（.xlsx）"),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+    sb: Client = Depends(require_supabase),
+) -> dict:
+    """将 Excel 中的词条批量 upsert 进 Supabase 对应垂直的 overlay（表头：六维维度、规范词、同义词、权重、优先级）。"""
+    try:
+        vid = assert_valid_vertical_id(vertical_id.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    raw_name = (file.filename or "").strip()
+    if not raw_name.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="请上传 .xlsx 文件")
+
+    content = await file.read()
+    if len(content) > MAX_DICTIONARY_FILE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件超过 {MAX_DICTIONARY_FILE_BYTES // (1024 * 1024)}MB",
+        )
+
+    rows, parse_errors = parse_dictionary_excel_rows(content, filename=raw_name)
+    if not rows:
+        msg = "；".join(parse_errors) if parse_errors else "未解析到有效数据行"
+        raise HTTPException(status_code=400, detail=msg)
+
+    batch_id = f"excel-import-{uuid.uuid4().hex[:12]}"
+    entries: list[dict[str, Any]] = []
+    row_errors: list[str] = list(parse_errors)
+    for r in rows:
+        try:
+            entries.append(
+                build_dictionary_review_entry(
+                    dimension_6way=r["dimension_6way"],
+                    canonical=r["canonical"],
+                    aliases=r["aliases"],
+                    actor_username=audit_actor_name(actor),
+                    batch_id=batch_id,
+                    source_topic_id=None,
+                    weight=r["weight"],
+                    priority=r["priority"],
+                    entry_source="dictionary_excel",
+                ),
+            )
+        except ValueError as e:
+            row_errors.append(f"第 {r.get('_row', '?')} 行：{e!s}")
+
+    if not entries:
+        raise HTTPException(
+            status_code=400,
+            detail="；".join(row_errors[:30]) or "无有效词条",
+        )
+
+    try:
+        updated = merge_entries_bulk_into_vertical_overlay(sb, vid, entries)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"写入词典表 taxonomy_entries 失败：{e!s}",
+        ) from e
+
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="dictionary",
+        message=f"词典 Excel 导入：{vid}，{len(entries)} 条",
+        detail={
+            "vertical_id": vid,
+            "imported": len(entries),
+            "batch_id": batch_id,
+            "filename": raw_name,
+            "overlay": updated,
+            "warnings": row_errors[:100],
+        },
+    )
+    return {
+        "ok": True,
+        "imported": len(entries),
+        "warnings": row_errors[:50] if row_errors else [],
+        "updated": updated,
+        "hint": "若使用独立分析服务加载词典，请 POST /admin/reload-taxonomy 或重启该服务。",
+    }
+
+
 class ApproveDictionaryEntryBody(BaseModel):
-    """词典审核通过：写入各选中类目的 overlay YAML。"""
+    """词典审核通过：写入各选中类目的 Supabase overlay（taxonomy_entries）。"""
 
     vertical_ids: list[str] = Field(min_length=1, max_length=16)
     dimension_6way: str = Field(min_length=1, max_length=64)
@@ -209,7 +304,7 @@ def post_approve_dictionary_entry(
     actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> dict:
-    """词典审核通过：合并进 ml/configs 对应 overlay；词典管理 taxonomy-preview 可立即读到。"""
+    """词典审核通过：合并进 Supabase taxonomy_entries（overlay）；taxonomy-preview 可立即读到。"""
     dim = body.dimension_6way.strip().lower()
     if dim not in SIX_WAY_DIMENSION_ORDER:
         raise HTTPException(
@@ -259,14 +354,14 @@ def post_approve_dictionary_entry(
     updated: list[dict] = []
     try:
         for vid in vertical_ids:
-            updated.append(merge_entry_into_vertical_overlay(vid, dict(entry)))
-    except OSError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"写入词典文件失败（请确认 API 进程对仓库 ml/configs 有写权限）：{e!s}",
-        ) from e
+            updated.append(merge_entry_into_vertical_overlay(sb, vid, dict(entry)))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"写入词典表 taxonomy_entries 失败：{e!s}",
+        ) from e
 
     try_record_audit(
         sb,

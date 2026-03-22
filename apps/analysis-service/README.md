@@ -1,6 +1,6 @@
 # RSA 本地分析服务（评论洞察 / TA-11）
 
-在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时，按请求体 `dictionary_vertical_id` 合并 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 与对应 overlay（含 TA-10 `taxonomy_dictionary_general_overlay_v1.yaml`），与 API 词典预览一致；显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用）。
+在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：若配置了 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**（与 API 相同），则从 **`public.taxonomy_entries`** 读取已发布 seed/overlay，**缺省段回退** `ml/configs` 下 YAML，与 API `taxonomy-preview` 一致；未配置 Supabase 时则 **仅合并本地** `taxonomy_dictionary_seed_v1.yaml` 与对应 overlay。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用）。
 
 ## 请求与响应
 
@@ -50,7 +50,7 @@ ANALYSIS_PROVIDER_ROUTES_JSON={"ins_builtin":"http://127.0.0.1:8089/analyze","de
 
 未配置 `SENTIMENT_MODEL_DIR` 时，情感使用 **星级**（若有）+ **轻量关键词启发式**；配置后优先 **RoBERTa**。
 
-词典回灌（TA-10）更新 overlay 后，调用 `POST /admin/reload-taxonomy` 或重启进程以清空内存缓存。
+词典在 **Supabase** 或 **YAML** 中更新后，调用 `POST /admin/reload-taxonomy` 或重启进程以清空内存缓存。
 
 ## 健康检查
 

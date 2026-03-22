@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div>
     <section class="config-block config-block--intro">
       <h2 class="page-title">{{ t('settings.apiTitle') }}</h2>
       <p class="intro-text">{{ t('settings.apiPageIntro') }}</p>
@@ -444,10 +444,6 @@ function onSystemLangChange(v: string) {
 </script>
 
 <style scoped>
-.page {
-  max-width: 960px;
-}
-
 .config-block {
   margin-bottom: 28px;
   padding: 18px 20px 20px;

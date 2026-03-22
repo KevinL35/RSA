@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from .taxonomy_supabase import fetch_overlay_rows, fetch_seed_rows, get_supabase_optional
+
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _CONFIGS_DIR = _REPO_ROOT / "ml" / "configs"
 _SEED_PATH = _CONFIGS_DIR / "taxonomy_dictionary_seed_v1.yaml"
@@ -52,11 +54,21 @@ def load_merged_taxonomy_dict(vertical_id: str | None) -> dict[str, Any]:
     vid = (vertical_id or "general").strip() or "general"
     if vid not in _KNOWN_VERTICALS:
         vid = "general"
-    base = _load_yaml_entries(_SEED_PATH)
+    yaml_seed = _load_yaml_entries(_SEED_PATH)
     if vid == "general":
         overlay_path = _CONFIGS_DIR / "taxonomy_dictionary_general_overlay_v1.yaml"
     else:
         overlay_path = _CONFIGS_DIR / f"taxonomy_dictionary_{vid}_overlay_v1.yaml"
-    overlay = _load_yaml_entries(overlay_path)
-    merged = _merge_entries(base, overlay)
-    return {"entries": merged}
+    yaml_overlay = _load_yaml_entries(overlay_path)
+
+    sb = get_supabase_optional()
+    if sb is None:
+        return {"entries": _merge_entries(yaml_seed, yaml_overlay)}
+    try:
+        db_seed = fetch_seed_rows(sb)
+        db_overlay = fetch_overlay_rows(sb, vid)
+    except Exception:
+        db_seed, db_overlay = [], []
+    seed = db_seed if db_seed else yaml_seed
+    overlay = db_overlay if db_overlay else yaml_overlay
+    return {"entries": _merge_entries(seed, overlay)}

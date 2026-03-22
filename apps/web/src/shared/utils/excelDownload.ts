@@ -38,3 +38,74 @@ export async function downloadReviewImportTemplate(): Promise<void> {
     cols,
   )
 }
+
+/** 词典 Excel 列（与后端 import_dictionary_excel 解析一致）。 */
+export const DICTIONARY_IMPORT_COLUMNS = ['六维维度', '规范词', '同义词', '权重', '优先级'] as const
+
+export async function downloadDictionaryImportTemplate(): Promise<void> {
+  const cols = [...DICTIONARY_IMPORT_COLUMNS]
+  await downloadReviewsExcel(
+    '词典导入模板.xlsx',
+    [
+      {
+        六维维度: 'cons',
+        规范词: 'battery life',
+        同义词: 'dies fast; poor battery',
+        权重: 1,
+        优先级: 70,
+      },
+    ],
+    cols,
+    'Dictionary',
+  )
+}
+
+export type TaxonomyPreviewLike = {
+  dimension_order: string[]
+  dimensions: Record<
+    string,
+    {
+      entries?: Array<{
+        canonical?: string | null
+        aliases?: unknown
+        weight?: number | null
+        priority?: number | null
+      }>
+    }
+  >
+}
+
+/** 将 taxonomy-preview 展平为词典 Excel 行（中文表头）。 */
+export function flattenTaxonomyPreviewForExcel(preview: TaxonomyPreviewLike): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = []
+  for (const dim of preview.dimension_order) {
+    const entries = preview.dimensions[dim]?.entries ?? []
+    for (const e of entries) {
+      const aliases = Array.isArray(e.aliases)
+        ? e.aliases.map((x) => String(x).trim()).filter(Boolean)
+        : []
+      rows.push({
+        六维维度: dim,
+        规范词: String(e.canonical ?? '').trim(),
+        同义词: aliases.join('；'),
+        权重: e.weight ?? 1,
+        优先级: e.priority ?? 50,
+      })
+    }
+  }
+  return rows
+}
+
+export async function downloadDictionaryAsExcel(
+  verticalLabel: string,
+  preview: TaxonomyPreviewLike,
+): Promise<void> {
+  const safe = verticalLabel.replace(/[/\\?*[\]:]/g, '_').slice(0, 40) || 'dictionary'
+  const rows = flattenTaxonomyPreviewForExcel(preview)
+  await downloadReviewsExcel(
+    `词典导出_${safe}.xlsx`,
+    rows,
+    [...DICTIONARY_IMPORT_COLUMNS],
+    'Dictionary',
+  )
+}

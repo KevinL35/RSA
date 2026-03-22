@@ -21,6 +21,7 @@ FILES=(
   infra/migrations/008_insight_tasks_product_snapshot.sql
   infra/migrations/009_audit_logs.sql
   infra/migrations/010_dictionary_review_queue.sql
+  infra/migrations/011_taxonomy_entries.sql
 )
 
 echo "-- RSA infra migrations bundle (empty project)"

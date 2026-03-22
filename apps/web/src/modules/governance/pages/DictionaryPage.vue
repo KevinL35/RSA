@@ -1,5 +1,5 @@
 <template>
-  <div class="page" v-loading="loading">
+  <div v-loading="loading">
     <section class="config-block config-block--intro">
       <div class="intro-head">
         <h2 class="page-title">{{ t('governance.dictionaryTitle') }}</h2>
@@ -20,15 +20,17 @@
               :value="v.id"
             />
           </el-select>
+          <el-button type="primary" class="dict-modify-btn" @click="openDictionaryModify">
+            {{ t('governance.dictionaryModify') }}
+          </el-button>
         </div>
       </div>
       <p class="intro-text">{{ t('governance.dictionaryDesc') }}</p>
     </section>
 
-    <el-empty
-      v-if="!loading && loadError"
-      :description="t('governance.dictionaryLoadFail')"
-    />
+    <el-empty v-if="!loading && (loadError || !preview)" :description="emptyDescription">
+      <el-button type="primary" @click="retryDictionaryPage">{{ t('governance.dictionaryPreviewRetry') }}</el-button>
+    </el-empty>
 
     <template v-else-if="preview">
       <section
@@ -77,6 +79,83 @@
     </template>
 
     <el-dialog
+      v-model="dictionaryModifyVisible"
+      :title="t('governance.dictionaryModify')"
+      width="600px"
+      class="dict-upload-dialog"
+      destroy-on-close
+      align-center
+      @closed="resetDictionaryUploadForm"
+    >
+      <p class="dict-upload-intro">{{ t('governance.dictionaryModifyIntro') }}</p>
+
+      <h4 class="dict-modify-section-title">{{ t('governance.dictionaryModifyDownloadSection') }}</h4>
+      <p class="dict-modify-current-category">
+        {{ t('governance.dictionaryModifyCurrentCategory', { name: currentVerticalDisplayName }) }}
+      </p>
+      <div class="dict-upload-form">
+        <div
+          class="upload-file-zone dict-download-zone"
+          :class="{ 'dict-download-zone--loading': exportDownloadLoading }"
+          role="button"
+          tabindex="0"
+          @click="onExportCurrentFromDialog"
+          @keydown.enter.prevent="onExportCurrentFromDialog"
+          @keydown.space.prevent="onExportCurrentFromDialog"
+        >
+          <div class="upload-file-trigger-row dict-download-trigger">
+            <span
+              class="upload-file-status"
+              :class="{ 'upload-file-status--placeholder': !exportDownloadLoading }"
+            >
+              {{
+                exportDownloadLoading
+                  ? t('governance.dictionaryModifyDownloadLoading')
+                  : t('governance.dictionaryModifyDownloadClick')
+              }}
+            </span>
+          </div>
+        </div>
+        <p class="upload-file-hint">{{ t('governance.dictionaryModifyDownloadHint') }}</p>
+      </div>
+
+      <el-divider />
+
+      <h4 class="dict-modify-section-title">{{ t('governance.dictionaryModifyUploadSection') }}</h4>
+      <p class="dict-upload-subhint">{{ t('governance.dictionaryModifyUploadHint') }}</p>
+      <div class="dict-upload-form">
+        <div class="upload-file-zone">
+          <el-upload
+            ref="dictionaryExcelRef"
+            class="upload-file-inner"
+            :auto-upload="false"
+            :limit="1"
+            :show-file-list="false"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            :on-change="onDictionaryExcelChange"
+            :on-exceed="onDictionaryExcelExceed"
+          >
+            <div class="upload-file-trigger-row">
+              <span
+                class="upload-file-status"
+                :class="{ 'upload-file-status--placeholder': !dictionaryExcelFile }"
+              >
+                {{ dictionaryExcelDisplayName }}
+              </span>
+            </div>
+          </el-upload>
+        </div>
+        <p class="upload-file-hint">{{ t('governance.dictionaryExcelFileHint') }}</p>
+      </div>
+      <template #footer>
+        <el-button @click="dictionaryModifyVisible = false">{{ t('insight.dialogCancel') }}</el-button>
+        <el-button type="primary" :loading="dictionaryImportSubmitting" @click="submitDictionaryImport">
+          {{ t('governance.dictionaryExcelStartImport') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="rejectDialogVisible"
       :title="t('governance.rejectSynonymTitle')"
       width="480px"
@@ -98,15 +177,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { genFileId } from 'element-plus'
+import type { UploadFile, UploadInstance, UploadRawFile } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import type { DictionaryVerticalItem, TaxonomyPreviewEntry, TaxonomyPreviewResponse } from '../../dictionary/api'
 import {
   fetchDictionaryVerticals,
   fetchTaxonomyPreview,
+  postDictionaryImportExcel,
   postDictionaryRejectSynonym,
 } from '../../dictionary/api'
+import { downloadDictionaryAsExcel } from '../../../shared/utils/excelDownload'
 import {
   SELECT_FALLBACK_PLACEMENTS_BOTTOM,
   selectPopperOptionsNoFlip,
@@ -116,11 +199,19 @@ const { t, locale } = useI18n()
 
 const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
-const loading = ref(false)
+const loading = ref(true)
 const loadError = ref(false)
 const verticals = ref<DictionaryVerticalItem[]>([])
 const verticalId = ref('general')
 const preview = ref<TaxonomyPreviewResponse | null>(null)
+
+const DICTIONARY_IMPORT_MAX_BYTES = 10 * 1024 * 1024
+
+const dictionaryModifyVisible = ref(false)
+const exportDownloadLoading = ref(false)
+const dictionaryExcelFile = ref<File | null>(null)
+const dictionaryExcelRef = ref<UploadInstance | null>(null)
+const dictionaryImportSubmitting = ref(false)
 
 const rejectDialogVisible = ref(false)
 const rejectSubmitting = ref(false)
@@ -130,10 +221,119 @@ const pendingReject = ref<{
   alias: string
 } | null>(null)
 
+const emptyDescription = computed(() =>
+  loadError.value ? t('governance.dictionaryLoadFail') : t('governance.dictionaryPreviewEmpty'),
+)
+
+const currentVerticalDisplayName = computed(() => {
+  const v = verticals.value.find((x) => x.id === verticalId.value)
+  return v ? verticalLabel(v) : verticalId.value
+})
+
+function openDictionaryModify() {
+  dictionaryModifyVisible.value = true
+}
+
+async function retryDictionaryPage() {
+  loadError.value = false
+  preview.value = null
+  await loadVerticals()
+  await loadPreview()
+}
+
 const dimensionTitle = (dim: string) => {
   const key = `governance.dim_${dim}` as const
   const translated = t(key)
   return translated === key ? dim : translated
+}
+
+const dictionaryExcelDisplayName = computed(() =>
+  dictionaryExcelFile.value?.name ?? t('insight.uploadFileClickToChoose'),
+)
+
+function resetDictionaryUploadForm() {
+  dictionaryExcelFile.value = null
+  dictionaryExcelRef.value?.clearFiles()
+}
+
+function onDictionaryExcelChange(uploadFile: UploadFile) {
+  const raw = uploadFile.raw as UploadRawFile | undefined
+  if (!raw) return
+  if (raw.size > DICTIONARY_IMPORT_MAX_BYTES) {
+    ElMessage.error(t('insight.uploadFileTooLarge'))
+    dictionaryExcelRef.value?.clearFiles()
+    dictionaryExcelFile.value = null
+    return
+  }
+  const name = (raw.name || '').toLowerCase()
+  if (!name.endsWith('.xlsx')) {
+    ElMessage.error(t('governance.dictionaryExcelNeedFile'))
+    dictionaryExcelRef.value?.clearFiles()
+    dictionaryExcelFile.value = null
+    return
+  }
+  dictionaryExcelFile.value = raw as File
+}
+
+function onDictionaryExcelExceed(files: File[]) {
+  const f = files[0]
+  if (!f) return
+  dictionaryExcelRef.value?.clearFiles()
+  const raw = f as UploadRawFile
+  Object.assign(raw, { uid: genFileId() })
+  dictionaryExcelRef.value?.handleStart(raw)
+}
+
+async function onExportCurrentFromDialog() {
+  if (exportDownloadLoading.value) return
+  const vid = verticalId.value
+  exportDownloadLoading.value = true
+  try {
+    const p = await fetchTaxonomyPreview(vid)
+    const v = verticals.value.find((x) => x.id === vid)
+    const label = v ? verticalLabel(v) : vid
+    const n = flattenEntryCount(p)
+    await downloadDictionaryAsExcel(label, p)
+    ElMessage.success(t('governance.dictionaryExcelExportOk', { n }))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(msg)
+  } finally {
+    exportDownloadLoading.value = false
+  }
+}
+
+function flattenEntryCount(p: TaxonomyPreviewResponse): number {
+  let n = 0
+  for (const dim of p.dimension_order) {
+    n += p.dimensions[dim]?.entries?.length ?? 0
+  }
+  return n
+}
+
+async function submitDictionaryImport() {
+  const f = dictionaryExcelFile.value
+  if (!f) {
+    ElMessage.warning(t('governance.dictionaryExcelNeedFile'))
+    return
+  }
+  dictionaryImportSubmitting.value = true
+  try {
+    const res = await postDictionaryImportExcel(verticalId.value, f)
+    const w = res.warnings?.filter(Boolean) ?? []
+    if (w.length) {
+      ElMessage.warning(w.slice(0, 3).join('；'))
+    }
+    ElMessage.success(t('governance.dictionaryExcelOk', { n: res.imported }))
+    dictionaryModifyVisible.value = false
+    resetDictionaryUploadForm()
+    await loadPreview()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('governance.dictionaryExcelFail')}: ${msg}`)
+  } finally {
+    dictionaryImportSubmitting.value = false
+  }
 }
 
 function verticalLabel(v: DictionaryVerticalItem) {
@@ -217,13 +417,10 @@ onMounted(async () => {
   await loadVerticals()
   await loadPreview()
 })
+
 </script>
 
 <style scoped>
-.page {
-  max-width: 960px;
-}
-
 .config-block {
   margin-bottom: 28px;
   padding: 18px 20px 20px;
@@ -258,13 +455,63 @@ onMounted(async () => {
 }
 
 .intro-head-right {
+  /* 与评论洞察「添加商品」等默认按钮视觉宽度同档（约 90～110px） */
+  --dict-head-control-width: 100px;
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  gap: 10px;
+}
+
+.dict-modify-btn {
+  flex-shrink: 0;
+  width: var(--dict-head-control-width);
+  box-sizing: border-box;
+}
+
+.dict-modify-section-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.dict-modify-current-category {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+}
+
+.dict-download-zone {
+  cursor: pointer;
+}
+
+.dict-download-zone--loading {
+  cursor: wait;
+  pointer-events: none;
+  opacity: 0.88;
+}
+
+.dict-download-trigger {
+  min-height: 22px;
+}
+
+.dict-upload-subhint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .dict-vertical-select {
-  width: 160px;
+  width: var(--dict-head-control-width);
+  flex-shrink: 0;
+}
+
+.dict-vertical-select :deep(.el-select__wrapper) {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .intro-text {
@@ -272,6 +519,74 @@ onMounted(async () => {
   font-size: 15px;
   line-height: 1.55;
   color: var(--el-text-color-regular);
+}
+
+.dict-upload-intro {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+}
+
+.dict-upload-form {
+  margin-top: 4px;
+}
+
+.upload-file-section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 10px;
+}
+
+.upload-file-zone {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--el-fill-color-blank);
+  transition:
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    background-color 0.28s ease;
+}
+
+.upload-file-zone:hover,
+.upload-file-zone:focus-within {
+  border-color: var(--el-color-primary-light-3);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
+  background-color: var(--el-color-primary-light-9);
+}
+
+.upload-file-inner :deep(.el-upload) {
+  display: block;
+  width: auto;
+}
+
+.upload-file-trigger-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 22px;
+}
+
+.upload-file-status {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  word-break: break-all;
+}
+
+.upload-file-zone .upload-file-status--placeholder {
+  color: var(--el-color-primary);
+}
+
+.upload-file-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .block-head {

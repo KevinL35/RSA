@@ -1,6 +1,6 @@
 """词典审核通过写入 overlay：RBAC 与基本校验。"""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -112,5 +112,37 @@ def test_dictionary_approve_invalid_dimension() -> None:
             headers={"X-RSA-Role": "admin"},
         )
         assert r.status_code == 400
+    finally:
+        _clear_overrides()
+
+
+def test_dictionary_approve_entry_ok_writes_db() -> None:
+    _with_mock_supabase()
+    fake_write = {
+        "vertical_id": "general",
+        "path": "supabase://taxonomy_entries",
+        "version": "db",
+        "entry_count": 2,
+    }
+    try:
+        with patch(
+            "app.modules.dictionary.router.merge_entry_into_vertical_overlay",
+            return_value=fake_write,
+        ) as m:
+            r = _client().post(
+                "/api/v1/dictionary/approve-entry",
+                json={
+                    "vertical_ids": ["general"],
+                    "dimension_6way": "cons",
+                    "canonical": "test term",
+                    "aliases": ["a1"],
+                },
+                headers={"X-RSA-Role": "admin"},
+            )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["ok"] is True
+        assert body["updated"] == [fake_write]
+        m.assert_called_once()
     finally:
         _clear_overrides()
