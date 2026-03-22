@@ -7,6 +7,31 @@
 - `requirements-finetune.txt`：RoBERTa 微调与评估所需 Python 包。
 - `requirements-bertopic.txt`：TA-9 离线 BERTopic（在 finetune 依赖基础上增加 `bertopic` / `sentence-transformers` 等）。
 
+### BERTopic 本地（按需运行）
+
+**不要**与 `bash scripts/dev-all.sh` 一起常驻启动：依赖重、耗时长，仅在需要产出主题候选时执行。
+
+在**仓库根目录**：
+
+```bash
+bash scripts/run-bertopic-local.sh help     # 查看说明
+bash scripts/run-bertopic-local.sh dry-run  # 不加载模型，只写 manifest（校验切片）
+bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流程 → `ml/reports/`
+```
+
+- 使用独立虚拟环境：`ml/.venv-bertopic/`（已 `.gitignore`）。
+- 小样本配置：`configs/bertopic_batch_strategy_local.yaml`、`configs/bertopic_run_local.yaml`；**正式语料**请改回 `bertopic_batch_strategy_v1.yaml` / `bertopic_run_v1.yaml`（每切片通常 ≥200 条）。
+- 自定义语料：`bash scripts/run-bertopic-local.sh custom --corpus-csv path/to.csv …`（其余参数同 `run_bertopic_offline.py`）。
+- **从 Supabase 拉评论**：洞察任务写入的 `public.reviews` 可先导出为 BERTopic CSV（`text_en` ← `raw_text`，`created_at` 转 Unix 秒），再跑离线脚本：
+  - `python ml/scripts/export_reviews_corpus_for_bertopic.py --out ml/data/bertopic_corpus_from_supabase.csv`（需 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`，可读 `apps/api/.env`）
+  - 或一键：`bash scripts/run-bertopic-local.sh from-db-dry` / `from-db-full`（支持附加 `--platform` / `--product-id` / `--limit` 等导出参数）
+
+**BERTopic → 词典审核（闭环）**
+
+1. 跑离线主题：`run_bertopic_offline.py` 或 `bash scripts/run-bertopic-local.sh full` / `from-db-full` 等 → `ml/reports/bertopic_candidates_{batch_id}.jsonl`
+2. 导入待办队列：`python ml/scripts/import_bertopic_candidates_to_review_queue.py --jsonl ml/reports/bertopic_candidates_xxx.jsonl`（或 `bash scripts/run-bertopic-local.sh import-queue …`；可加 `--dry-run` / `--skip-existing`）。**尚未跑过 BERTopic 时**可用仓库内样例：`ml/fixtures/bertopic_candidates_sample.jsonl` 测导入。
+3. Web **词典审核**：编辑规范词/同义词，选择**类目 + 六维**，通过 → `POST /api/v1/dictionary/approve-entry` 写入 `taxonomy_entries` overlay
+
 ## 目录与文件说明
 
 | 路径 | 作用 |
@@ -32,9 +57,13 @@
 | **`artifacts/`** | 训练产出的模型与 checkpoint（勿提交 Git）。 |
 | **`reports/`** | 清洗报告、评估 JSON 等输出（勿提交 Git）。 |
 | **`configs/bertopic_batch_strategy_v1.yaml`** | TA-8：BERTopic 离线语料字段、时间窗口、最小样本量、切片与调度默认值。 |
+| **`configs/bertopic_batch_strategy_local.yaml`** | 本地联调：降低 `min_documents_product_slice`，配合 `fixtures/bertopic_corpus_sample.csv`。 |
 | **`configs/bertopic_run_v1.yaml`** | TA-9：嵌入模型、`min_topic_size`、代表词/证据条数等运行超参。 |
+| **`configs/bertopic_run_local.yaml`** | 本地联调：降低 `min_topic_size`，便于极小语料跑出主题。 |
 | **`scripts/bertopic_offline_lib.py`** | TA-9：语料规范化、时间窗、切片与质量分 helper（无 bertopic 依赖，可单测）。 |
 | **`scripts/run_bertopic_offline.py`** | TA-9：按切片跑 BERTopic → `ml/reports/bertopic_run_{batch_id}.json` + `bertopic_candidates_{batch_id}.jsonl`。 |
+| **`scripts/export_reviews_corpus_for_bertopic.py`** | 从 Supabase `reviews` 导出 BERTopic 用 CSV（列：`id,platform,product_id,text_en,created_at`）。 |
+| **`scripts/import_bertopic_candidates_to_review_queue.py`** | 将 `bertopic_candidates_*.jsonl` 写入 `dictionary_review_queue`，供词典审核页处理。 |
 | **`fixtures/bertopic_corpus_sample.csv`** | 极小样例（用于 `--dry-run` 验证流程；正式跑批需 ≥200 条/切片）。 |
 | **`tests/test_bertopic_offline_lib.py`** | TA-9：切片与窗口等纯逻辑测试（`pytest ml/tests/`，需已安装 `pandas`/`pyyaml`）。 |
 | **`configs/taxonomy_dictionary_general_overlay_v1.yaml`** | TA-10：通用垂直回灌层（初始空 `entries`，发布脚本写入）。 |

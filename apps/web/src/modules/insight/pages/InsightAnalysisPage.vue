@@ -94,7 +94,7 @@
           <div class="insight-actions-row">
             <el-button
               type="primary"
-              link
+              size="small"
               :disabled="downloadReviewsDisabled(row)"
               :loading="downloadReviewingId === row.taskId"
               @click="onDownloadReviews(row)"
@@ -103,7 +103,7 @@
             </el-button>
             <el-button
               type="primary"
-              link
+              size="small"
               :disabled="viewResultsDisabled(row)"
               :title="viewResultsDisabled(row) ? t('insight.viewResultsDisabledHint') : undefined"
               @click="onViewResults(row)"
@@ -112,7 +112,7 @@
             </el-button>
             <el-button
               type="danger"
-              link
+              size="small"
               :disabled="deleteInsightDisabled(row)"
               :loading="deletingTaskId === row.taskId"
               @click="onDeleteInsight(row)"
@@ -1320,14 +1320,13 @@ function onViewResults(row: InsightProductRow) {
   vertical-align: bottom;
 }
 
-/* 下载 / 查看 / 删除：从左起排，不靠表格右缘 */
+/* 下载 / 查看 / 删除：与词典审核「通过」同款实心 small 按钮 */
 .insight-actions-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
+  display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
-  column-gap: 2px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
 }
@@ -1335,8 +1334,6 @@ function onViewResults(row: InsightProductRow) {
 .insight-actions-row :deep(.el-button) {
   margin-left: 0 !important;
   margin-right: 0 !important;
-  padding-left: 6px;
-  padding-right: 6px;
   flex-shrink: 0;
 }
 

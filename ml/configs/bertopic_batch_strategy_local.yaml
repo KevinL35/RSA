@@ -1,0 +1,43 @@
+# 本地联调 / 小样本：与 TA-8 v1 相同，仅降低切片最小条数，便于用 fixtures 跑通流程。
+# 正式跑批请仍用 bertopic_batch_strategy_v1.yaml（≥200 条/切片）。
+
+version: "1.0.0-local"
+task: "bertopic_offline_stage_a"
+corpus_schema_version: "ta8-v1"
+
+corpus_fields:
+  text_column: "text_en"
+  required_metadata:
+    - platform
+    - product_id
+    - created_at
+  optional_metadata:
+    - id
+
+window:
+  window_days: 90
+
+slice:
+  primary_keys:
+    - platform
+    - product_id
+  min_documents_product_slice: 8
+  min_documents_platform_wide: 800
+
+text_constraints:
+  min_length: 5
+  max_length: 1024
+  dedupe_keys:
+    - id
+
+schedule:
+  planned_cadence: "on_demand"
+  recommended_planned_utc: "W-MON 02:00"
+
+idempotency:
+  duplicate_submit_ttl_hours: 24
+  natural_key_fields:
+    - platform
+    - product_id
+    - batch_end
+    - window_days

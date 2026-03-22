@@ -11,6 +11,7 @@ apps/web/.env
 .venv/
 venv/
 apps/api/.venv/
+ml/.venv-bertopic/
 
 # Python cache
 __pycache__/

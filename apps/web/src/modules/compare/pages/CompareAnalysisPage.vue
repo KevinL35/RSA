@@ -33,17 +33,21 @@
       </el-table-column>
       <el-table-column prop="creator" :label="t('compare.colCreator')" width="120" show-overflow-tooltip />
       <el-table-column prop="createdAt" :label="t('compare.colCreatedAt')" width="168" />
-      <el-table-column :label="t('compare.colActions')" min-width="160" fixed="right">
+      <el-table-column :label="t('compare.colActions')" min-width="200" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button type="primary" link @click="onViewResults(row)">{{ t('compare.viewResults') }}</el-button>
-          <el-button
-            type="danger"
-            link
-            :disabled="!canMutateCompare"
-            @click="onDeleteCompare(row)"
-          >
-            {{ t('compare.delete') }}
-          </el-button>
+          <div class="compare-actions">
+            <el-button type="primary" size="small" @click="onViewResults(row)">
+              {{ t('compare.viewResults') }}
+            </el-button>
+            <el-button
+              type="danger"
+              size="small"
+              :disabled="!canMutateCompare"
+              @click="onDeleteCompare(row)"
+            >
+              {{ t('compare.delete') }}
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -434,6 +438,14 @@ async function onDeleteCompare(row: CompareTableRow) {
 
 .compare-table {
   width: 100%;
+}
+
+.compare-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
 }
 
 .status-text {

@@ -253,6 +253,9 @@ def main() -> int:
         for row in cands:
             append_jsonl(candidates_path, row)
 
+    if not candidates_path.exists():
+        candidates_path.write_text("", encoding="utf-8")
+
     manifest.write(manifest_path)
     print(f"完成 batch_id={batch_id} manifest={manifest_path} candidates={candidates_path}")
     return 0

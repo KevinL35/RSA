@@ -35,14 +35,16 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('governance.painAuditColAction')" width="188" align="center" fixed="right">
+        <el-table-column :label="t('governance.painAuditColAction')" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openEdit(row)">
-              {{ t('governance.painAuditEdit') }}
-            </el-button>
-            <el-button type="primary" size="small" :disabled="row.synonyms.length === 0" @click="openApprove(row)">
-              {{ t('governance.painAuditApprove') }}
-            </el-button>
+            <div class="audit-actions">
+              <el-button type="primary" size="small" :disabled="row.synonyms.length === 0" @click="openApprove(row)">
+                {{ t('governance.painAuditApprove') }}
+              </el-button>
+              <el-button type="primary" size="small" @click="openEdit(row)">
+                {{ t('governance.painAuditEdit') }}
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -418,6 +420,14 @@ onMounted(async () => {
 .syn-empty {
   color: var(--el-text-color-placeholder);
   font-size: 14px;
+}
+
+.audit-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
 }
 
 .dlg-field {
