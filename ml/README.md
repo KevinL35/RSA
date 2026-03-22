@@ -7,31 +7,15 @@
 - `requirements-finetune.txt`：RoBERTa 微调与评估所需 Python 包。
 - `requirements-bertopic.txt`：TA-9 离线 BERTopic（在 finetune 依赖基础上增加 `bertopic` / `sentence-transformers` 等）。
 
-### BERTopic 本地（按需运行）
+### BERTopic（日常：HTTP + Supabase）
 
-**不要**与 `bash scripts/dev-all.sh` 一起常驻启动：依赖重、耗时长，仅在需要产出主题候选时执行。
+**不要**与 `bash scripts/dev.sh` 一起常驻启动 **bertopic-api**：依赖重、耗时长。
 
-在**仓库根目录**：
+1. **挖掘**：仓库根目录 `bash scripts/run-bertopic-api.sh`，请求 **`POST /discover-from-supabase`**（见 `apps/bertopic-api/README.md`）。服务内从 Supabase 导出语料并调用 `run_bertopic_discovery`。
+2. **入队**：响应体含 `candidates`。需写入 `dictionary_review_queue` 时，先写成 JSONL，例如 `jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl`，再执行 `bash scripts/run-bertopic-local.sh import-queue <该文件>`（等价于 `python3 ml/scripts/import_bertopic_candidates_to_review_queue.py --jsonl …`）。联调导入可用 `ml/fixtures/bertopic_candidates_sample.jsonl`。
+3. **词典审核**：Web 端编辑后 → `POST /api/v1/dictionary/approve-entry` 写入 `taxonomy_entries` overlay。
 
-```bash
-bash scripts/run-bertopic-local.sh help     # 查看说明
-bash scripts/run-bertopic-local.sh dry-run  # 不加载模型，只写 manifest（校验切片）
-bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流程 → `ml/reports/`
-```
-
-- 使用独立虚拟环境：`ml/.venv-bertopic/`（已 `.gitignore`）。
-- 小样本配置：`configs/bertopic_batch_strategy_local.yaml`、`configs/bertopic_run_local.yaml`；**正式语料**请改回 `bertopic_batch_strategy_v1.yaml` / `bertopic_run_v1.yaml`（每切片通常 ≥200 条）。
-- 自定义语料：`bash scripts/run-bertopic-local.sh custom --corpus-csv path/to.csv …`（其余参数同 `run_bertopic_offline.py`）。
-- **从 Supabase 拉评论**：洞察任务写入的 `public.reviews` 可先导出为 BERTopic CSV（`text_en` ← `raw_text`，`created_at` 转 Unix 秒），再跑离线脚本：
-  - `python ml/scripts/export_reviews_corpus_for_bertopic.py --out ml/data/bertopic_corpus_from_supabase.csv`（需 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`，可读 `apps/platform-api/.env`）
-  - 仅「已分析但六维零命中」：`--insight-task-id <UUID> --only-without-dimension-hits`（A 类，用于词典补洞后再走词典审核 → `approve-entry`）
-  - 或一键：`bash scripts/run-bertopic-local.sh from-db-dry` / `from-db-full`（支持附加 `--platform` / `--product-id` / `--limit` 等导出参数）
-
-**BERTopic → 词典审核（闭环）**
-
-1. 跑离线主题：`run_bertopic_offline.py` 或 `bash scripts/run-bertopic-local.sh full` / `from-db-full` 等 → `ml/reports/bertopic_candidates_{batch_id}.jsonl`
-2. 导入待办队列：`python ml/scripts/import_bertopic_candidates_to_review_queue.py --jsonl ml/reports/bertopic_candidates_xxx.jsonl`（或 `bash scripts/run-bertopic-local.sh import-queue …`；可加 `--dry-run` / `--skip-existing`）。**尚未跑过 BERTopic 时**可用仓库内样例：`ml/fixtures/bertopic_candidates_sample.jsonl` 测导入。
-3. Web **词典审核**：编辑规范词/同义词，选择**类目 + 六维**，通过 → `POST /api/v1/dictionary/approve-entry` 写入 `taxonomy_entries` overlay
+**维护/单测**（非日常）：`python ml/scripts/run_bertopic_offline.py --help`；导出子进程仍用 `ml/scripts/export_reviews_corpus_for_bertopic.py`。联调超参见 `configs/bertopic_*_local.yaml` 与 API 请求体 `use_local_configs`。
 
 ## 目录与文件说明
 
@@ -59,7 +43,7 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 | **`configs/bertopic_run_v1.yaml`** | TA-9：嵌入模型、`min_topic_size`、代表词/证据条数等运行超参。 |
 | **`configs/bertopic_run_local.yaml`** | 本地联调：降低 `min_topic_size`，便于极小语料跑出主题。 |
 | **`scripts/bertopic_offline_lib.py`** | TA-9：语料规范化、时间窗、切片与质量分 helper（无 bertopic 依赖，可单测）。 |
-| **`scripts/run_bertopic_offline.py`** | TA-9：按切片跑 BERTopic → `ml/reports/bertopic_run_{batch_id}.json` + `bertopic_candidates_{batch_id}.jsonl`。 |
+| **`scripts/run_bertopic_offline.py`** | TA-9：按切片跑 BERTopic（**由 bertopic-api 调用**；CLI 仅维护/单测）。 |
 | **`scripts/export_reviews_corpus_for_bertopic.py`** | 从 Supabase `reviews` 导出 BERTopic 用 CSV；可选 **`--insight-task-id` + `--only-without-dimension-hits`** 仅导出 A 类（有 `review_analysis`、无 `review_dimension_analysis` 行）。 |
 | **`scripts/import_bertopic_candidates_to_review_queue.py`** | 将 `bertopic_candidates_*.jsonl` 写入 `dictionary_review_queue`，供词典审核页处理。 |
 | **`fixtures/bertopic_corpus_sample.csv`** | 极小样例（用于 `--dry-run` 验证流程；正式跑批需 ≥200 条/切片）。 |
@@ -86,6 +70,6 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 1. 准备 `data/raw` → `clean_data.py` → `split_dataset.py`（`ml/data/...` 管线用 **`train_roberta_splits.yaml`**）  
 2. `train_sentiment.py` → `evaluate_sentiment.py`
 
-BERTopic 离线发现（TA-9）：见 **`docs/stage-a/ecommerce-review-insights-v1-ta9-bertopic-offline-discovery.md`**；安装 `requirements-bertopic.txt` 后于仓库根目录执行 `python ml/scripts/run_bertopic_offline.py --help`。
+BERTopic（TA-9）：日常见 **`apps/bertopic-api/README.md`**；规格与 CLI 细节见 **`docs/stage-a/ecommerce-review-insights-v1-ta9-bertopic-offline-discovery.md`**。
 
 词典回灌（TA-10）：见 **`docs/stage-a/ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`**；`python ml/scripts/publish_taxonomy_backfill.py --help`。

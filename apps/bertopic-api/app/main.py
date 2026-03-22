@@ -1,9 +1,11 @@
 """
-BERTopic 主题发现 HTTP 服务（与 dev-all 分离，按需启动）。
+BERTopic 主题发现 HTTP 服务（与 scripts/dev.sh 分离，按需启动）。
+
+仅从 Supabase 导出语料再跑挖掘（POST /discover-from-supabase）。
 
 环境变量（可选）：
   BERTOPIC_API_KEY  — 若设置，则请求须带请求头 X-Bertopic-Api-Key: <值>
-  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — /discover-from-supabase 必需
+  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — 导出与词典读取所需
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -66,63 +68,13 @@ def health() -> dict:
     return {"ok": True, "service": "bertopic-api"}
 
 
-@app.post("/discover")
-def post_discover(
-    corpus: UploadFile = File(..., description="TA-8 语料 CSV（含 text_en、platform、product_id 等）"),
-    dry_run: bool = Form(False),
-    use_local_configs: bool = Form(False),
-    batch_end: str | None = Form(None),
-    platform: str | None = Form(None),
-    product_id: str | None = Form(None),
-    _auth: None = Depends(_optional_api_key),
-) -> dict:
-    """
-    上传 CSV 跑 BERTopic；结果写入临时目录并在响应中返回 manifest + candidates（大语料时注意响应体积）。
-    """
-    bs = (
-        REPO_ROOT / "ml/configs/bertopic_batch_strategy_local.yaml"
-        if use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_batch_strategy_v1.yaml"
-    )
-    rc = (
-        REPO_ROOT / "ml/configs/bertopic_run_local.yaml"
-        if use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_run_v1.yaml"
-    )
-
-    suffix = Path(corpus.filename or "corpus.csv").suffix or ".csv"
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-        corp_path = td_path / f"corpus{suffix}"
-        corp_path.write_bytes(corpus.file.read())
-
-        try:
-            out = run_bertopic_discovery(
-                corpus_csv=corp_path,
-                reports_dir=td_path,
-                batch_strategy=bs,
-                run_config=rc,
-                batch_end=batch_end,
-                platform=platform,
-                product_id=product_id,
-                dry_run=dry_run,
-                force=True,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except FileExistsError as e:
-            raise HTTPException(status_code=409, detail=str(e)) from e
-
-        return out
-
-
 @app.post("/discover-from-supabase")
 def post_discover_from_supabase(
     body: DiscoverFromSupabaseBody,
     _auth: None = Depends(_optional_api_key),
 ) -> dict:
     """
-    从 Supabase 导出 reviews → 同 POST /discover 逻辑。需环境变量 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY。
+    从 Supabase 导出 reviews → BERTopic 挖掘。需环境变量 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY。
     """
     bs = (
         REPO_ROOT / "ml/configs/bertopic_batch_strategy_local.yaml"

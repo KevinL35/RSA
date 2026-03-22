@@ -9,6 +9,8 @@
 - 上游：`TA-8` 语料与批次策略；`TA-6` §5 候选 → 词典导入字段约定
 - 下游：`TA-10` 人工复核与词典版本发布（见 `ecommerce-review-insights-v1-ta10-taxonomy-backfill.md`）
 
+**日常运行（仓库现状）**：优先使用 **`apps/bertopic-api`** 的 **`POST /discover-from-supabase`**（见该目录 `README.md`），从 Supabase 导出后由同一套 `run_bertopic_discovery` 执行。下文 CLI 与目录约定保留给维护、单测与文档对齐。
+
 ## 1. 目标与边界
 
 在**离线**环境按批次对评论语料运行 BERTopic，为每条主题产出**候选痛点词条**（关键词、代表句、质量分），作为人工复核输入；**不**阻塞在线洞察链路，**不**自动写入生产词典。

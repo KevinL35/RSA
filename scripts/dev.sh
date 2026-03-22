@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 本地一键启动：analysis-api (8089) + platform-api (8000) + Web (Vite)
-# 用法：在仓库根目录执行  bash scripts/dev-all.sh
-# 可选：ANALYSIS_PORT=8089 API_PORT=8000 bash scripts/dev-all.sh
+# 用法：在仓库根目录执行  bash scripts/dev.sh
+# 可选：ANALYSIS_PORT=8089 API_PORT=8000 bash scripts/dev.sh
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,13 +29,13 @@ ANALYSIS_PORT="${ANALYSIS_PORT:-8089}"
 API_PORT="${API_PORT:-8000}"
 
 if [[ ! -d apps/analysis-api/.venv ]]; then
-  echo "[dev-all] 缺少 apps/analysis-api/.venv，请先执行："
+  echo "[dev] 缺少 apps/analysis-api/.venv，请先执行："
   echo "  cd apps/analysis-api && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
   exit 1
 fi
 
 if [[ ! -d apps/platform-api/.venv ]]; then
-  echo "[dev-all] 缺少 apps/platform-api/.venv，请先执行："
+  echo "[dev] 缺少 apps/platform-api/.venv，请先执行："
   echo "  cd apps/platform-api && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
   exit 1
 fi
@@ -56,14 +56,14 @@ ANALYSIS_PID=$!
 ) &
 API_PID=$!
 
-echo "[dev-all] Analysis API  http://127.0.0.1:${ANALYSIS_PORT}/health"
-echo "[dev-all] Platform API  http://127.0.0.1:${API_PORT}/docs"
-echo "[dev-all] Web       见下方 Vite 地址（Ctrl+C 将结束全部服务）"
+echo "[dev] Analysis API  http://127.0.0.1:${ANALYSIS_PORT}/health"
+echo "[dev] Platform API  http://127.0.0.1:${API_PORT}/docs"
+echo "[dev] Web       见下方 Vite 地址（Ctrl+C 将结束全部服务）"
 sleep 1
 
 cd apps/web
 if [[ ! -d node_modules ]]; then
-  echo "[dev-all] 首次运行：npm install …"
+  echo "[dev] 首次运行：npm install …"
   npm install
 fi
 npm run dev

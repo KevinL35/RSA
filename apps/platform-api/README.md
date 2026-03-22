@@ -10,7 +10,7 @@
 
 ## 数据库
 
-在 **你的 Supabase 项目**打开 **SQL Editor**：可直接打开仓库内 **`infra/migrations/ALL_FOR_SQL_EDITOR.sql`**，**全选复制**（仅 SQL，不要复制 bash 命令）→ 粘贴 → **Run**。改迁移后请重生成该文件：`bash scripts/print-supabase-migrations.sh > infra/migrations/ALL_FOR_SQL_EDITOR.sql`。或仍可按文件逐个执行：
+在 **你的 Supabase 项目**打开 **SQL Editor**：可直接打开仓库内 **`infra/migrations/ALL_FOR_SQL_EDITOR.sql`**，**全选复制**（仅 SQL，不要复制 bash 命令）→ 粘贴 → **Run**。改迁移后请重生成该文件：`bash scripts/sql-bundle.sh > infra/migrations/ALL_FOR_SQL_EDITOR.sql`。或仍可按文件逐个执行：
 
 - `infra/migrations/001_insight_tasks.sql`
 - `infra/migrations/002_reviews.sql`（TB-2 评论落库）
@@ -24,7 +24,7 @@
 
 ## 安装与启动
 
-本地若要 **同时** 起 Analysis API、本服务与前端，可在仓库根目录执行：`bash scripts/dev-all.sh`（见 `apps/analysis-api/README.md`）。
+本地若要 **同时** 起 Analysis API、本服务与前端，可在仓库根目录执行：`bash scripts/dev.sh`（见 `apps/analysis-api/README.md`）。
 
 ```bash
 cd apps/platform-api

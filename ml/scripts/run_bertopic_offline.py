@@ -287,7 +287,9 @@ def run_bertopic_discovery(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="TA-9 BERTopic offline discovery.")
+    parser = argparse.ArgumentParser(
+        description="TA-9 BERTopic discovery（日常请用 apps/bertopic-api POST /discover-from-supabase；本 CLI 供维护/单测）。"
+    )
     parser.add_argument("--corpus-csv", type=Path, required=True, help="含 text_en 或 analysis_input_en + platform + product_id 的 CSV")
     parser.add_argument(
         "--batch-strategy",

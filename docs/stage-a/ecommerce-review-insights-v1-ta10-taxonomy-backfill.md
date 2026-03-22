@@ -88,7 +88,7 @@ python ml/scripts/rollback_taxonomy_overlay.py \
 
 ## 6. 与 TA-9 的衔接
 
-1. 运行 `run_bertopic_offline.py` 得到 `bertopic_candidates_{batch_id}.jsonl`。
+1. 通过 **`apps/bertopic-api`** 的 **`POST /discover-from-supabase`** 得到响应中的 `candidates`（可 `jq -c '.candidates[]'` 写成 JSONL），或维护场景下由 `run_bertopic_offline.py` 直接生成 `bertopic_candidates_{batch_id}.jsonl`。
 2. 人工补全 `dimension_6way`、必要时改写 `canonical` / `aliases`，并写上 `decision` / `reviewer`，保存为决策 JSONL（可与候选分列存放，也可在同仓库 `ml/reviews/` 自建目录管理）。
 3. 执行 `publish_taxonomy_backfill.py`。
 4. 分析服务需 `POST /admin/reload-taxonomy` 或重启进程以清空词典缓存（若未使用 `TAXONOMY_YAML` 覆盖）。

@@ -11,7 +11,7 @@
 在仓库根目录（需已建好 `apps/analysis-api/.venv` 与 `apps/platform-api/.venv` 并 `npm install` 过 `apps/web`）：
 
 ```bash
-bash scripts/dev-all.sh
+bash scripts/dev.sh
 ```
 
 按 `Ctrl+C` 会结束三个服务。单独启动仍见下文。
