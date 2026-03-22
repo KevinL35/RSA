@@ -3,12 +3,15 @@
 将 ml/fixtures/taxonomy/ 下种子与各垂直 overlay YAML 导入 public.taxonomy_entries。
 需已执行 infra/migrations/011_taxonomy_entries.sql。
 
-用法（仓库根目录，需已安装 supabase + pyyaml，且环境变量与 API 一致）：
+用法（仓库根目录；依赖见 scripts/requirements-seed.txt）：
+  pip install -r scripts/requirements-seed.txt
   export SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
   python scripts/seed_taxonomy_yaml_to_supabase.py
 
 可选：从 apps/platform-api/.env 加载
   set -a && source apps/platform-api/.env && set +a && python scripts/seed_taxonomy_yaml_to_supabase.py
+
+也可使用已安装依赖的 venv：例如先激活 apps/platform-api/.venv 再运行本脚本。
 """
 
 from __future__ import annotations
@@ -18,8 +21,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-from supabase import Client, create_client
+try:
+    import yaml
+    from supabase import Client, create_client
+except ModuleNotFoundError as e:
+    print(
+        f"缺少依赖（{e.name}）。在仓库根目录执行：pip install -r scripts/requirements-seed.txt",
+        file=sys.stderr,
+    )
+    print("或使用已安装 supabase / pyyaml 的虚拟环境（如 apps/platform-api/.venv）。", file=sys.stderr)
+    raise SystemExit(1) from None
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "ml" / "fixtures" / "taxonomy"

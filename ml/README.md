@@ -11,7 +11,7 @@
 
 **不要**与 `bash scripts/dev.sh` 一起常驻启动 **bertopic-api**：依赖重、耗时长。
 
-1. **挖掘**：仓库根目录 `bash scripts/run-bertopic-api.sh`，请求 **`POST /discover-from-supabase`**（见 `apps/bertopic-api/README.md`）。服务内从 Supabase 导出语料并调用 `run_bertopic_discovery`。
+1. **挖掘**：仓库根目录 `bash scripts/bertopic.sh`，请求 **`POST /discover-from-supabase`**（见 `apps/bertopic-api/README.md`）。服务内从 Supabase 导出语料并调用 `run_bertopic_discovery`。
 2. **入队**：响应体含 `candidates`。需写入 `dictionary_review_queue` 时，先写成 JSONL，例如 `jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl`，再执行 `bash scripts/run-bertopic-local.sh import-queue <该文件>`（等价于 `python3 ml/scripts/import_bertopic_candidates_to_review_queue.py --jsonl …`）。联调导入可用 `ml/fixtures/bertopic_candidates_sample.jsonl`。
 3. **词典审核**：Web 端编辑后 → `POST /api/v1/dictionary/approve-entry` 写入 `taxonomy_entries` overlay。
 

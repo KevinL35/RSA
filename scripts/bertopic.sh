@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 一键启动 BERTopic HTTP 服务（apps/bertopic-api，默认 8090）
-# 用法：在仓库根目录执行  bash scripts/run-bertopic-api.sh
-# 可选：BERTOPIC_PORT=8090 bash scripts/run-bertopic-api.sh
+# 用法：在仓库根目录执行  bash scripts/bertopic.sh
+# 可选：BERTOPIC_PORT=8090 bash scripts/bertopic.sh
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

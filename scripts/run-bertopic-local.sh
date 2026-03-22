@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 将 BERTopic 候选 JSONL 写入 Supabase dictionary_review_queue（仅需系统 python3）。
-# 日常主题挖掘请用 apps/bertopic-api：bash scripts/run-bertopic-api.sh → POST /discover-from-supabase。
+# 日常主题挖掘请用 apps/bertopic-api：bash scripts/bertopic.sh → POST /discover-from-supabase。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,7 +26,7 @@ case "$MODE" in
     cat <<'EOF'
 BERTopic：日常用 HTTP 从 Supabase 挖掘（见 apps/bertopic-api/README.md），本脚本只负责把候选 JSONL 导入词典审核队列。
 
-  bash scripts/run-bertopic-api.sh
+  bash scripts/bertopic.sh
   # 然后 POST /discover-from-supabase；响应体含 candidates。可写成 JSONL 再导入，例如：
   #   jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl
 

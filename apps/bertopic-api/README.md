@@ -20,10 +20,10 @@ pip install -r requirements.txt
 **推荐（仓库根目录）**：自动 `source apps/platform-api/.env`（若存在），再启动服务。
 
 ```bash
-bash scripts/run-bertopic-api.sh
+bash scripts/bertopic.sh
 ```
 
-可选端口：`BERTOPIC_PORT=8091 bash scripts/run-bertopic-api.sh`
+可选端口：`BERTOPIC_PORT=8091 bash scripts/bertopic.sh`
 
 **手动**：
 
