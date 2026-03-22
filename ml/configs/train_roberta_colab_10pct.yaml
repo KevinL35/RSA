@@ -1,7 +1,7 @@
 # 一成子集：先运行 scripts/subset_splits.py 生成 ml/data/splits_10pct/ 再训。
 # 产物与全量分开，避免覆盖 checkpoint。
 version: "1.0.0"
-experiment_name: "roberta-sentiment-v0-colab-10pct"
+experiment_name: "rsa-v1"
 
 model:
   pretrained_name: "roberta-base"
@@ -22,7 +22,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/roberta-sentiment-v0-colab-10pct"
+  output_dir: "ml/artifacts/rsa-v1"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8

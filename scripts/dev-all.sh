@@ -7,6 +7,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# apps/api 通过 pydantic 读 apps/api/.env；rsa-model-api 不会自动读该文件。
+# 启动前注入同一 .env，避免分析阶段因缺 SUPABASE_* 读不到 taxonomy_entries 而 HTTP 500。
+if [[ -f "${ROOT}/apps/api/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT}/apps/api/.env"
+  set +a
+fi
+
 ANALYSIS_PID=""
 API_PID=""
 

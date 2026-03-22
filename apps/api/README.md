@@ -1,6 +1,6 @@
 # RSA API（FastAPI）
 
-业务编排层，**真实读写 Supabase（Postgres）**，不再返回占位 mock。
+业务编排层，**真实读写 Supabase（Postgres）**。
 
 **环境变量清单（最小必填项）**：见 `docs/runbooks/env-to-run.md`。
 

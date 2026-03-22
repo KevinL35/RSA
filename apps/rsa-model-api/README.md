@@ -1,6 +1,6 @@
 # RSA Model API（自研模型推理服务 / TA-11）
 
-目录名 **`apps/rsa-model-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：若配置了 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**（与 API 相同），则从 **`public.taxonomy_entries`** 读取已发布 seed/overlay，**缺省段回退** `ml/configs` 下 YAML，与 API `taxonomy-preview` 一致；未配置 Supabase 时则 **仅合并本地** `taxonomy_dictionary_seed_v1.yaml` 与对应 overlay。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用）。
+目录名 **`apps/rsa-model-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：词典 **仅** 从 **`public.taxonomy_entries`**（Supabase）读取 seed + 各垂直 overlay，与 API `taxonomy-preview` 一致；须配置 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**，且库内 seed **非空**（可用 `scripts/seed_taxonomy_yaml_to_supabase.py` 从 **`ml/fixtures/taxonomy/`** 导入）。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用，不走库）。
 
 ## 请求与响应
 
@@ -35,8 +35,10 @@ pip install -r requirements.txt
 cd apps/rsa-model-api
 source .venv/bin/activate
 # 可选：强制单文件词典；不设则按 dictionary_vertical_id 合并 seed+overlay（TA-10）
-# export TAXONOMY_YAML="../../ml/configs/taxonomy_dictionary_seed_v1.yaml"
-# export SENTIMENT_MODEL_DIR="../../ml/artifacts/roberta-sentiment-v0-colab-10pct/checkpoint-59601"
+# export TAXONOMY_YAML="../../ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml"
+# 自研情感权重（仅本地，勿上传 Supabase）：目录须含 HuggingFace 结构（config.json、模型权重等）。
+# 可将训练产物放在 ml/artifacts/rsa-v1/checkpoint-XXXXX，或把某 checkpoint 内容直接放在 rsa-v1 下。
+# export SENTIMENT_MODEL_DIR="../../ml/artifacts/rsa-v1/checkpoint-59601"
 uvicorn app.main:app --host 127.0.0.1 --port 8089
 ```
 

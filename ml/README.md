@@ -66,13 +66,13 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 | **`scripts/import_bertopic_candidates_to_review_queue.py`** | 将 `bertopic_candidates_*.jsonl` 写入 `dictionary_review_queue`，供词典审核页处理。 |
 | **`fixtures/bertopic_corpus_sample.csv`** | 极小样例（用于 `--dry-run` 验证流程；正式跑批需 ≥200 条/切片）。 |
 | **`tests/test_bertopic_offline_lib.py`** | TA-9：切片与窗口等纯逻辑测试（`pytest ml/tests/`，需已安装 `pandas`/`pyyaml`）。 |
-| **`configs/taxonomy_dictionary_general_overlay_v1.yaml`** | TA-10：通用垂直回灌层（初始空 `entries`，发布脚本写入）。 |
-| **`scripts/taxonomy_backfill_lib.py`** | TA-10：决策校验、overlay 读写、版本补丁、快照与审计行。 |
-| **`scripts/publish_taxonomy_backfill.py`** | TA-10：将审核 JSONL 合并进 overlay，写快照 + `taxonomy_backfill_audit.jsonl`。 |
-| **`scripts/rollback_taxonomy_overlay.py`** | TA-10：用快照覆盖 overlay 并记审计。 |
+| **`fixtures/taxonomy/*.yaml`** | TA-6/TA-10：种子与各垂直 overlay 样例；**仅用于** `scripts/seed_taxonomy_yaml_to_supabase.py` 灌库；运行时以库为准。 |
+| **`scripts/taxonomy_supabase_toolkit.py`** | TA-10：脚本侧 Supabase overlay 全量替换 / 导出快照。 |
+| **`scripts/taxonomy_backfill_lib.py`** | TA-10：决策校验、YAML 快照读写、审计行。 |
+| **`scripts/publish_taxonomy_backfill.py`** | TA-10：将审核 JSONL 合并进 **Supabase overlay**，写 YAML 快照 + `taxonomy_backfill_audit.jsonl`。 |
+| **`scripts/rollback_taxonomy_overlay.py`** | TA-10：用快照 YAML **覆盖 Supabase overlay** 并记审计。 |
 | **`fixtures/taxonomy_decisions_sample.jsonl`** | TA-10：决策文件样例（approve + reject）。 |
 | **`tests/test_taxonomy_backfill_lib.py`** | TA-10：`pytest ml/tests/test_taxonomy_backfill_lib.py`（需 `pyyaml`）。 |
-| **`configs/taxonomy_dictionary_seed_v1.yaml`** | TA-6：六维词典种子（`dimension_6way`、别名、`weight`/`priority`）。 |
 | **`fixtures/attribution_eval_sample.csv`** | TA-7：抽检样例（可选列 `expected_dimensions`）。 |
 | **`scripts/attribution_engine.py`** | TA-7：对 `analysis_input_en` 做词典匹配，产出与 `packages/contracts` 对齐的 `dimensions`（含 `evidence_quote` / `highlight_spans`）。 |
 | **`scripts/evaluate_attribution.py`** | TA-7：批量跑抽检 CSV → `ml/reports/attribution_eval_v1.json`（可追溯率、双次运行确定性摘要）。 |
@@ -80,6 +80,8 @@ bash scripts/run-bertopic-local.sh full     # 用 fixtures 小样本跑通全流
 规则说明见 **`docs/stage-a/ecommerce-review-insights-v1-ta6-dictionary-and-matching-rules.md`**。
 
 在线 **`apps/api` → `analyze`** 调用该归因引擎时，请运行 **`apps/rsa-model-api`**（见该目录 `README.md`），无需把 `ml/scripts` 嵌进 FastAPI 进程。
+
+**自研情感模型（RoBERTa）推理路径**：推荐 **`ml/artifacts/rsa-v1/`**（一成训练见 `configs/train_roberta_colab_10pct.yaml` 的 `output_dir`）；`apps/rsa-model-api` 通过环境变量 **`SENTIMENT_MODEL_DIR`** 指向具体 checkpoint 目录。权重仅存部署机，**不**放 Supabase。
 
 ## 本地流水线（概要）
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,17 +27,6 @@ VALID_DECISIONS = frozenset({"approve", "reject", "hold"})
 def repo_root_from_here(here: Path) -> Path:
     """ml/scripts/xxx.py -> 仓库根。"""
     return here.resolve().parents[2]
-
-
-def configs_dir(root: Path) -> Path:
-    return root / "ml" / "configs"
-
-
-def overlay_yaml_path(root: Path, vertical_id: str) -> Path:
-    vid = vertical_id.strip()
-    if vid == "general":
-        return configs_dir(root) / "taxonomy_dictionary_general_overlay_v1.yaml"
-    return configs_dir(root) / f"taxonomy_dictionary_{vid}_overlay_v1.yaml"
 
 
 def _entry_key(e: dict[str, Any]) -> tuple[str, str]:
@@ -172,28 +160,17 @@ def default_snapshots_dir(root: Path) -> Path:
     return root / "ml" / "artifacts" / "taxonomy_snapshots"
 
 
-def snapshot_file(
-    overlay_path: Path,
+def write_snapshot_document(
+    doc: dict[str, Any],
     snapshots_dir: Path,
     *,
     vertical_id: str,
 ) -> Path:
+    """将词典文档写入 ml/artifacts/taxonomy_snapshots（发布前备份）。"""
     snapshots_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     dest = snapshots_dir / f"{vertical_id}_overlay_{ts}.yaml"
-    if overlay_path.is_file():
-        shutil.copy2(overlay_path, dest)
-    else:
-        # 尚无 overlay 时快照空文档，便于回滚到「无文件」语义
-        write_overlay_document(
-            dest,
-            {
-                "version": "1.0.0",
-                "taxonomy_id": f"snapshot-empty-{vertical_id}",
-                "description": "empty snapshot (overlay was missing)",
-                "entries": [],
-            },
-        )
+    write_overlay_document(dest, doc)
     return dest
 
 

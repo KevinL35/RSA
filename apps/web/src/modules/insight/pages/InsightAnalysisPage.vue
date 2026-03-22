@@ -729,75 +729,102 @@ function pickFromExtra(extraList: ReviewExtra[], keys: string[]): string | null 
   return null
 }
 
+/** 同时拉取多任务 reviews（各 up to 20000 条）易打满 Supabase / 触发 502，分批并发。 */
+const HYDRATE_REVIEWS_CONCURRENCY = 3
+const HYDRATE_REVIEWS_RETRIES = 3
+
+function delay(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms))
+}
+
+async function fetchInsightTaskReviewsWithRetry(taskId: string, limit: number) {
+  let last: unknown
+  for (let attempt = 0; attempt < HYDRATE_REVIEWS_RETRIES; attempt++) {
+    try {
+      return await fetchInsightTaskReviews(taskId, limit)
+    } catch (e) {
+      last = e
+      if (attempt < HYDRATE_REVIEWS_RETRIES - 1) {
+        await delay(350 * (attempt + 1))
+      }
+    }
+  }
+  throw last
+}
+
 async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
   const byId = new Map<string, InsightProductRow>()
   for (const r of rows.value) {
     if (r.taskId) byId.set(r.taskId, r)
   }
-  await Promise.all(
-    taskRows.map(async (task) => {
-      try {
-        const res = await fetchInsightTaskReviews(task.id, 20000)
-        const row = byId.get(task.id)
-        if (!row) return
-        const items = res.items ?? []
-        const extras = items
-          .map((x) => ((x as unknown as { extra?: ReviewExtra | null }).extra ?? null))
-          .filter((x): x is ReviewExtra => !!x && typeof x === 'object')
 
-        const title = pickFirstString([
-          pickFromExtra(extras, ['productTitle', 'product_title', 'title', 'name']) ?? '',
-          row.title,
-        ])
-        const rawExtraImg = pickFromExtra(extras, [
-          'productImage',
-          'product_image',
-          'image',
-          'imageUrl',
-          'image_url',
-        ])
-        const extraImage =
-          rawExtraImg && isLikelyHttpImageUrl(rawExtraImg) ? rawExtraImg.trim() : null
-        const image = pickFirstString([extraImage ?? '', row.imageUrl])
-        const country = parseCountryLabel(
-          pickFromExtra(extras, ['country', 'marketplace', 'site', 'region']) ??
-            (task.platform === 'amazon' ? 'United States' : ''),
-        )
-        const rawPrice = pickFromExtra(extras, [
-          'price',
-          'productPrice',
-          'product_price',
-          'finalPrice',
-          'price_display',
-        ])
+  async function hydrateOne(task: InsightTaskRow) {
+    try {
+      const res = await fetchInsightTaskReviewsWithRetry(task.id, 20000)
+      const row = byId.get(task.id)
+      if (!row) return
+      const items = res.items ?? []
+      const extras = items
+        .map((x) => ((x as unknown as { extra?: ReviewExtra | null }).extra ?? null))
+        .filter((x): x is ReviewExtra => !!x && typeof x === 'object')
 
-        row.title = title ?? row.title
-        row.imageUrl = image ?? row.imageUrl
-        if (extraImage) {
-          row.imageThumbPhase = 'extra'
-        }
-        row.countryLabel = country
-        // 评论 extra 里通常没有商品价：勿用「空」覆盖 product_snapshot 已展示的售价
-        if (rawPrice && rawPrice.trim()) {
-          row.priceLabel = parsePriceLabel(rawPrice)
-        }
-        row.rating = avgRating(items)
-        row.reviewCount = items.length
-        const fs = (task.failure_stage || '').trim().toLowerCase()
-        if (items.length > 0) {
-          row.reviewStatus = 'completed'
-        } else if (task.status === 'failed' && fs === 'fetch') {
-          row.reviewStatus = 'failed'
-        } else {
-          row.reviewStatus = 'fetching'
-        }
-        row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
-        row.statusLabel = flowInsightStatusLabel(task.status)
-      } catch {
-        // Ignore per-row hydration errors to keep list render resilient.
+      const title = pickFirstString([
+        pickFromExtra(extras, ['productTitle', 'product_title', 'title', 'name']) ?? '',
+        row.title,
+      ])
+      const rawExtraImg = pickFromExtra(extras, [
+        'productImage',
+        'product_image',
+        'image',
+        'imageUrl',
+        'image_url',
+      ])
+      const extraImage =
+        rawExtraImg && isLikelyHttpImageUrl(rawExtraImg) ? rawExtraImg.trim() : null
+      const image = pickFirstString([extraImage ?? '', row.imageUrl])
+      const country = parseCountryLabel(
+        pickFromExtra(extras, ['country', 'marketplace', 'site', 'region']) ??
+          (task.platform === 'amazon' ? 'United States' : ''),
+      )
+      const rawPrice = pickFromExtra(extras, [
+        'price',
+        'productPrice',
+        'product_price',
+        'finalPrice',
+        'price_display',
+      ])
+
+      row.title = title ?? row.title
+      row.imageUrl = image ?? row.imageUrl
+      if (extraImage) {
+        row.imageThumbPhase = 'extra'
       }
-    }),
-  )
+      row.countryLabel = country
+      // 评论 extra 里通常没有商品价：勿用「空」覆盖 product_snapshot 已展示的售价
+      if (rawPrice && rawPrice.trim()) {
+        row.priceLabel = parsePriceLabel(rawPrice)
+      }
+      row.rating = avgRating(items)
+      row.reviewCount = items.length
+      const fs = (task.failure_stage || '').trim().toLowerCase()
+      if (items.length > 0) {
+        row.reviewStatus = 'completed'
+      } else if (task.status === 'failed' && fs === 'fetch') {
+        row.reviewStatus = 'failed'
+      } else {
+        row.reviewStatus = 'fetching'
+      }
+      row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
+      row.statusLabel = flowInsightStatusLabel(task.status)
+    } catch {
+      // Ignore per-row hydration errors to keep list render resilient.
+    }
+  }
+
+  for (let i = 0; i < taskRows.length; i += HYDRATE_REVIEWS_CONCURRENCY) {
+    const chunk = taskRows.slice(i, i + HYDRATE_REVIEWS_CONCURRENCY)
+    await Promise.all(chunk.map((task) => hydrateOne(task)))
+  }
 }
 
 async function loadTasks() {

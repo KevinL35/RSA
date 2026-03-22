@@ -43,7 +43,7 @@
 | `dimension_6way` | 默认 `null`，**须由审核人**按 TA-1 六维择一后再走词典回灌 |
 | `reviewer_notes` | 默认 `null`，供审核备注 |
 
-与 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 中 `bertopic_candidate_import` 对齐：`suggested_canonical`、`dimension_6way`（审核后）、`source_topic_id`、`batch_id` 为导入必填；其余为可选增强字段。
+与 `ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml` 中 `bertopic_candidate_import` 对齐：`suggested_canonical`、`dimension_6way`（审核后）、`source_topic_id`、`batch_id` 为导入必填；其余为可选增强字段。
 
 ## 4. 主题质量评分（v1）
 

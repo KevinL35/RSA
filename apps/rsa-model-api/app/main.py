@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import Field
 from pydantic import BaseModel
 
@@ -41,10 +41,18 @@ def health() -> dict:
 def analyze(req: AnalyzeRequest) -> dict:
     tax = os.environ.get("TAXONOMY_YAML")
     tax_path = Path(tax) if tax else None
-    items = analyze_reviews_body(
-        req.model_dump(),
-        taxonomy_path=tax_path,
-    )
+    try:
+        items = analyze_reviews_body(
+            req.model_dump(),
+            taxonomy_path=tax_path,
+        )
+    except RuntimeError as e:
+        # 多为缺 SUPABASE_*、seed 为空等；用 400 避免 API 将配置错误当成可重试的 5xx
+        log.warning("analyze failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        log.exception("analyze failed")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     return {
         "reviews": items,
         "_analysis_provider": "rsa-model-api-v1",

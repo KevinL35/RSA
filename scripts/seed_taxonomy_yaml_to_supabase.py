@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-将 ml/configs 下 taxonomy_dictionary_seed_v1.yaml 与各垂直 overlay 导入 public.taxonomy_entries。
+将 ml/fixtures/taxonomy/ 下种子与各垂直 overlay YAML 导入 public.taxonomy_entries。
 需已执行 infra/migrations/011_taxonomy_entries.sql。
 
 用法（仓库根目录，需已安装 supabase + pyyaml，且环境变量与 API 一致）：
@@ -22,8 +22,8 @@ import yaml
 from supabase import Client, create_client
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIGS = ROOT / "ml" / "configs"
-SEED = CONFIGS / "taxonomy_dictionary_seed_v1.yaml"
+FIXTURES = ROOT / "ml" / "fixtures" / "taxonomy"
+SEED = FIXTURES / "taxonomy_dictionary_seed_v1.yaml"
 
 
 def _load_entries(path: Path) -> list[dict]:
@@ -148,8 +148,8 @@ def main() -> int:
         _upsert(sb, _row_seed(e))
 
     overlays = [
-        ("general", CONFIGS / "taxonomy_dictionary_general_overlay_v1.yaml"),
-        ("electronics", CONFIGS / "taxonomy_dictionary_electronics_overlay_v1.yaml"),
+        ("general", FIXTURES / "taxonomy_dictionary_general_overlay_v1.yaml"),
+        ("electronics", FIXTURES / "taxonomy_dictionary_electronics_overlay_v1.yaml"),
     ]
     for vid, path in overlays:
         ents = _load_entries(path)

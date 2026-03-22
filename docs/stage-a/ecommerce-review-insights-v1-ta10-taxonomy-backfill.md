@@ -13,20 +13,22 @@
 
 实现「**候选 → 人工复核 → 发布 / 回滚**」闭环，并留下**可追踪版本与审计记录**：
 
-- **发布**：将 `approve` 决策合并进对应垂直的 **overlay YAML**（不直接改 seed），并递增 overlay 的 `version` 补丁位。
-- **回滚**：用发布前生成的**快照文件**覆盖当前 overlay。
+- **发布**：将 `approve` 决策合并进对应垂直的 **Supabase `taxonomy_entries`（overlay 层）**（不直接改 seed）；发布前将当前 overlay **导出为 YAML 快照**（`ml/artifacts/taxonomy_snapshots/`）便于回滚。
+- **回滚**：用快照 YAML 中的 `entries` **全量替换**库内该 vertical 的 overlay 行。
 - **日志**：追加 JSONL 审计（默认 `ml/reports/taxonomy_backfill_audit.jsonl`，目录常被 `.gitignore`；可通过 `--audit-log` 改到受控路径）。
 
-## 2. 垂直与文件
+## 2. 垂直与存储
 
-| vertical_id | overlay 文件（`ml/configs/`） |
-|-------------|-------------------------------|
-| `general` | `taxonomy_dictionary_general_overlay_v1.yaml`（TA-10 新增，初始 `entries: []`） |
-| `electronics` | `taxonomy_dictionary_electronics_overlay_v1.yaml`（既有） |
+| vertical_id | 运行时 overlay 存储 |
+|-------------|---------------------|
+| `general` | Supabase `taxonomy_entries`（`source_layer=overlay`, `dictionary_vertical_id=general`） |
+| `electronics` | 同上，`dictionary_vertical_id=electronics` |
+
+种子词条仅在 **`source_layer=seed`**（且 `dictionary_vertical_id=general`）。初始灌库可使用仓库内 **`ml/fixtures/taxonomy/`** YAML + `scripts/seed_taxonomy_yaml_to_supabase.py`。
 
 合并规则与 TA-6 一致：**seed + overlay**，同一 `(dimension_6way, canonical)` 以 overlay 为准。
 
-API `GET /api/v1/dictionary/taxonomy-preview` 已通过 `taxonomy_yaml.load_merged_entries_for_vertical` 反映 **general 的 overlay**；分析服务 `POST /analyze` 按请求体 `dictionary_vertical_id` 加载相同合并结果（未设置 `TAXONOMY_YAML` 时）。
+API `GET /api/v1/dictionary/taxonomy-preview` 与 rsa-model-api `POST /analyze`（未设置 `TAXONOMY_YAML` 时）均 **仅从 Supabase 读取** 上述合并结果。
 
 ## 3. 决策 JSONL 格式（每行一个 JSON）
 
@@ -93,5 +95,5 @@ python ml/scripts/rollback_taxonomy_overlay.py \
 
 ## 7. 版本与变更
 
-- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/rsa-model-api/app/taxonomy_config.py` 与本文档。
+- 变更合并规则或垂直列表时：同步 `taxonomy_backfill_lib.ALLOWED_VERTICALS`、`apps/rsa-model-api/app/taxonomy_config.py`（仅读 Supabase） 与本文档。
 - overlay 的 `taxonomy_id` 语义不变时，仅升 `version` 补丁位即可；破坏性重命名需另发迁移说明。

@@ -3,7 +3,7 @@
 ## 文档信息
 
 - 任务：TA-6
-- 状态：`frozen`（与 `ml/configs/taxonomy_dictionary_seed_v1.yaml` 同步）
+- 状态：`frozen`（与 `ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml` 样例同步；线上以 Supabase `taxonomy_entries` 为准）
 - 六维 key：与 TA-1 一致（`pros` / `cons` / `return_reasons` / `purchase_motivation` / `user_expectation` / `usage_scenario`）
 
 ## 1. 词典条目字段
@@ -57,5 +57,5 @@
 
 ## 6. 版本与变更
 
-- 变更词典或裁决规则时：**升 `taxonomy_dictionary_seed_v1.yaml` 的 `version` 或 `taxonomy_id`**，并在 TA-12 类发布说明中记录。
-- 本文件与 `taxonomy_dictionary_seed_v1.yaml` 不一致时，以 **YAML 词条 + 本文件 §3 规则** 为执行口径；文档负责解释「为什么」。
+- 变更词典或裁决规则时：在库内更新 seed/overlay 并记录 **版本 / taxonomy_id**（灌库样例见 `ml/fixtures/taxonomy/taxonomy_dictionary_seed_v1.yaml`），并在 TA-12 类发布说明中记录。
+- 本文件与仓库内种子 YAML 或库内数据不一致时，以 **已发布数据 + 本文件 §3 规则** 为执行口径；文档负责解释「为什么」。

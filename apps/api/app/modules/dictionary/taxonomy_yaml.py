@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-import yaml
-
-from .verticals import VERTICAL_IDS
 
 if TYPE_CHECKING:
     from supabase import Client
@@ -18,31 +13,6 @@ SIX_WAY_DIMENSION_ORDER: tuple[str, ...] = (
     "user_expectation",
     "usage_scenario",
 )
-
-
-def _repo_root() -> Path:
-    # apps/api/app/modules/dictionary/taxonomy_yaml.py -> parents[5] = repo root
-    return Path(__file__).resolve().parents[5]
-
-
-def _configs_dir() -> Path:
-    return _repo_root() / "ml" / "configs"
-
-
-def _load_yaml_entries(path: Path) -> list[dict[str, Any]]:
-    if not path.is_file():
-        return []
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not raw or not isinstance(raw, dict):
-        return []
-    entries = raw.get("entries")
-    if not isinstance(entries, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for e in entries:
-        if isinstance(e, dict) and e.get("dimension_6way") and e.get("canonical"):
-            out.append(e)
-    return out
 
 
 def _entry_key(e: dict[str, Any]) -> tuple[str, str]:
@@ -65,34 +35,28 @@ def load_merged_entries_for_vertical(
     vertical_id: str,
     sb: "Client | None" = None,
 ) -> list[dict[str, Any]]:
-    """general：种子 + general overlay；其他垂直：种子 + 垂直 overlay。若提供 Supabase，则 DB 非空部分优先，缺省段回退 YAML。"""
+    """仅从 Supabase `taxonomy_entries` 合并 seed + 指定 vertical 的 overlay；seed 必须非空。"""
+    from . import taxonomy_db as _taxonomy_db
+    from .verticals import VERTICAL_IDS
+
     vid = vertical_id.strip()
     if vid not in VERTICAL_IDS:
         raise ValueError(f"未知 vertical：{vertical_id!r}")
-
-    seed_path = _configs_dir() / "taxonomy_dictionary_seed_v1.yaml"
-    yaml_seed = _load_yaml_entries(seed_path)
-
-    if vid == "general":
-        overlay_path = _configs_dir() / "taxonomy_dictionary_general_overlay_v1.yaml"
-    else:
-        overlay_path = _configs_dir() / f"taxonomy_dictionary_{vid}_overlay_v1.yaml"
-    yaml_overlay = _load_yaml_entries(overlay_path)
-
     if sb is None:
-        return merge_entries(yaml_seed, yaml_overlay)
-
-    from . import taxonomy_db as _taxonomy_db
-
+        raise ValueError(
+            "合并词典已改为仅读取 Supabase：请传入 Supabase Client（需配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY）。"
+        )
     try:
         db_seed = _taxonomy_db.fetch_seed_rows(sb)
         db_overlay = _taxonomy_db.fetch_overlay_rows(sb, vid)
-    except Exception:
-        db_seed, db_overlay = [], []
-
-    seed = db_seed if db_seed else yaml_seed
-    overlay = db_overlay if db_overlay else yaml_overlay
-    return merge_entries(seed, overlay)
+    except Exception as e:
+        raise ValueError(f"读取 taxonomy_entries 失败：{e!s}") from e
+    if not db_seed:
+        raise ValueError(
+            "taxonomy_entries 中 seed 为空。请先在库中导入种子数据，例如："
+            "python scripts/seed_taxonomy_yaml_to_supabase.py（源文件位于 ml/fixtures/taxonomy/）。"
+        )
+    return merge_entries(db_seed, db_overlay)
 
 
 def group_by_dimension(entries: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
