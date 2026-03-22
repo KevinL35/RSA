@@ -99,7 +99,8 @@ def fetch_reviews_via_pangolin(
     base = (settings.pangolin_base_url or "https://scrapeapi.pangolinfo.com").rstrip("/")
     scrape_url = f"{base}/api/v1/scrape"
     amazon_url = (settings.pangolin_amazon_url or "https://www.amazon.com").strip()
-    page_count = max(1, min(int(settings.pangolin_page_count), 50))
+    cap = max(1, int(settings.pangolin_page_count_max))
+    page_count = max(1, min(int(settings.pangolin_page_count), cap))
 
     body: dict[str, Any] = {
         "url": amazon_url,

@@ -16,7 +16,7 @@
 
 **可选（有功能再配）**：
 
-- `REVIEW_PROVIDER_*`、`ANALYSIS_PROVIDER_*`：抓评 / 分析外接 API；无真实源时可 `REVIEW_PROVIDER_MOCK=true`。接 Pangolinfo：**`REVIEW_PROVIDER_MODE=pangolin`** + `PANGOLIN_TOKEN` 等（`docs/runbooks/pangolin-amazon-reviews.md`）。或 **`REVIEW_PROVIDER_MODE=http`** + 任意实现 TB-2 `POST /fetch` 契约的 HTTP 服务。
+- `REVIEW_PROVIDER_*`、`ANALYSIS_PROVIDER_*`：抓评 / 分析外接 API；无真实源时可 `REVIEW_PROVIDER_MOCK=true`。接 Pangolinfo：**`REVIEW_PROVIDER_MODE=pangolin`** + `PANGOLIN_TOKEN` 等（`docs/runbooks/pangolin-amazon-reviews.md`）。**Pangolin 抓取页数**在 `.env` 调 **`PANGOLIN_PAGE_COUNT`**（及可选 **`PANGOLIN_PAGE_COUNT_MAX`**），见 `apps/platform-api/env.example`。或 **`REVIEW_PROVIDER_MODE=http`** + 任意实现 TB-2 `POST /fetch` 契约的 HTTP 服务。
 - `TRANSLATION_API_*`：中文界面下的译文；不配则只显示英文分析文案。
 
 启动：

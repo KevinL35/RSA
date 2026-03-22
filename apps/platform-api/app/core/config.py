@@ -1,11 +1,15 @@
-from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 勿依赖进程 cwd：从仓库根 / 其它目录启动 uvicorn 时仍能读到 apps/platform-api/.env
+_PLATFORM_API_ROOT = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_ENV_FILE = _PLATFORM_API_ROOT / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_DEFAULT_ENV_FILE if _DEFAULT_ENV_FILE.is_file() else None,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -29,8 +33,10 @@ class Settings(BaseSettings):
     pangolin_token: str | None = None
     pangolin_base_url: str = "https://scrapeapi.pangolinfo.com"
     pangolin_amazon_url: str = "https://www.amazon.com"
-    # Amazon 评论页约每页 10 条；10 页约 100 条（以 Pangolin 实际返回为准）
+    # 抓取页数：请在 apps/platform-api/.env 设 PANGOLIN_PAGE_COUNT（环境变量优先于下列默认值）
     pangolin_page_count: int = 10
+    # 单请求 pageCount 上限：请在 .env 设 PANGOLIN_PAGE_COUNT_MAX；与 pangolin.py 中 min 一致
+    pangolin_page_count_max: int = 100
     pangolin_filter_by_star: str = "all_stars"
     pangolin_sort_by: str = "recent"
     pangolin_parser_name: str = "amzReviewV2"
@@ -72,6 +78,6 @@ class Settings(BaseSettings):
     translation_api_key: str | None = None
 
 
-@lru_cache
 def get_settings() -> Settings:
+    """每次调用重新加载 .env / 环境变量，避免改 PANGOLIN_PAGE_COUNT 等后必须重启进程。"""
     return Settings()

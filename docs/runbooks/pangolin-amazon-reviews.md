@@ -14,6 +14,8 @@ Body：`{ "email", "password" }`
 
 ## 2. RSA 配置（`apps/platform-api/.env`）
 
+**抓取多少页 / 请求多大 `pageCount`：只改本机 `.env`，不要改代码。** 设置 `PANGOLIN_PAGE_COUNT`（及可选 `PANGOLIN_PAGE_COUNT_MAX`）后，`get_settings()` 每次抓取都会读到；模板见同目录 `apps/platform-api/env.example`。
+
 ```env
 REVIEW_PROVIDER_MOCK=false
 REVIEW_PROVIDER_MODE=pangolin
@@ -23,16 +25,22 @@ PANGOLIN_TOKEN=<上一步的 data 字符串>
 PANGOLIN_AMAZON_URL=https://www.amazon.com
 # 英国站示例：https://www.amazon.co.uk
 
-# 默认约 10 条/页时可设 10 以接近 100 条；积点与耗时随页数增加
+# —— 抓取页数（仅此调整即可）——
 PANGOLIN_PAGE_COUNT=10
+PANGOLIN_PAGE_COUNT_MAX=100
+
 PANGOLIN_FILTER_BY_STAR=all_stars
 PANGOLIN_SORT_BY=recent
 PANGOLIN_PARSER_NAME=amzReviewV2
 PANGOLIN_TIMEOUT_SECONDS=180
 ```
 
-- **`PANGOLIN_PAGE_COUNT`**：列表页数；Amazon 常见约每页 10 条评论，**设为 10 约可拉 100 条**（以实际返回为准）。文档说明与积点消耗相关（如每页 N 积点），请按账户额度谨慎增大。
-- 修改 `.env` 后**重启** API 进程。
+- **`PANGOLIN_PAGE_COUNT`**：传给 Pangolin 的 `bizContext.pageCount`（从第 1 页起连续拉多少页）。代码侧会限制在 **1～`PANGOLIN_PAGE_COUNT_MAX`**（默认 **100**）。
+- **Amazon / 抓取路径约 ~100 条上限（重要）**：商品评论在亚马逊前台本身往往只展示有限条数（常见观察约 **10 页 × ~10 条 ≈ 100 条**）；通过 Pangolin 等 scrape 通常也**无法在一次任务里突破该量级**。把 `PANGOLIN_PAGE_COUNT` 调到 50 仍只有 ~100 条时，属于 **数据源与站点规则**，不是 RSA 配置未生效。若业务需要全量历史评论，需另寻数据源或对方是否提供翻页/多任务方案（以 Pangolin 最新文档为准）。
+- **条数为 99 等**：适配层会丢弃**无正文**的条目（空 `content`/`body`/`text`），故可能比上游 `results` 少 1～几条。
+- **Mock**：`REVIEW_PROVIDER_MOCK=true` 时固定 **100 条** 假数据，与 Pangolin 无关。
+- **`.env` 未加载**：当前已固定从 `apps/platform-api/.env` 绝对路径读取，与启动 cwd 无关；若仍异常再查环境变量是否覆盖。
+- 修改 `.env` 后一般无需重启即可生效（`get_settings()` 每次新建）；改代码后需重启。
 
 ## 3. 任务侧约定
 
