@@ -28,31 +28,32 @@ trap cleanup EXIT INT TERM
 ANALYSIS_PORT="${ANALYSIS_PORT:-8089}"
 API_PORT="${API_PORT:-8000}"
 
-if [[ ! -d apps/analysis-api/.venv ]]; then
-  echo "[dev] 缺少 apps/analysis-api/.venv，请先执行："
+# 若存在各 app 的 .venv 则激活；否则使用当前环境的 python3（如 conda activate rsa）。
+if ! python3 -c "import uvicorn" 2>/dev/null; then
+  echo "[dev] 当前 python3 无法 import uvicorn。"
+  echo "  请先激活已安装本仓库依赖的环境，例如：conda activate rsa"
+  echo "  或按 app 使用独立虚拟环境，例如："
   echo "  cd apps/analysis-api && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
-  exit 1
-fi
-
-if [[ ! -d apps/platform-api/.venv ]]; then
-  echo "[dev] 缺少 apps/platform-api/.venv，请先执行："
-  echo "  cd apps/platform-api && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
   exit 1
 fi
 
 (
   cd apps/analysis-api
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
-  exec uvicorn app.main:app --host 127.0.0.1 --port "${ANALYSIS_PORT}"
+  if [[ -d .venv ]]; then
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+  fi
+  exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "${ANALYSIS_PORT}"
 ) &
 ANALYSIS_PID=$!
 
 (
   cd apps/platform-api
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
-  exec uvicorn app.main:app --reload --host 0.0.0.0 --port "${API_PORT}"
+  if [[ -d .venv ]]; then
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+  fi
+  exec python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port "${API_PORT}"
 ) &
 API_PID=$!
 
