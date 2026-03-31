@@ -4,7 +4,6 @@
 
 - `auth`
 - `insight`
-- `compare`
 - `tasks`
 - `settings`
 - `governance`

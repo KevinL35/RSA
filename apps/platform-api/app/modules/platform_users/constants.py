@@ -4,7 +4,6 @@ from __future__ import annotations
 ALLOWED_MENU_KEYS: frozenset[str] = frozenset(
     {
         "insight",
-        "compare",
         "pain-audit",
         "dictionary",
         "api-config",
@@ -23,7 +22,7 @@ def derive_api_role(menu_keys: list[str]) -> str:
     ks = {k.strip() for k in menu_keys if isinstance(k, str) and k.strip()}
     if ks & ADMIN_MENU_KEYS:
         return "admin"
-    if "insight" in ks or "compare" in ks:
+    if "insight" in ks:
         return "operator"
     return "readonly"
 

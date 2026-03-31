@@ -1,11 +1,20 @@
 <template>
   <div>
-    <section class="config-block config-block--intro">
+    <section class="config-block">
       <h2 class="page-title">{{ t('governance.painAuditTitle') }}</h2>
       <p class="intro-text">{{ t('governance.painAuditIntro') }}</p>
-    </section>
-
-    <section class="config-block">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <el-button type="primary" @click="onAddTopic">{{ t('governance.addTopic') }}</el-button>
+          <el-button type="primary" @click="onUploadReviews">{{ t('governance.uploadReviews') }}</el-button>
+        </div>
+        <el-button
+          class="toolbar-refresh-square"
+          :icon="Refresh"
+          @click="onRefresh"
+          :title="t('governance.refresh')"
+        />
+      </div>
       <el-table :data="rows" stripe class="audit-table" :empty-text="t('governance.painAuditEmpty')">
         <el-table-column :label="t('governance.painAuditColKeyword')" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
@@ -155,6 +164,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import type { DictionaryReviewQueueItem, DictionaryVerticalItem } from '../../dictionary/api'
 import {
   deleteDictionaryReviewQueue,
@@ -207,6 +217,14 @@ function dimensionLabel(d: SixDimension) {
   const key = `governance.dim_${d}` as const
   const translated = t(key)
   return translated === key ? d : translated
+}
+
+function onAddTopic() {
+  ElMessage.info(t('governance.featureComingSoon'))
+}
+
+function onUploadReviews() {
+  ElMessage.info(t('governance.featureComingSoon'))
 }
 
 function parseSynonymsFromTextarea(raw: string): string[] {
@@ -362,6 +380,12 @@ async function loadReviewQueue() {
   }
 }
 
+async function onRefresh() {
+  await loadVerticals()
+  await loadReviewQueue()
+  ElMessage.success(t('governance.refreshed'))
+}
+
 onMounted(async () => {
   await loadVerticals()
   await loadReviewQueue()
@@ -370,16 +394,11 @@ onMounted(async () => {
 
 <style scoped>
 .config-block {
-  margin-bottom: 28px;
   padding: 18px 20px 20px;
   background: #fff;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.config-block--intro {
-  padding: 16px 20px;
 }
 
 .page-title {
@@ -395,6 +414,32 @@ onMounted(async () => {
   font-size: 15px;
   line-height: 1.55;
   color: var(--el-text-color-regular);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left :deep(.el-button) {
+  margin-inline: 0;
+}
+
+.toolbar-refresh-square {
+  width: var(--el-component-size);
+  min-width: var(--el-component-size);
+  height: var(--el-component-size);
+  padding: 0;
 }
 
 .audit-table {

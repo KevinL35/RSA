@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from openai import OpenAI
+from openai import OpenAI  # pyright: ignore[reportMissingImports]
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 app = FastAPI(title="RSA DeepSeek TB-3 Adapter", version="0.1.0")

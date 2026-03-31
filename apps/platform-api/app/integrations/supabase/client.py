@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import httpx
 from supabase import Client, create_client
+from supabase.lib.client_options import SyncClientOptions
 
 from app.core.config import get_settings
 
@@ -20,6 +22,7 @@ def get_supabase() -> Client | None:
         _client = create_client(
             settings.supabase_url,
             settings.supabase_service_role_key,
+            options=SyncClientOptions(httpx_client=httpx.Client(trust_env=False)),
         )
     return _client
 
