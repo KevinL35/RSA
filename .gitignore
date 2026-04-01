@@ -29,6 +29,9 @@ apps/web/tsconfig.tsbuildinfo
 
 # ML artifacts/data (local large files)
 ml/sentiment/data/
+ml/topic_mining/data/
+ml/topic_mining/artifacts/
+ml/topic_mining/reports/
 ml/sentiment/reports/
 models/
 
