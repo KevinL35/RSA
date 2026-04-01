@@ -1,5 +1,5 @@
-# 默认：`train.csv` / `val.csv` / `test.csv` 放在 `ml/data/splits/`。
-# 若 train 拆成多文件，见 `train_roberta_shards.yaml` 与 `scripts/merge_train_shards.py`。
+# 默认：`train.csv` / `val.csv` / `test.csv` 放在 `ml/sentiment/data/splits/`。
+# 若 train 拆成多文件，见 `train_roberta_shards.yaml` 与 `ml/sentiment/scripts/merge_train_shards.py`。
 version: "1.0.0"
 experiment_name: "roberta-sentiment-v0"
 
@@ -9,10 +9,10 @@ model:
   max_length: 256
 
 data:
-  cleaned_csv: "ml/data/processed/reviews_cleaned.csv"
-  train_csv: "ml/data/splits/train.csv"
-  val_csv: "ml/data/splits/val.csv"
-  test_csv: "ml/data/splits/test.csv"
+  cleaned_csv: "ml/sentiment/data/processed/reviews_cleaned.csv"
+  train_csv: "ml/sentiment/data/splits/train.csv"
+  val_csv: "ml/sentiment/data/splits/val.csv"
+  test_csv: "ml/sentiment/data/splits/test.csv"
   text_column: "analysis_input_en"
   label_column: "label_sentiment"
   split:
@@ -22,7 +22,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/roberta-sentiment-v0"
+  output_dir: "models/sentiment/roberta-sentiment-v0"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8
@@ -36,4 +36,4 @@ training:
   seed: 42
 
 evaluation:
-  report_output: "ml/reports/sentiment_eval_v0.json"
+  report_output: "ml/sentiment/reports/sentiment_eval_v0.json"

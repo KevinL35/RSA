@@ -25,6 +25,9 @@ transformers.logging.set_verbosity_error()
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_COMMON_DIR = _SCRIPT_DIR.parents[1] / "common"
+if str(_COMMON_DIR) not in sys.path:
+    sys.path.insert(0, str(_COMMON_DIR))
 from csv_splits import read_split_csv
 
 

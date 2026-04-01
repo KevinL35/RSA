@@ -11,12 +11,12 @@ model:
   max_length: 256
 
 data:
-  cleaned_csv: "ml/data/processed/reviews_cleaned.csv"
-  train_csv: "ml/data/splits/train.csv"
-  train_csv_shard_glob: "ml/data/splits/train.csv.part5-*"
+  cleaned_csv: "ml/sentiment/data/processed/reviews_cleaned.csv"
+  train_csv: "ml/sentiment/data/splits/train.csv"
+  train_csv_shard_glob: "ml/sentiment/data/splits/train.csv.part5-*"
   dedupe_train_on_id: true
-  val_csv: "ml/data/splits/val.csv"
-  test_csv: "ml/data/splits/test.csv"
+  val_csv: "ml/sentiment/data/splits/val.csv"
+  test_csv: "ml/sentiment/data/splits/test.csv"
   text_column: "analysis_input_en"
   label_column: "label_sentiment"
   split:
@@ -26,7 +26,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/roberta-sentiment-v0"
+  output_dir: "models/sentiment/roberta-sentiment-v0"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8
@@ -40,4 +40,4 @@ training:
   seed: 42
 
 evaluation:
-  report_output: "ml/reports/sentiment_eval_v0.json"
+  report_output: "ml/sentiment/reports/sentiment_eval_v0.json"

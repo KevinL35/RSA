@@ -24,12 +24,16 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCRIPTS = REPO_ROOT / "ml" / "scripts"
+_SCRIPTS = REPO_ROOT / "ml" / "topic_mining" / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-import bertopic_review_queue_import_lib as rq  # noqa: E402
-from run_bertopic_offline import run_bertopic_discovery  # noqa: E402
+try:
+    import bertopic_review_queue_import_lib as rq  # type: ignore[import-not-found]  # noqa: E402
+    from run_bertopic_offline import run_bertopic_discovery  # type: ignore[import-not-found]  # noqa: E402
+except Exception:  # noqa: BLE001
+    rq = None  # type: ignore[assignment]
+    run_bertopic_discovery = None  # type: ignore[assignment]
 
 app = FastAPI(title="RSA BERTopic API", version="0.1.0")
 
@@ -40,6 +44,14 @@ def _optional_api_key(x_bertopic_api_key: str | None = Header(None, alias="X-Ber
         return
     if (x_bertopic_api_key or "").strip() != expected:
         raise HTTPException(status_code=401, detail="Invalid or missing X-Bertopic-Api-Key")
+
+
+def _ensure_topic_mining_available() -> None:
+    if rq is None or run_bertopic_discovery is None:
+        raise HTTPException(
+            status_code=503,
+            detail="BERTopic 离线脚本未安装/已下线（ml/topic_mining/scripts）。",
+        )
 
 
 class DiscoverFromSupabaseBody(BaseModel):
@@ -133,18 +145,19 @@ def post_discover_from_supabase(
     """
     从 Supabase 导出 reviews → BERTopic 挖掘。需环境变量 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY。
     """
+    _ensure_topic_mining_available()
     bs = (
-        REPO_ROOT / "ml/configs/bertopic_batch_strategy_local.yaml"
+        REPO_ROOT / "ml/topic_mining/configs/bertopic_batch_strategy_local.yaml"
         if body.use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_batch_strategy_v1.yaml"
+        else REPO_ROOT / "ml/topic_mining/configs/bertopic_batch_strategy_v1.yaml"
     )
     rc = (
-        REPO_ROOT / "ml/configs/bertopic_run_local.yaml"
+        REPO_ROOT / "ml/topic_mining/configs/bertopic_run_local.yaml"
         if body.use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_run_v1.yaml"
+        else REPO_ROOT / "ml/topic_mining/configs/bertopic_run_v1.yaml"
     )
 
-    export_script = REPO_ROOT / "ml" / "scripts" / "export_reviews_corpus_for_bertopic.py"
+    export_script = REPO_ROOT / "ml" / "topic_mining" / "scripts" / "export_reviews_corpus_for_bertopic.py"
     if not export_script.is_file():
         raise HTTPException(status_code=500, detail="缺少 export_reviews_corpus_for_bertopic.py")
 
@@ -254,17 +267,18 @@ def post_discover_from_unmatched_pools(
     _auth: None = Depends(_optional_api_key),
 ) -> dict:
     """从三分类未命中总表分组挖掘，并写入亮点池/痛点池/观察池。"""
+    _ensure_topic_mining_available()
     bs = (
-        REPO_ROOT / "ml/configs/bertopic_batch_strategy_local.yaml"
+        REPO_ROOT / "ml/topic_mining/configs/bertopic_batch_strategy_local.yaml"
         if body.use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_batch_strategy_v1.yaml"
+        else REPO_ROOT / "ml/topic_mining/configs/bertopic_batch_strategy_v1.yaml"
     )
     rc = (
-        REPO_ROOT / "ml/configs/bertopic_run_local.yaml"
+        REPO_ROOT / "ml/topic_mining/configs/bertopic_run_local.yaml"
         if body.use_local_configs
-        else REPO_ROOT / "ml/configs/bertopic_run_v1.yaml"
+        else REPO_ROOT / "ml/topic_mining/configs/bertopic_run_v1.yaml"
     )
-    export_script = REPO_ROOT / "ml" / "scripts" / "export_reviews_corpus_for_bertopic.py"
+    export_script = REPO_ROOT / "ml" / "topic_mining" / "scripts" / "export_reviews_corpus_for_bertopic.py"
     if not export_script.is_file():
         raise HTTPException(status_code=500, detail="缺少 export_reviews_corpus_for_bertopic.py")
 

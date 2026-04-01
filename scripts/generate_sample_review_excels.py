@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从 ml/data/raw 随机抽样评论，生成带时间与评论列的 Excel（.xlsx）。"""
+"""从 ml/sentiment/data/raw 随机抽样评论，生成带时间与评论列的 Excel（.xlsx）。"""
 
 from __future__ import annotations
 
@@ -110,8 +110,16 @@ def write_xlsx_minimal(path: Path, headers: list[str], rows: list[list[str]]) ->
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--raw-dir", type=Path, default=Path(__file__).resolve().parents[1] / "ml" / "data" / "raw")
-    parser.add_argument("--out-dir", type=Path, default=Path(__file__).resolve().parents[1] / "ml" / "data" / "sample_excel")
+    parser.add_argument(
+        "--raw-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "ml" / "sentiment" / "data" / "raw",
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "ml" / "sentiment" / "data" / "sample_excel",
+    )
     args = parser.parse_args()
 
     raw = args.raw_dir

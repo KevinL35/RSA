@@ -2,13 +2,13 @@
 Merge train shard CSVs into one train.csv (same columns, concat rows).
 
 Examples:
-  python ml/scripts/merge_train_shards.py \\
-    --glob "ml/data/splits/train.csv.part5-*" \\
-    --output ml/data/splits/train.csv
+  python ml/sentiment/scripts/merge_train_shards.py \\
+    --glob "ml/sentiment/data/splits/train.csv.part5-*" \\
+    --output ml/sentiment/data/splits/train.csv
 
-  python ml/scripts/merge_train_shards.py \\
-    --glob "ml/data/splits/train.csv.part5-*" \\
-    --output "ml/data/splits/train.csv" \\
+  python ml/sentiment/scripts/merge_train_shards.py \\
+    --glob "ml/sentiment/data/splits/train.csv.part5-*" \\
+    --output "ml/sentiment/data/splits/train.csv" \\
     --dedupe-id
 """
 
@@ -19,9 +19,14 @@ import glob
 import sys
 from pathlib import Path
 
+import pandas as pd
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_COMMON_DIR = _SCRIPT_DIR.parents[1] / "common"
+if str(_COMMON_DIR) not in sys.path:
+    sys.path.insert(0, str(_COMMON_DIR))
 from csv_splits import read_split_csv
 
 
@@ -31,7 +36,7 @@ def main() -> None:
     g.add_argument(
         "--glob",
         dest="glob_pat",
-        help='Glob for shard files, e.g. "ml/data/splits/train.csv.part5-*"',
+        help='Glob for shard files, e.g. "ml/sentiment/data/splits/train.csv.part5-*"',
     )
     g.add_argument(
         "--inputs",

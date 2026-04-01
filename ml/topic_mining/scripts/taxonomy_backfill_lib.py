@@ -25,7 +25,7 @@ VALID_DECISIONS = frozenset({"approve", "reject", "hold"})
 
 
 def repo_root_from_here(here: Path) -> Path:
-    """ml/scripts/xxx.py -> 仓库根。"""
+    """ml/topic_mining/scripts/xxx.py -> 仓库根。"""
     return here.resolve().parents[2]
 
 

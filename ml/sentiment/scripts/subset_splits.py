@@ -12,6 +12,9 @@ from sklearn.model_selection import train_test_split
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_COMMON_DIR = _SCRIPT_DIR.parents[1] / "common"
+if str(_COMMON_DIR) not in sys.path:
+    sys.path.insert(0, str(_COMMON_DIR))
 from csv_splits import read_split_csv
 
 
@@ -38,13 +41,13 @@ def main() -> None:
     p.add_argument(
         "--input-dir",
         type=Path,
-        default=Path("ml/data/splits"),
+        default=Path("ml/sentiment/data/splits"),
         help="含 train.csv / val.csv / test.csv 的目录",
     )
     p.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("ml/data/splits_10pct"),
+        default=Path("ml/sentiment/data/splits_10pct"),
         help="输出目录（将创建）",
     )
     p.add_argument(

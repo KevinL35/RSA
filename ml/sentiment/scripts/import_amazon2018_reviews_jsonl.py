@@ -64,12 +64,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Amazon 2018 JSONL reviews -> reviews.csv")
     parser.add_argument(
         "--input",
-        default="finetune/data/raw/Electronics_5.json",
+        default="ml/sentiment/data/raw/Electronics_5.json",
         help="输入 JSONL（或 .json.gz）路径",
     )
     parser.add_argument(
         "--output",
-        default="finetune/data/raw/reviews.csv",
+        default="ml/sentiment/data/raw/reviews.csv",
         help="输出 CSV（与 data_contract raw_input 一致）",
     )
     parser.add_argument(

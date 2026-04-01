@@ -1,12 +1,12 @@
 # BERTopic API（主题发现 HTTP 服务）
 
-在本地以 HTTP 触发：从 **Supabase `public.reviews`** 导出语料，再调用 `run_bertopic_discovery`（实现位于 `ml/scripts/run_bertopic_offline.py`）。**依赖较重**（`sentence-transformers`、`torch` 等），**未**并入 `scripts/dev.sh`，请按需单独启动。
+在本地以 HTTP 触发：从 **Supabase `public.reviews`** 导出语料，再调用 `run_bertopic_discovery`（实现位于 `ml/topic_mining/scripts/run_bertopic_offline.py`；若该脚本未安装，接口会返回 503）。**依赖较重**（`sentence-transformers`、`torch` 等），**未**并入 `scripts/dev.sh`，请按需单独启动。
 
 **日常路径**：只使用本服务的 **`POST /discover-from-supabase`** + Supabase 环境变量；不再推荐本地 fixture/自定义 CSV 跑批。
 
 **词典审核入队（默认开启）**：发现完成且 `dry_run` 为 false 时，会自动把 `candidates` 写入 `dictionary_review_queue`（与手动 `import-queue` 相同逻辑）。响应中会增加 `review_queue_import`：`inserted`、`skipped_pending`、`parse_warnings` 等。若需只拿 JSON 不入库，请求体设 **`auto_import_review_queue: false`**。
 
-仍可通过 JSONL 手动补录：将响应中的 `candidates` 写成 JSONL 后执行 `bash scripts/run-bertopic-local.sh import-queue <文件>`。
+离线 `import-queue` 脚本已下线，请优先使用 `auto_import_review_queue=true` 自动入队。
 
 ## 安装
 
@@ -49,7 +49,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8090
 
 **`POST /discover-from-supabase`**：JSON 体。默认从 `public.reviews` 分页导出（可选 `platform`、`product_id`、`limit`）。若 `only_without_dimension_hits: true`，须同时提供 `insight_task_id`（与 `export_reviews_corpus_for_bertopic.py` A 类一致）。
 
-需 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**（子进程会跑 `ml/scripts/export_reviews_corpus_for_bertopic.py`，该脚本也会尝试从 `apps/platform-api/.env` 补全变量）。
+需 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**（子进程会跑 `ml/topic_mining/scripts/export_reviews_corpus_for_bertopic.py`，该脚本也会尝试从 `apps/platform-api/.env` 补全变量）。
 
 可选 JSON 字段：`dry_run`、`use_local_configs`、`batch_end`、`auto_import_review_queue`（默认 true）、`dictionary_vertical_id`（默认 `general`）、`skip_existing_pending`（默认 true）。
 

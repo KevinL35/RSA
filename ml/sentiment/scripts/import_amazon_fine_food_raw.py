@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-将 Kaggle「Amazon Fine Food Reviews」风格 CSV 转为 finetune 数据契约要求的 reviews.csv。
+将 Kaggle「Amazon Fine Food Reviews」风格 CSV 转为 sentiment 数据契约要求的 reviews.csv。
 
 常见列：Id, ProductId, UserId, ProfileName, HelpfulnessNumerator, HelpfulnessDenominator,
       Score, Time, Summary, Text
@@ -64,7 +64,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default="finetune/data/raw/reviews.csv",
+        default="ml/sentiment/data/raw/reviews.csv",
         help="输出路径（需与 data_contract.yaml 的 raw_input 一致）",
     )
     parser.add_argument(

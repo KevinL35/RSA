@@ -1,4 +1,4 @@
-# 一成子集：先运行 `scripts/subset_splits.py` 生成 `ml/data/splits_10pct/` 再训。
+# 一成子集：先运行 `ml/sentiment/scripts/subset_splits.py` 生成 `ml/sentiment/data/splits_10pct/` 再训。
 # 产物与全量分开，避免覆盖 checkpoint。
 version: "1.0.0"
 experiment_name: "rsa-v1"
@@ -9,10 +9,10 @@ model:
   max_length: 256
 
 data:
-  cleaned_csv: "ml/data/processed/reviews_cleaned.csv"
-  train_csv: "ml/data/splits_10pct/train.csv"
-  val_csv: "ml/data/splits_10pct/val.csv"
-  test_csv: "ml/data/splits_10pct/test.csv"
+  cleaned_csv: "ml/sentiment/data/processed/reviews_cleaned.csv"
+  train_csv: "ml/sentiment/data/splits_10pct/train.csv"
+  val_csv: "ml/sentiment/data/splits_10pct/val.csv"
+  test_csv: "ml/sentiment/data/splits_10pct/test.csv"
   text_column: "analysis_input_en"
   label_column: "label_sentiment"
   split:
@@ -22,7 +22,7 @@ data:
     random_seed: 42
 
 training:
-  output_dir: "ml/artifacts/rsa-v1"
+  output_dir: "models/sentiment/rsa-v1"
   learning_rate: 2e-5
   num_train_epochs: 1
   per_device_train_batch_size: 8
@@ -36,4 +36,4 @@ training:
   seed: 42
 
 evaluation:
-  report_output: "ml/reports/sentiment_eval_rsa_v1.json"
+  report_output: "ml/sentiment/reports/sentiment_eval_rsa_v1.json"

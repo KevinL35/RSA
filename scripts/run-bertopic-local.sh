@@ -12,13 +12,9 @@ if [[ $# -ge 1 ]]; then
 fi
 
 if [[ "$MODE" == "import-queue" ]]; then
-  if [[ $# -lt 1 ]]; then
-    echo "用法: bash scripts/run-bertopic-local.sh import-queue <bertopic_candidates_*.jsonl> [--dry-run] [--skip-existing] [--vertical-id general]" >&2
-    exit 1
-  fi
-  JSONL="$1"
-  shift
-  exec python3 "${ROOT}/ml/scripts/import_bertopic_candidates_to_review_queue.py" --jsonl "$JSONL" "$@"
+  echo "import-queue 离线脚本已下线：ml/scripts/import_bertopic_candidates_to_review_queue.py 不再维护。" >&2
+  echo "请改用 apps/bertopic-api 的 HTTP 入队流程。" >&2
+  exit 1
 fi
 
 case "$MODE" in
@@ -29,15 +25,15 @@ BERTopic：日常用 HTTP 从 Supabase 挖掘（见 apps/bertopic-api/README.md�
 本脚本仅在关闭自动入队（auto_import_review_queue: false）或需补录 JSONL 时使用：
 
   bash scripts/bertopic.sh
-  # POST /discover-from-supabase；若需手写 JSONL：jq -c '.candidates[]' resp.json > ml/reports/bertopic_candidates.jsonl
+  # POST /discover-from-supabase；如需手写 JSONL，请自行保存到任意临时目录
 
 导入队列（需 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY，可读 apps/platform-api/.env）：
 
-  bash scripts/run-bertopic-local.sh import-queue ml/reports/bertopic_candidates_xxx.jsonl --skip-existing
+  # import-queue 已下线，请改用 bertopic-api 的自动入队
 
 也可用样例测导入：ml/fixtures/bertopic_candidates_sample.jsonl
 
-维护/单测如需直接跑 CLI：python ml/scripts/run_bertopic_offline.py --help（非日常路径）。
+维护/单测离线 CLI 已下线，请统一走 apps/bertopic-api HTTP。
 EOF
     ;;
   *)

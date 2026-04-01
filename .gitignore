@@ -28,9 +28,9 @@ apps/web/.vite/
 apps/web/tsconfig.tsbuildinfo
 
 # ML artifacts/data (local large files)
-ml/data/
-ml/artifacts/
-ml/reports/
+ml/sentiment/data/
+ml/sentiment/reports/
+models/
 
 # IDE
 .idea/
@@ -44,5 +44,5 @@ ml/reports/
 .vercel/
 
 # Agent / Claude 技能（本机自备，不纳入版本库）
-.agents/skills/
-.claude/skills/
+.agents/
+.claude/

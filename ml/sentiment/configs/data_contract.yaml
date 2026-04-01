@@ -26,5 +26,5 @@ cleaning:
   drop_empty_text: true
 
 paths:
-  raw_input: "finetune/data/raw/reviews.csv"
-  cleaned_output: "finetune/data/processed/reviews_cleaned.csv"
+  raw_input: "ml/sentiment/data/raw/reviews.csv"
+  cleaned_output: "ml/sentiment/data/processed/reviews_cleaned.csv"
