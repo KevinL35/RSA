@@ -1,9 +1,0 @@
-id,raw_text,analysis_input_en,expected_dimensions
-r1,Great quality and fast shipping!,Great quality and fast shipping!,pros
-r2,Terrible defective product - waste of money,Terrible defective product - waste of money,cons
-r3,The weather is sunny today,The weather is sunny today,
-r4,I had to return due to misleading description,I had to return due to misleading description,return_reasons
-r8,Not as advertised compared to photos,Not as advertised compared to photos,user_expectation
-r5,Bought as a gift on black friday for my office,Bought as a gift on black friday for my office,purchase_motivation
-r6,Not what I expected - disappointed,Not what I expected - disappointed,user_expectation
-r7,Use it every day for travel with kids,Use it every day for travel with kids,usage_scenario

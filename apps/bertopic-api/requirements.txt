@@ -1,4 +1,0 @@
-# 在仓库根目录执行：pip install -r apps/bertopic-api/requirements.txt
--r ../../ml/requirements-bertopic.txt
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0

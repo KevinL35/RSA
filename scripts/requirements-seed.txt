@@ -1,3 +1,0 @@
-# 仅用于 scripts/seed_taxonomy_yaml_to_supabase.py（灌库）；与 platform-api 的 Supabase 客户端大版本对齐。
-pyyaml>=6.0
-supabase>=2.0.0,<3

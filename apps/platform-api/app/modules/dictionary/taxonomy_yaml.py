@@ -53,8 +53,7 @@ def load_merged_entries_for_vertical(
         raise ValueError(f"读取 taxonomy_entries 失败：{e!s}") from e
     if not db_seed:
         raise ValueError(
-            "taxonomy_entries 中 seed 为空。请先在库中导入种子数据，例如："
-            "python scripts/seed_taxonomy_yaml_to_supabase.py（源文件位于 ml/fixtures/taxonomy/）。"
+            "taxonomy_entries 中 seed 为空。请先在数据库中导入种子数据。"
         )
     return merge_entries(db_seed, db_overlay)
 

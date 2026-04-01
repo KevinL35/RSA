@@ -250,7 +250,7 @@ COMMENT ON TABLE public.dictionary_review_queue IS 'Pending dictionary review ro
 -- );
 
 -- >>> infra/migrations/011_taxonomy_entries.sql
--- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-api 读路径以本表为准（种子可用 scripts/seed_taxonomy_yaml_to_supabase.py 从 ml/fixtures/taxonomy/ 导入）。
+-- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-api 读路径以本表为准（seed 词条需在数据库中维护）。
 CREATE TABLE IF NOT EXISTS public.taxonomy_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_layer TEXT NOT NULL CHECK (source_layer IN ('seed', 'overlay')),

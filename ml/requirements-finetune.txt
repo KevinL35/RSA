@@ -1,5 +1,3 @@
-# 本仓库脚本兼容 transformers 4.x/5.x（eval_strategy、Trainer.processing_class 等）。
-# 若需可复现环境，可固定小版本：例如 transformers==5.0.0
 transformers>=4.46,<6
 datasets>=2.16.0
 evaluate>=0.4.0
