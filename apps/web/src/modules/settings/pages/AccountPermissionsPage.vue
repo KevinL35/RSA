@@ -158,6 +158,7 @@ const auth = useAuthStore()
 
 const menuOptions = [
   { key: 'insight', labelKey: 'menu.insight' },
+  { key: 'compare', labelKey: 'menu.compare' },
   { key: 'pain-audit', labelKey: 'menu.painAudit' },
   { key: 'dictionary', labelKey: 'menu.dictionary' },
   { key: 'api-config', labelKey: 'menu.apiConfig' },

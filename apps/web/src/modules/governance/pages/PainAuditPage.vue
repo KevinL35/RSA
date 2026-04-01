@@ -5,17 +5,28 @@
       <p class="intro-text">{{ t('governance.painAuditIntro') }}</p>
       <div class="toolbar">
         <div class="toolbar-left">
+          <el-button :type="activePool === 'pain' ? 'primary' : 'default'" @click="activePool = 'pain'">
+            {{ t('governance.poolPain') }}
+          </el-button>
+          <el-button :type="activePool === 'highlight' ? 'primary' : 'default'" @click="activePool = 'highlight'">
+            {{ t('governance.poolHighlight') }}
+          </el-button>
+          <el-button :type="activePool === 'observe' ? 'primary' : 'default'" @click="activePool = 'observe'">
+            {{ t('governance.poolObserve') }}
+          </el-button>
+        </div>
+        <div class="toolbar-right">
           <el-button type="primary" @click="onAddTopic">{{ t('governance.addTopic') }}</el-button>
           <el-button type="primary" @click="onUploadReviews">{{ t('governance.uploadReviews') }}</el-button>
+          <el-button
+            class="toolbar-refresh-square"
+            :icon="Refresh"
+            @click="onRefresh"
+            :title="t('governance.refresh')"
+          />
         </div>
-        <el-button
-          class="toolbar-refresh-square"
-          :icon="Refresh"
-          @click="onRefresh"
-          :title="t('governance.refresh')"
-        />
       </div>
-      <el-table :data="rows" stripe class="audit-table" :empty-text="t('governance.painAuditEmpty')">
+      <el-table :data="displayRows" stripe class="audit-table" :empty-text="t('governance.painAuditEmpty')">
         <el-table-column :label="t('governance.painAuditColKeyword')" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="kw">{{ row.canonical }}</span>
@@ -185,6 +196,7 @@ const { t, locale } = useI18n()
 const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
 const rows = ref<PainAuditRow[]>([])
+const activePool = ref<'pain' | 'highlight' | 'observe'>('pain')
 const verticals = ref<DictionaryVerticalItem[]>([])
 
 const approveVisible = ref(false)
@@ -206,6 +218,8 @@ const canConfirmApprove = computed(
     approveVerticalIds.value.length > 0,
 )
 
+const displayRows = computed(() => rows.value.filter((row) => classifyPool(row) === activePool.value))
+
 function verticalLabel(v: DictionaryVerticalItem) {
   if (v.id === 'general') {
     return locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary'
@@ -217,6 +231,13 @@ function dimensionLabel(d: SixDimension) {
   const key = `governance.dim_${d}` as const
   const translated = t(key)
   return translated === key ? d : translated
+}
+
+function classifyPool(row: PainAuditRow): 'pain' | 'highlight' | 'observe' {
+  const dim = row.dimension_6way
+  if (dim === 'cons' || dim === 'return_reasons' || dim === 'user_expectation') return 'pain'
+  if (dim === 'pros' || dim === 'purchase_motivation') return 'highlight'
+  return 'observe'
 }
 
 function onAddTopic() {
@@ -429,6 +450,17 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-right :deep(.el-button) {
+  margin-inline: 0;
 }
 
 .toolbar-left :deep(.el-button) {

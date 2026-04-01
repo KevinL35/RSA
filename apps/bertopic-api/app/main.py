@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -77,6 +78,46 @@ class DiscoverFromSupabaseBody(BaseModel):
         if self.only_without_dimension_hits and not (self.insight_task_id or "").strip():
             raise ValueError("only_without_dimension_hits 为 true 时必须提供 insight_task_id")
         return self
+
+
+class DiscoverFromUnmatchedPoolsBody(BaseModel):
+    insight_task_id: str | None = Field(None, description="可选：仅处理某一任务")
+    platform: str | None = None
+    product_id: str | None = None
+    limit_per_sentiment: int = Field(0, description="每个情感组导出上限，0 不限制")
+    dry_run: bool = False
+    use_local_configs: bool = False
+    batch_end: str | None = None
+
+
+def _topic_pool_table_by_sentiment(sentiment: str) -> str:
+    if sentiment == "positive":
+        return "topic_pool_highlight"
+    if sentiment == "negative":
+        return "topic_pool_pain"
+    return "topic_pool_observation"
+
+
+def _insert_topic_pool_rows(
+    *,
+    supabase_url: str,
+    service_role_key: str,
+    table_name: str,
+    rows: list[dict],
+) -> None:
+    if not rows:
+        return
+    url = f"{supabase_url.rstrip('/')}/rest/v1/{table_name}"
+    for r in rows:
+        code, raw = rq.http_json(
+            "POST",
+            url,
+            key=service_role_key,
+            body=r,
+            extra_headers={"Prefer": "return=minimal"},
+        )
+        if code not in (200, 201):
+            raise HTTPException(status_code=502, detail=f"{table_name} 入库失败: HTTP {code}: {raw[:300]}")
 
 
 @app.get("/health")
@@ -205,3 +246,119 @@ def post_discover_from_supabase(
         if review_import is not None:
             out = {**out, "review_queue_import": review_import}
         return out
+
+
+@app.post("/discover-from-unmatched-pools")
+def post_discover_from_unmatched_pools(
+    body: DiscoverFromUnmatchedPoolsBody,
+    _auth: None = Depends(_optional_api_key),
+) -> dict:
+    """从三分类未命中总表分组挖掘，并写入亮点池/痛点池/观察池。"""
+    bs = (
+        REPO_ROOT / "ml/configs/bertopic_batch_strategy_local.yaml"
+        if body.use_local_configs
+        else REPO_ROOT / "ml/configs/bertopic_batch_strategy_v1.yaml"
+    )
+    rc = (
+        REPO_ROOT / "ml/configs/bertopic_run_local.yaml"
+        if body.use_local_configs
+        else REPO_ROOT / "ml/configs/bertopic_run_v1.yaml"
+    )
+    export_script = REPO_ROOT / "ml" / "scripts" / "export_reviews_corpus_for_bertopic.py"
+    if not export_script.is_file():
+        raise HTTPException(status_code=500, detail="缺少 export_reviews_corpus_for_bertopic.py")
+
+    rq.load_platform_api_dotenv()
+    base = (os.environ.get("SUPABASE_URL") or "").strip().rstrip("/")
+    key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+    if not base or not key:
+        raise HTTPException(status_code=500, detail="缺少 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY")
+
+    run_batch_id = f"pool-{uuid.uuid4().hex[:12]}"
+    sentiment_stats: dict[str, dict] = {}
+
+    with tempfile.TemporaryDirectory() as td:
+        td_path = Path(td)
+        for sentiment in ("positive", "negative", "neutral"):
+            corpus_path = td_path / f"corpus_{sentiment}.csv"
+            cmd: list[str] = [
+                sys.executable,
+                str(export_script),
+                "--out",
+                str(corpus_path),
+                "--from-sentiment-unmatched",
+                "--sentiment-label",
+                sentiment,
+            ]
+            if body.insight_task_id:
+                cmd.extend(["--insight-task-id", body.insight_task_id.strip()])
+            if body.platform:
+                cmd.extend(["--platform", body.platform])
+            if body.product_id:
+                cmd.extend(["--product-id", body.product_id])
+            if body.limit_per_sentiment > 0:
+                cmd.extend(["--limit", str(body.limit_per_sentiment)])
+
+            try:
+                subprocess.run(
+                    cmd,
+                    cwd=str(REPO_ROOT),
+                    env=os.environ.copy(),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                tail = (e.stderr or e.stdout or str(e)).strip()
+                raise HTTPException(status_code=502, detail=f"{sentiment} 导出失败：{tail}") from e
+
+            if not corpus_path.is_file():
+                sentiment_stats[sentiment] = {"n_candidates": 0, "pool_table": _topic_pool_table_by_sentiment(sentiment)}
+                continue
+
+            out = run_bertopic_discovery(
+                corpus_csv=corpus_path,
+                reports_dir=td_path,
+                batch_strategy=bs,
+                run_config=rc,
+                batch_id=f"{run_batch_id}-{sentiment}",
+                batch_end=body.batch_end,
+                platform=body.platform,
+                product_id=body.product_id,
+                dry_run=body.dry_run,
+                force=True,
+            )
+
+            pool_table = _topic_pool_table_by_sentiment(sentiment)
+            rows: list[dict] = []
+            for c in out.get("candidates") or []:
+                rows.append(
+                    {
+                        "batch_id": run_batch_id,
+                        "source_sentiment": sentiment,
+                        "platform": str(c.get("platform") or ""),
+                        "product_id": str(c.get("product_id") or ""),
+                        "source_topic_id": str(c.get("source_topic_id") or ""),
+                        "suggested_canonical": str(c.get("suggested_canonical") or ""),
+                        "aliases": c.get("aliases") or [],
+                        "quality_score": c.get("quality_score"),
+                        "evidence_snippets": c.get("evidence_snippets") or [],
+                    }
+                )
+            if not body.dry_run:
+                _insert_topic_pool_rows(
+                    supabase_url=base,
+                    service_role_key=key,
+                    table_name=pool_table,
+                    rows=rows,
+                )
+            sentiment_stats[sentiment] = {
+                "pool_table": pool_table,
+                "n_candidates": len(rows),
+            }
+
+    return {
+        "batch_id": run_batch_id,
+        "dry_run": body.dry_run,
+        "sentiments": sentiment_stats,
+    }

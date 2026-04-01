@@ -7,6 +7,8 @@ import { pathRequiredMenuKey, firstAllowedPath } from '../../modules/auth/routeM
 import { isPlatformMenuAuth, useAuthStore } from '../../modules/auth/store/auth.store'
 import InsightAnalysisPage from '../../modules/insight/pages/InsightAnalysisPage.vue'
 import InsightResultPage from '../../modules/insight/pages/InsightResultPage.vue'
+import CompareAnalysisPage from '../../modules/compare/pages/CompareAnalysisPage.vue'
+import CompareResultPage from '../../modules/compare/pages/CompareResultPage.vue'
 import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
 import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
 import ApiConfigPage from '../../modules/settings/pages/ApiConfigPage.vue'
@@ -24,6 +26,8 @@ const router = createRouter({
         { path: '', redirect: '/insight-analysis' },
         { path: 'insight-analysis', component: InsightAnalysisPage },
         { path: 'insight-analysis/result/:taskId', component: InsightResultPage },
+        { path: 'compare-analysis', component: CompareAnalysisPage },
+        { path: 'compare-analysis/result/:compareId', component: CompareResultPage },
         { path: 'pain-mining', redirect: '/dictionary-review' },
         {
           path: 'dictionary-review',

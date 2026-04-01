@@ -72,6 +72,7 @@ function formatTime(iso: string) {
 const MENU_I18N: Record<string, string> = {
   login: 'menu.login',
   insight: 'menu.insight',
+  compare: 'menu.compare',
   'pain-audit': 'menu.painAudit',
   dictionary: 'menu.dictionary',
   'api-config': 'menu.apiConfig',

@@ -134,8 +134,105 @@ def _collect_review_analysis_without_dimension_hits(
     insight_task_id: str,
     page_size: int,
 ) -> set[str]:
-    """返回「有 review_analysis 但无任意 review_dimension_analysis 行」的 review_id 集合。"""
+    """返回未命中六维的 review_id 集合。
+
+    优先级：
+    1) 三分类未命中总表（positive/neutral/negative unmatched）
+    2) review_analysis.dimension_match_status=unmatched（三分类总表标记）
+    3) review_dimension_unmatched（未命中池）
+    4) 旧逻辑回退：review_analysis - review_dimension_analysis 差集
+    """
     task_filter = ("insight_task_id", f"eq.{insight_task_id}")
+    # 新路径 1：三张未命中总表
+    try:
+        from_three_pools: set[str] = set()
+        for table in (
+            "review_sentiment_positive_unmatched",
+            "review_sentiment_neutral_unmatched",
+            "review_sentiment_negative_unmatched",
+        ):
+            offset = 0
+            while True:
+                batch = _rest_select_page(
+                    base,
+                    key,
+                    table,
+                    select="review_id",
+                    filters=[task_filter],
+                    order="review_id.asc",
+                    limit=page_size,
+                    offset=offset,
+                )
+                if not batch:
+                    break
+                for row in batch:
+                    rid = str(row.get("review_id", "")).strip()
+                    if rid:
+                        from_three_pools.add(rid)
+                if len(batch) < page_size:
+                    break
+                offset += page_size
+        if from_three_pools:
+            return from_three_pools
+    except RuntimeError:
+        pass
+    # 新路径 1：三分类总表未命中标记
+    try:
+        from_total: set[str] = set()
+        offset = 0
+        while True:
+            batch = _rest_select_page(
+                base,
+                key,
+                "review_analysis",
+                select="review_id",
+                filters=[task_filter, ("dimension_match_status", "eq.unmatched")],
+                order="review_id.asc",
+                limit=page_size,
+                offset=offset,
+            )
+            if not batch:
+                break
+            for row in batch:
+                rid = str(row.get("review_id", "")).strip()
+                if rid:
+                    from_total.add(rid)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        if from_total:
+            return from_total
+    except RuntimeError:
+        pass
+    # 新路径：直接使用未命中池（有则可避免两表差集扫描）
+    try:
+        direct_ids: set[str] = set()
+        offset = 0
+        while True:
+            batch = _rest_select_page(
+                base,
+                key,
+                "review_dimension_unmatched",
+                select="review_id",
+                filters=[task_filter],
+                order="review_id.asc",
+                limit=page_size,
+                offset=offset,
+            )
+            if not batch:
+                break
+            for row in batch:
+                rid = str(row.get("review_id", "")).strip()
+                if rid:
+                    direct_ids.add(rid)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        if direct_ids:
+            return direct_ids
+    except RuntimeError:
+        # 兼容未跑新 migration 的环境：继续走旧逻辑
+        pass
 
     with_hits: set[str] = set()
     offset = 0
@@ -222,6 +319,50 @@ def _fetch_reviews_by_ids(
     return out
 
 
+def _collect_ids_from_sentiment_unmatched(
+    base: str,
+    key: str,
+    *,
+    sentiment_label: str,
+    insight_task_id: str | None,
+    page_size: int,
+) -> list[str]:
+    table_by_sentiment = {
+        "positive": "review_sentiment_positive_unmatched",
+        "neutral": "review_sentiment_neutral_unmatched",
+        "negative": "review_sentiment_negative_unmatched",
+    }
+    tbl = table_by_sentiment.get(sentiment_label)
+    if not tbl:
+        raise ValueError(f"无效 sentiment_label: {sentiment_label!r}")
+    filters: list[tuple[str, str]] = []
+    if insight_task_id:
+        filters.append(("insight_task_id", f"eq.{insight_task_id}"))
+    out: set[str] = set()
+    offset = 0
+    while True:
+        batch = _rest_select_page(
+            base,
+            key,
+            tbl,
+            select="review_id",
+            filters=filters,
+            order="review_id.asc",
+            limit=page_size,
+            offset=offset,
+        )
+        if not batch:
+            break
+        for row in batch:
+            rid = str(row.get("review_id", "")).strip()
+            if rid:
+                out.add(rid)
+        if len(batch) < page_size:
+            break
+        offset += page_size
+    return sorted(out)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Export Supabase reviews -> BERTopic corpus CSV.")
     parser.add_argument(
@@ -244,6 +385,16 @@ def main() -> int:
         action="store_true",
         help="仅导出 A 类：该任务下存在 review_analysis 且 review_dimension_analysis 为空",
     )
+    parser.add_argument(
+        "--from-sentiment-unmatched",
+        action="store_true",
+        help="从三分类未命中总表导出（需配合 --sentiment-label）",
+    )
+    parser.add_argument(
+        "--sentiment-label",
+        default=None,
+        help="当 --from-sentiment-unmatched=true 时必填：positive|neutral|negative",
+    )
     args = parser.parse_args()
 
     if args.only_without_dimension_hits:
@@ -253,6 +404,14 @@ def main() -> int:
             return 2
         if not _UUID_RE.match(tid):
             print(f"无效的 insight_task_id（应为 UUID）：{tid!r}", file=sys.stderr)
+            return 2
+    if args.from_sentiment_unmatched:
+        sl = (args.sentiment_label or "").strip().lower()
+        if sl not in ("positive", "neutral", "negative"):
+            print(
+                "使用 --from-sentiment-unmatched 时必须提供 --sentiment-label=positive|neutral|negative",
+                file=sys.stderr,
+            )
             return 2
 
     _load_api_dotenv()
@@ -266,7 +425,56 @@ def main() -> int:
     total_cap = args.limit if args.limit and args.limit > 0 else None
     rows_out: list[tuple[str, str, str, str, int]] = []
 
-    if args.only_without_dimension_hits:
+    if args.from_sentiment_unmatched:
+        sl = args.sentiment_label.strip().lower()
+        tid = (args.insight_task_id or "").strip() or None
+        review_ids = _collect_ids_from_sentiment_unmatched(
+            base,
+            key,
+            sentiment_label=sl,
+            insight_task_id=tid,
+            page_size=page,
+        )
+        print(
+            f"[未命中总表] sentiment={sl} task={tid or '*'}：评论 {len(review_ids)} 条",
+            file=sys.stderr,
+        )
+        if not review_ids:
+            rows_out = []
+        else:
+            all_rows = _fetch_reviews_by_ids(
+                base,
+                key,
+                review_ids,
+                platform=args.platform,
+                product_id=args.product_id,
+                chunk_size=80,
+            )
+            by_id = {str(r["id"]): r for r in all_rows if r.get("id")}
+            for rid in review_ids:
+                r = by_id.get(rid)
+                if not r:
+                    continue
+                plat = str(r.get("platform", "")).strip()
+                pid = str(r.get("product_id", "")).strip()
+                text = str(r.get("raw_text") or "").strip()
+                ca = r.get("created_at")
+                if not text or not plat or not pid:
+                    continue
+                if ca is None:
+                    ts = 0
+                elif isinstance(ca, (int, float)):
+                    ts = int(ca)
+                else:
+                    try:
+                        ts = _parse_ts_iso(str(ca))
+                    except (ValueError, TypeError):
+                        ts = 0
+                rows_out.append((rid, plat, pid, text, ts))
+            rows_out.sort(key=lambda x: x[4], reverse=True)
+            if total_cap is not None:
+                rows_out = rows_out[:total_cap]
+    elif args.only_without_dimension_hits:
         tid = args.insight_task_id.strip()
         review_ids = sorted(
             _collect_review_analysis_without_dimension_hits(base, key, tid, page),

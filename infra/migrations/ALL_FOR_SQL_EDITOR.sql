@@ -250,7 +250,7 @@ COMMENT ON TABLE public.dictionary_review_queue IS 'Pending dictionary review ro
 -- );
 
 -- >>> infra/migrations/011_taxonomy_entries.sql
--- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-api 以本表为准（种子可用 scripts/seed_taxonomy_yaml_to_supabase.py 从 ml/fixtures/taxonomy/ 导入）。
+-- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-api 读路径以本表为准（种子可用 scripts/seed_taxonomy_yaml_to_supabase.py 从 ml/fixtures/taxonomy/ 导入）。
 CREATE TABLE IF NOT EXISTS public.taxonomy_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_layer TEXT NOT NULL CHECK (source_layer IN ('seed', 'overlay')),
@@ -285,5 +285,192 @@ CREATE INDEX IF NOT EXISTS idx_taxonomy_entries_layer_vertical
 ALTER TABLE public.taxonomy_entries ENABLE ROW LEVEL SECURITY;
 
 COMMENT ON TABLE public.taxonomy_entries IS 'Published taxonomy: seed rows (layer=seed, vertical=general) + per-vertical overlay; merged read = seed then overlay override same (dimension, canonical)';
+
+-- >>> infra/migrations/012_review_dimension_unmatched.sql
+-- TB-4 扩展：六维未命中评论池（供主题挖掘/补洞任务直接消费）
+-- 语义：该行表示 review_analysis 已存在，但本轮六维词典未命中任何维度。
+
+CREATE TABLE IF NOT EXISTS public.review_dimension_unmatched (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  sentiment_label TEXT NOT NULL CHECK (sentiment_label IN ('negative', 'neutral', 'positive')),
+  reason TEXT NOT NULL DEFAULT 'no_dimension_hit',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rdu_task ON public.review_dimension_unmatched (insight_task_id);
+CREATE INDEX IF NOT EXISTS idx_rdu_product ON public.review_dimension_unmatched (platform, product_id);
+CREATE INDEX IF NOT EXISTS idx_rdu_review ON public.review_dimension_unmatched (review_id);
+
+ALTER TABLE public.review_dimension_unmatched ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE public.review_dimension_unmatched IS 'Reviews with sentiment but no six-dimension hits for current analysis snapshot';
+
+-- >>> infra/migrations/013_review_analysis_dimension_status.sql
+-- TB-4 扩展：三分类总表增加六维匹配状态（跨商品主题挖掘可直接按 unmatched 聚合）
+
+ALTER TABLE public.review_analysis
+ADD COLUMN IF NOT EXISTS dimension_match_status TEXT NOT NULL DEFAULT 'unknown'
+CHECK (dimension_match_status IN ('matched', 'unmatched', 'unknown'));
+
+CREATE INDEX IF NOT EXISTS idx_review_analysis_task_match_status
+  ON public.review_analysis (insight_task_id, dimension_match_status);
+
+CREATE INDEX IF NOT EXISTS idx_review_analysis_product_match_status
+  ON public.review_analysis (platform, product_id, dimension_match_status);
+
+-- >>> infra/migrations/014_sentiment_temp_tables.sql
+-- TB-4 扩展：三分类临时表（按情感拆分，供六维前后链路排查/抽样）
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_positive_tmp (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_neutral_tmp (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_negative_tmp (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rsp_task ON public.review_sentiment_positive_tmp (insight_task_id);
+CREATE INDEX IF NOT EXISTS idx_rsn_task ON public.review_sentiment_neutral_tmp (insight_task_id);
+CREATE INDEX IF NOT EXISTS idx_rsg_task ON public.review_sentiment_negative_tmp (insight_task_id);
+
+ALTER TABLE public.review_sentiment_positive_tmp ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_sentiment_neutral_tmp ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_sentiment_negative_tmp ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE public.review_sentiment_positive_tmp IS 'Temporary positive bucket per analysis run';
+COMMENT ON TABLE public.review_sentiment_neutral_tmp IS 'Temporary neutral bucket per analysis run';
+COMMENT ON TABLE public.review_sentiment_negative_tmp IS 'Temporary negative bucket per analysis run';
+
+-- >>> infra/migrations/015_sentiment_unmatched_pools.sql
+-- TB-4 扩展：三分类总表（仅存六维未命中），用于跨商品主题挖掘
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_positive_unmatched (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT 'no_dimension_hit',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_neutral_unmatched (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT 'no_dimension_hit',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.review_sentiment_negative_unmatched (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_analysis_id UUID NOT NULL UNIQUE REFERENCES public.review_analysis (id) ON DELETE CASCADE,
+  insight_task_id UUID NOT NULL REFERENCES public.insight_tasks (id) ON DELETE CASCADE,
+  review_id UUID NOT NULL REFERENCES public.reviews (id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT 'no_dimension_hit',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rsup_task ON public.review_sentiment_positive_unmatched (insight_task_id);
+CREATE INDEX IF NOT EXISTS idx_rsun_task ON public.review_sentiment_neutral_unmatched (insight_task_id);
+CREATE INDEX IF NOT EXISTS idx_rsug_task ON public.review_sentiment_negative_unmatched (insight_task_id);
+
+CREATE INDEX IF NOT EXISTS idx_rsup_product ON public.review_sentiment_positive_unmatched (platform, product_id);
+CREATE INDEX IF NOT EXISTS idx_rsun_product ON public.review_sentiment_neutral_unmatched (platform, product_id);
+CREATE INDEX IF NOT EXISTS idx_rsug_product ON public.review_sentiment_negative_unmatched (platform, product_id);
+
+ALTER TABLE public.review_sentiment_positive_unmatched ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_sentiment_neutral_unmatched ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_sentiment_negative_unmatched ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE public.review_sentiment_positive_unmatched IS 'Positive reviews unmatched by six-dimension dictionary';
+COMMENT ON TABLE public.review_sentiment_neutral_unmatched IS 'Neutral reviews unmatched by six-dimension dictionary';
+COMMENT ON TABLE public.review_sentiment_negative_unmatched IS 'Negative reviews unmatched by six-dimension dictionary';
+
+-- >>> infra/migrations/016_topic_discovery_pools.sql
+-- 主题挖掘三池：亮点池/痛点池/观察池
+
+CREATE TABLE IF NOT EXISTS public.topic_pool_highlight (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_id TEXT NOT NULL,
+  source_sentiment TEXT NOT NULL DEFAULT 'positive',
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  source_topic_id TEXT NOT NULL,
+  suggested_canonical TEXT NOT NULL,
+  aliases JSONB NOT NULL DEFAULT '[]'::jsonb,
+  quality_score REAL,
+  evidence_snippets JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.topic_pool_pain (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_id TEXT NOT NULL,
+  source_sentiment TEXT NOT NULL DEFAULT 'negative',
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  source_topic_id TEXT NOT NULL,
+  suggested_canonical TEXT NOT NULL,
+  aliases JSONB NOT NULL DEFAULT '[]'::jsonb,
+  quality_score REAL,
+  evidence_snippets JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.topic_pool_observation (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_id TEXT NOT NULL,
+  source_sentiment TEXT NOT NULL DEFAULT 'neutral',
+  platform TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  source_topic_id TEXT NOT NULL,
+  suggested_canonical TEXT NOT NULL,
+  aliases JSONB NOT NULL DEFAULT '[]'::jsonb,
+  quality_score REAL,
+  evidence_snippets JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_topic_pool_highlight_batch ON public.topic_pool_highlight (batch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_topic_pool_pain_batch ON public.topic_pool_pain (batch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_topic_pool_observation_batch ON public.topic_pool_observation (batch_id, created_at DESC);
+
+ALTER TABLE public.topic_pool_highlight ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.topic_pool_pain ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.topic_pool_observation ENABLE ROW LEVEL SECURITY;
 
 -- done

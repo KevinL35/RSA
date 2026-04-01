@@ -22,6 +22,11 @@ FILES=(
   infra/migrations/009_audit_logs.sql
   infra/migrations/010_dictionary_review_queue.sql
   infra/migrations/011_taxonomy_entries.sql
+  infra/migrations/012_review_dimension_unmatched.sql
+  infra/migrations/013_review_analysis_dimension_status.sql
+  infra/migrations/014_sentiment_temp_tables.sql
+  infra/migrations/015_sentiment_unmatched_pools.sql
+  infra/migrations/016_topic_discovery_pools.sql
 )
 
 echo "-- RSA infra migrations bundle (empty project)"
