@@ -6,6 +6,11 @@
       "sourceType": "github",
       "computedHash": "27ab2b19ebb31ff719c2e19d1ae3c4122f37d964a447b180bfb838d7b2198a02"
     },
+    "transformers-huggingface": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "computedHash": "1bef11f7aa050618ba1823cd89eca292fba0fe45d5a6d7a808b1408b09551154"
+    },
     "write-spec": {
       "source": "anthropics/knowledge-work-plugins",
       "sourceType": "github",

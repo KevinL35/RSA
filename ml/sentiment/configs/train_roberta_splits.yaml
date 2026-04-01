@@ -1,5 +1,5 @@
 # 默认：`train.csv` / `val.csv` / `test.csv` 放在 `ml/sentiment/data/splits/`。
-# 若 train 拆成多文件，见 `train_roberta_shards.yaml` 与 `ml/sentiment/scripts/merge_train_shards.py`。
+# 若 train 拆成多文件，见 `train_roberta_shards.yaml`。
 version: "1.0.0"
 experiment_name: "roberta-sentiment-v0"
 

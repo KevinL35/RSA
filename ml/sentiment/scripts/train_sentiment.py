@@ -105,9 +105,14 @@ def coerce_training_cfg(train_cfg: dict) -> dict:
         "per_device_eval_batch_size",
         "logging_steps",
         "seed",
+        "gradient_accumulation_steps",
+        "dataloader_num_workers",
     ):
         if k in out and isinstance(out[k], str):
             out[k] = int(float(out[k]))
+    for k in ("fp16", "bf16", "tf32"):
+        if k in out and isinstance(out[k], str):
+            out[k] = out[k].strip().lower() in {"1", "true", "yes", "on"}
     return out
 
 
@@ -130,6 +135,17 @@ def build_training_arguments(train_cfg: dict, output_dir: Path) -> TrainingArgum
         "load_best_model_at_end": True,
         "report_to": [],
     }
+    # Optional perf/runtime knobs from yaml (only passed when provided)
+    optional_keys = (
+        "fp16",
+        "bf16",
+        "tf32",
+        "gradient_accumulation_steps",
+        "dataloader_num_workers",
+    )
+    for k in optional_keys:
+        if k in train_cfg:
+            kwargs[k] = train_cfg[k]
     ev = train_cfg["eval_strategy"]
     if "eval_strategy" in params:
         kwargs["eval_strategy"] = ev
