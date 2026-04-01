@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_ML_SCRIPTS = _REPO_ROOT / "ml" / "scripts"
-if str(_ML_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_ML_SCRIPTS))
+_TOPIC_MINING_SCRIPTS = _REPO_ROOT / "ml" / "topic_mining" / "scripts"
+if str(_TOPIC_MINING_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_TOPIC_MINING_SCRIPTS))
 
 from attribution_engine import (  # noqa: E402
     PatternRow,
