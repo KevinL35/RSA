@@ -41,7 +41,13 @@ def clean_streaming(raw_path: Path, out_path: Path, cfg: dict, chunk_rows: int) 
     total_out = 0
     header_written = False
 
-    chunk_iter = pd.read_csv(raw_path, chunksize=chunk_rows, low_memory=False)
+    chunk_iter = pd.read_csv(
+        raw_path,
+        chunksize=chunk_rows,
+        low_memory=False,
+        encoding="utf-8",
+        encoding_errors="replace",
+    )
 
     for chunk in chunk_iter:
         total_in += len(chunk)
@@ -72,7 +78,10 @@ def main() -> None:
         "--chunk-rows",
         type=int,
         default=0,
-        help=f"分块行数（0=当 raw 文件 ≥{STREAMING_THRESHOLD_BYTES // (1024 * 1024)}MB 时自动启用，默认块大小 {DEFAULT_CHUNK_ROWS}）",
+        help=(
+            f"分块读入时每块行数（0 表示使用 {DEFAULT_CHUNK_ROWS}）。"
+            f"仅在已启用分块清洗（文件 ≥{STREAMING_THRESHOLD_BYTES // (1024 * 1024)}MB 或 --force-streaming）时生效。"
+        ),
     )
     parser.add_argument(
         "--force-streaming",
@@ -106,7 +115,7 @@ def main() -> None:
         total_in, total_out = clean_streaming(raw_path, out_path, cfg, chunk_rows)
         print(f"Streaming clean: read rows (with chunks) ≈ {total_in}, wrote after dedup+filter: {total_out}")
     else:
-        df = pd.read_csv(raw_path, low_memory=False)
+        df = pd.read_csv(raw_path, low_memory=False, encoding="utf-8", encoding_errors="replace")
         df = clean_chunk(df, cfg)
         df = df.drop_duplicates(subset=cfg["cleaning"]["drop_duplicates_on"])
         df.to_csv(out_path, index=False)

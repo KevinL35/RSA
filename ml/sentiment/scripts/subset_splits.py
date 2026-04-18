@@ -25,12 +25,18 @@ def stratified_subset(df: pd.DataFrame, label_col: str, fraction: float, seed: i
         raise ValueError("fraction 须在 (0, 1] 内")
     if len(df) == 0:
         return df.copy()
-    sub, _ = train_test_split(
-        df,
-        train_size=fraction,
-        random_state=seed,
-        stratify=df[label_col],
-    )
+    try:
+        sub, _ = train_test_split(
+            df,
+            train_size=fraction,
+            random_state=seed,
+            stratify=df[label_col],
+        )
+    except ValueError as e:
+        raise ValueError(
+            "分层抽样失败：标签列含缺失或某类样本过少，无法 stratify。"
+            f" 原始错误: {e}"
+        ) from e
     return sub.reset_index(drop=True)
 
 

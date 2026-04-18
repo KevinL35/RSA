@@ -59,6 +59,13 @@ def main() -> None:
     df_test = read_split_csv(test_csv)
     text_col = data_cfg["text_column"]
     label_col = data_cfg["label_column"]
+    num_labels = int(model_cfg["num_labels"])
+    try:
+        df_test[label_col] = pd.to_numeric(df_test[label_col], errors="raise").astype("int64")
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"测试集标签列 {label_col!r} 须为整数类别编号（0..{num_labels - 1}）。"
+        ) from e
 
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir)
     model = AutoModelForSequenceClassification.from_pretrained(args.checkpoint_dir)

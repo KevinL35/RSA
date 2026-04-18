@@ -260,6 +260,15 @@ def main() -> None:
         df_val = _narrow_for_training(df_val, text_col, label_col)
         df_test = _narrow_for_training(df_test, text_col, label_col)
 
+        for name, frame in ("train", df_train), ("val", df_val), ("test", df_test):
+            try:
+                frame[label_col] = pd.to_numeric(frame[label_col], errors="raise").astype("int64")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{name} split: 标签列 {label_col!r} 须为可转为整数的类别编号（0..{model_cfg['num_labels'] - 1}），"
+                    "请检查 CSV 是否含空值或非数字。"
+                ) from e
+
         tokenizer = AutoTokenizer.from_pretrained(model_cfg["pretrained_name"])
         model = AutoModelForSequenceClassification.from_pretrained(
             model_cfg["pretrained_name"],
