@@ -35,6 +35,11 @@ ml/topic_mining/reports/
 ml/sentiment/reports/
 models/
 
+# Hugging Face：本地下载的预训练权重与压缩包（体积大，勿提交）
+ml/roberta-base/
+ml/all-MiniLM-L6-v2/
+ml/*.tar.gz
+
 # IDE
 .idea/
 .vscode/

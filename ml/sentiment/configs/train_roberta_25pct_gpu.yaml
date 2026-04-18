@@ -1,0 +1,41 @@
+version: "1.0.0"
+experiment_name: "roberta-sentiment-25pct-gpu5090-v0"
+
+model:
+  pretrained_name: "roberta-base"
+  num_labels: 3
+  max_length: 256
+
+data:
+  cleaned_csv: "ml/sentiment/data/processed/reviews_cleaned.csv"
+  train_csv: "ml/sentiment/data/splits_25pct/train.csv"
+  val_csv: "ml/sentiment/data/splits_25pct/val.csv"
+  test_csv: "ml/sentiment/data/splits_25pct/test.csv"
+  text_column: "analysis_input_en"
+  label_column: "label_sentiment"
+  split:
+    train_size: 0.8
+    val_size: 0.1
+    test_size: 0.1
+    random_seed: 42
+
+training:
+  output_dir: "models/sentiment/roberta-sentiment-25pct-gpu5090-v0"
+  learning_rate: 2e-5
+  num_train_epochs: 3
+  per_device_train_batch_size: 64
+  per_device_eval_batch_size: 128
+  gradient_accumulation_steps: 1
+  dataloader_num_workers: 8
+  bf16: true
+  tf32: true
+  weight_decay: 0.01
+  logging_steps: 200
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  metric_for_best_model: "accuracy"
+  greater_is_better: true
+  seed: 42
+
+evaluation:
+  report_output: "ml/sentiment/reports/sentiment_eval_25pct_gpu5090_v0.json"
