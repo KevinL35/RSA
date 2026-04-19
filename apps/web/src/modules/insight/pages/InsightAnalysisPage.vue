@@ -75,13 +75,6 @@
           <span class="status-text">{{ row.reviewStatusLabel }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="t('insight.colInsightModel')" width="132">
-        <template #default="{ row }">
-          <el-tooltip :content="row.aiModel" placement="top" :show-after="400">
-            <span class="insight-model-cell">{{ row.aiModelList }}</span>
-          </el-tooltip>
-        </template>
-      </el-table-column>
       <el-table-column :label="t('insight.colInsightStatus')" width="112">
         <template #default="{ row }">
           <span class="status-text">{{ row.statusLabel }}</span>
@@ -203,24 +196,6 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('insight.formInsightModel')" required>
-          <el-select
-            v-model="insightModelId"
-            class="insight-model-select"
-            clearable
-            teleported
-            placement="bottom-start"
-            :fallback-placements="selectFallbackPlacementsBottom"
-            :popper-options="selectPopperOptionsNoFlip"
-          >
-            <el-option
-              v-for="opt in insightModelOptions"
-              :key="opt.id"
-              :label="opt.label"
-              :value="opt.id"
-            />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="addDialogVisible = false">{{ t('insight.dialogCancel') }}</el-button>
@@ -285,24 +260,6 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('insight.formInsightModel')" required>
-          <el-select
-            v-model="uploadInsightModelId"
-            class="insight-model-select"
-            clearable
-            :teleported="true"
-            placement="bottom-start"
-            :fallback-placements="selectFallbackPlacementsBottom"
-            :popper-options="selectPopperOptionsNoFlip"
-          >
-            <el-option
-              v-for="opt in insightModelOptions"
-              :key="opt.id"
-              :label="opt.label"
-              :value="opt.id"
-            />
-          </el-select>
-        </el-form-item>
         <div class="upload-file-section-label">{{ t('insight.uploadFileSectionLabel') }}</div>
         <div class="upload-file-zone">
           <el-upload
@@ -347,11 +304,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { genFileId } from 'element-plus'
 import type { UploadFile, UploadInstance, UploadRawFile } from 'element-plus'
 import { DocumentCopy, Download, Plus, Refresh } from '@element-plus/icons-vue'
-import type { ApiConfigRow } from '../../settings/apiConfig.shared'
-import {
-  insightApiConfigRows,
-  selectedInsightModelIdRef,
-} from '../../settings/apiConfig.shared'
 import { deleteInsightTask, fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import {
@@ -360,12 +312,9 @@ import {
   looksLikeAmazonProductUrl,
   resolveProductIdForUploadReviews,
 } from '../../../shared/utils/amazonAsin'
-import {
-  formatInsightModelLine,
-  formatInsightModelLineByProviderId,
-  formatInsightModelShort,
-} from '../../../shared/utils/insightModelLabel'
 import { downloadReviewImportTemplate, downloadReviewsExcel } from '../../../shared/utils/excelDownload'
+
+const BUILTIN_ANALYSIS_PROVIDER_ID = 'ins_builtin'
 import {
   createInsightTask,
   fetchInsightTaskReviews,
@@ -398,10 +347,8 @@ type InsightProductRow = {
   reviewCount: number
   creator: string
   createdAt: string
-  /** 完整「名称：模型」，用于结果页与 tooltip */
+  /** 透传给结果页 meta 的模型描述（当前固定内置） */
   aiModel: string
-  /** 列表紧凑展示（多为模型 id） */
-  aiModelList: string
   reviewStatus: 'fetching' | 'completed' | 'failed'
   reviewStatusLabel: string
   statusLabel: string
@@ -428,11 +375,9 @@ const uploadDictionaryVerticalId = ref('general')
 
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
-const insightModelId = ref<string>(selectedInsightModelIdRef.value)
 const dialogSubmitting = ref(false)
 const uploadDialogVisible = ref(false)
 const uploadLinkInput = ref('')
-const uploadInsightModelId = ref<string>(selectedInsightModelIdRef.value)
 const uploadExcelFile = ref<File | null>(null)
 const uploadExcelRef = ref<UploadInstance | null>(null)
 const uploadSubmitting = ref(false)
@@ -448,13 +393,6 @@ const REVIEW_EXPORT_COLUMNS = [
   { label: '标题', key: 'title' },
   { label: '评论', key: 'raw_text' },
 ] as const
-
-const insightModelOptions = computed(() =>
-  insightApiConfigRows.value.map((row) => ({
-    id: row.id,
-    label: formatInsightModelLine(row, t),
-  })),
-)
 
 const dictionaryVerticalOptions = computed(() => {
   if (dictionaryVerticals.value.length > 0) {
@@ -514,7 +452,6 @@ function appendLinkRow() {
 
 function resetAddForm() {
   linkInputs.value = ['']
-  insightModelId.value = selectedInsightModelIdRef.value
   dictionaryVerticalId.value = 'general'
 }
 
@@ -601,8 +538,8 @@ function classifyInsightFlowStatus(status: string): 'analyzing' | 'done' | 'fail
   return 'analyzing'
 }
 
-function displayProviderLabel(providerId: string | null) {
-  return formatInsightModelLineByProviderId(providerId, insightApiConfigRows.value, t)
+function displayProviderLabel(providerId: string | null): string {
+  return providerId?.trim() || BUILTIN_ANALYSIS_PROVIDER_ID
 }
 
 function formatTaskTime(iso: string) {
@@ -653,7 +590,6 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     creator: creatorForTask(task),
     createdAt: formatTaskTime(task.created_at),
     aiModel: full,
-    aiModelList: formatInsightModelShort(task.analysis_provider_id, insightApiConfigRows.value, t),
     reviewStatus: rs,
     reviewStatusLabel: reviewStatusLabel(rs),
     statusLabel: flowInsightStatusLabel(task.status),
@@ -938,16 +874,6 @@ async function submitAddProduct() {
     ElMessage.warning(t('insight.addProductNeedLink'))
     return
   }
-  const id = insightModelId.value
-  if (!id) {
-    ElMessage.warning(t('insight.addProductNeedModel'))
-    return
-  }
-  const cfg = insightApiConfigRows.value.find((r) => r.id === id)
-  if (!cfg) {
-    ElMessage.warning(t('insight.insightModelMissing'))
-    return
-  }
   const dvid = dictionaryVerticalId.value
   if (!dvid) {
     ElMessage.warning(t('insight.needDictionaryVertical'))
@@ -973,7 +899,7 @@ async function submitAddProduct() {
       const task = await createInsightTask({
         platform: 'amazon',
         product_id: productId,
-        analysis_provider_id: id,
+        analysis_provider_id: BUILTIN_ANALYSIS_PROVIDER_ID,
         dictionary_vertical_id: dvid,
       })
       createdTaskIds.push(task.id)
@@ -982,7 +908,6 @@ async function submitAddProduct() {
     if (ok === 0) {
       return
     }
-    selectedInsightModelIdRef.value = id
     addDialogVisible.value = false
     resetAddForm()
     page.value = 1
@@ -1017,18 +942,15 @@ const pagedRows = computed(() => {
 })
 
 function onAddProduct() {
-  insightModelId.value = selectedInsightModelIdRef.value
   addDialogVisible.value = true
 }
 
 function onUploadReviews() {
-  uploadInsightModelId.value = selectedInsightModelIdRef.value
   uploadDialogVisible.value = true
 }
 
 function resetUploadForm() {
   uploadLinkInput.value = ''
-  uploadInsightModelId.value = selectedInsightModelIdRef.value
   uploadDictionaryVerticalId.value = 'general'
   uploadExcelFile.value = null
   uploadExcelRef.value?.clearFiles()
@@ -1059,16 +981,6 @@ async function submitUploadReviews() {
     return
   }
   const productId = resolved.productId
-  const id = uploadInsightModelId.value
-  if (!id) {
-    ElMessage.warning(t('insight.addProductNeedModel'))
-    return
-  }
-  const cfg = insightApiConfigRows.value.find((r) => r.id === id)
-  if (!cfg) {
-    ElMessage.warning(t('insight.insightModelMissing'))
-    return
-  }
   const file = uploadExcelFile.value
   if (!file) {
     ElMessage.warning(t('insight.uploadNeedFile'))
@@ -1093,11 +1005,10 @@ async function submitUploadReviews() {
     const task = await createInsightTask({
       platform: 'amazon',
       product_id: productId,
-      analysis_provider_id: id,
+      analysis_provider_id: BUILTIN_ANALYSIS_PROVIDER_ID,
       dictionary_vertical_id: dvid,
     })
     const taskId = task.id
-    selectedInsightModelIdRef.value = id
     const imp = await postInsightTaskImportReviews(taskId, file)
     const n = imp.reviews_inserted ?? 0
     uploadDialogVisible.value = false

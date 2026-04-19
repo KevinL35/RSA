@@ -57,44 +57,6 @@
 
     <section class="config-block">
       <div class="block-head">
-        <h3 class="block-title">{{ t('settings.moduleInsightModel') }}</h3>
-        <el-button type="primary" @click="openAddDialog('insight')">{{ t('settings.apiAdd') }}</el-button>
-      </div>
-      <el-table :data="insightRows" stripe class="block-table" :empty-text="t('settings.tableEmpty')">
-        <el-table-column :label="t('settings.apiColName')" min-width="160">
-          <template #default="{ row }">
-            {{ insightTableName(row) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="model" :label="t('settings.apiColModel')" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="createdAt" :label="t('settings.colCreatedAt')" width="190" />
-        <el-table-column :label="t('settings.colActions')" width="140" fixed="right">
-          <template #default="{ row, $index }">
-            <el-button
-              type="primary"
-              link
-              class="row-action-btn"
-              :disabled="row.builtin"
-              @click="openEditDialog('insight', row, $index)"
-            >
-              {{ t('settings.edit') }}
-            </el-button>
-            <el-button
-              type="danger"
-              link
-              class="row-action-btn"
-              :disabled="row.builtin"
-              @click="onDelete('insight', $index)"
-            >
-              {{ t('settings.delete') }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </section>
-
-    <section class="config-block">
-      <div class="block-head">
         <h3 class="block-title">{{ t('settings.moduleSmartAgent') }}</h3>
         <el-button type="primary" @click="openAddDialog('agent')">{{ t('settings.apiAdd') }}</el-button>
       </div>
@@ -230,7 +192,6 @@ import { persistLocale, type AppLocale } from '../../../app/i18n'
 import type { ApiConfigRow } from '../apiConfig.shared'
 import {
   agentApiConfigRows as agentRows,
-  insightApiConfigRows as insightRows,
   reviewFetchApiConfigRows as reviewFetchRows,
   translateApiConfigRows as translateRows,
 } from '../apiConfig.shared'
@@ -239,7 +200,7 @@ import {
   selectPopperOptionsNoFlip,
 } from '../../../shared/ui/elementSelectPlacement'
 
-type ModuleKey = 'insight' | 'agent' | 'reviewFetch' | 'translate'
+type ModuleKey = 'agent' | 'reviewFetch' | 'translate'
 
 const { t, locale } = useI18n()
 const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
@@ -262,7 +223,7 @@ function initialTopSelectId(storageKey: string, defaultId: string): string {
 }
 
 const dialogVisible = ref(false)
-const dialogModule = ref<ModuleKey>('insight')
+const dialogModule = ref<ModuleKey>('agent')
 const dialogEditIndex = ref<number | null>(null)
 const selectedTranslateApiId = ref(initialTopSelectId(TRANSLATE_SELECTED_KEY, DEFAULT_TRANSLATE_ID))
 const selectedReviewFetchApiId = ref(initialTopSelectId(REVIEW_FETCH_SELECTED_KEY, DEFAULT_REVIEW_FETCH_ID))
@@ -285,17 +246,9 @@ function newId() {
 }
 
 function rowList(key: ModuleKey) {
-  if (key === 'insight') return insightRows
   if (key === 'agent') return agentRows
   if (key === 'reviewFetch') return reviewFetchRows
   return translateRows
-}
-
-function insightTableName(row: ApiConfigRow) {
-  const n = row.name?.trim()
-  if (row.builtin && n) return n
-  if (row.builtin) return t('settings.insightBuiltinModelName')
-  return row.name
 }
 
 const translateSelectOptions = computed(() =>
@@ -363,7 +316,7 @@ function openAddDialog(key: ModuleKey) {
 }
 
 function openEditDialog(key: ModuleKey, row: ApiConfigRow, index: number) {
-  if (row.builtin && (key === 'insight' || key === 'reviewFetch' || key === 'translate')) return
+  if (row.builtin && (key === 'reviewFetch' || key === 'translate')) return
   dialogModule.value = key
   dialogEditIndex.value = index
   form.name = row.name
@@ -400,9 +353,7 @@ function submitDialog() {
     const row = list.value[i]
     if (
       row?.builtin &&
-      (dialogModule.value === 'insight' ||
-        dialogModule.value === 'reviewFetch' ||
-        dialogModule.value === 'translate')
+      (dialogModule.value === 'reviewFetch' || dialogModule.value === 'translate')
     ) {
       ElMessage.warning(t('settings.builtinNotEditable'))
       return
@@ -419,9 +370,8 @@ function submitDialog() {
 }
 
 function rowDisplayName(key: ModuleKey, row: ApiConfigRow): string {
-  if (row.builtin) {
-    if (key === 'insight') return t('settings.insightBuiltinModelName')
-    if (key === 'reviewFetch' || key === 'translate') return t('settings.defaultConfigLabel')
+  if (row.builtin && (key === 'reviewFetch' || key === 'translate')) {
+    return t('settings.defaultConfigLabel')
   }
   return row.name
 }
@@ -430,7 +380,7 @@ async function onDelete(key: ModuleKey, index: number) {
   const list = rowList(key)
   const row = list.value[index]
   if (!row) return
-  if (row.builtin && (key === 'insight' || key === 'reviewFetch' || key === 'translate')) return
+  if (row.builtin && (key === 'reviewFetch' || key === 'translate')) return
   try {
     await ElMessageBox.confirm(
       t('settings.deleteConfirm', { name: rowDisplayName(key, row) }),

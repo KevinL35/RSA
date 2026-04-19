@@ -151,9 +151,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { insightApiConfigRows } from '../../settings/apiConfig.shared'
 import { useAuthStore } from '../../auth/store/auth.store'
-import { formatInsightModelLineByProviderId } from '../../../shared/utils/insightModelLabel'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
 import {
@@ -270,8 +268,8 @@ function resetAddForm() {
   asin2Key.value = ''
 }
 
-function displayProviderLabel(providerId: string | null) {
-  return formatInsightModelLineByProviderId(providerId, insightApiConfigRows.value, t)
+function displayProviderLabel(providerId: string | null): string {
+  return providerId?.trim() || 'ins_builtin'
 }
 
 function optionByKey(key: string): InsightProductOption | undefined {
