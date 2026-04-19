@@ -64,9 +64,17 @@ def _build_context_for_llm(d: dict[str, Any]) -> dict[str, Any]:
         for x in pr[:15]
         if isinstance(x, dict)
     ]
+    snap_raw = d.get("product_snapshot") or {}
+    snapshot: dict[str, Any] = {}
+    if isinstance(snap_raw, dict):
+        for k in ("title", "price_display", "image_url", "asin", "source", "fetched_at"):
+            v = snap_raw.get(k)
+            if v not in (None, ""):
+                snapshot[k] = v
     return {
         "product_id": d.get("product_id"),
         "platform": d.get("platform"),
+        "product_snapshot": snapshot or None,
         "dictionary_vertical_id": d.get("dictionary_vertical_id"),
         "review_total_count": d.get("review_total_count"),
         "matched_review_count": d.get("matched_review_count"),

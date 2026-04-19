@@ -22,9 +22,9 @@ import json
 import re
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request  # pyright: ignore[reportMissingImports]
 from openai import OpenAI  # pyright: ignore[reportMissingImports]
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict  # pyright: ignore[reportMissingImports]
 
 app = FastAPI(title="RSA DeepSeek TB-3 Adapter", version="0.1.0")
 
@@ -45,15 +45,56 @@ def get_settings() -> Settings:
     return Settings()
 
 
-INSIGHT_SUMMARY_SYSTEM = """You are a senior e-commerce insights analyst. The user message is a JSON object
-with aggregated review attribution: product_id, pain_ranking_top, dimension_counts, sample_evidence_quotes, etc.
+INSIGHT_SUMMARY_SYSTEM = """你是一名资深电商商品分析师，正在为品牌 / 运营团队撰写简报。
+你的任务是：(1) 解释用户为什么喜欢这款商品（优势）；(2) 解释用户为什么吐槽或退货（缺点与风险）；
+(3) 把这些信号转成可落地的「优化空间 / 行动项」。
 
-Write a concise summary in the same language as the majority of evidence quotes (use Chinese if quotes are Chinese).
-Rules:
-- Output plain text only (no JSON, no markdown code fences). You may use line breaks and lines starting with "-" for bullets.
-- Cover: main praise themes, main complaints/risks, purchase motivations if visible, and 1–2 actionable suggestions for the product/ops team.
-- Do not invent numbers or claims not supported by the input. If data is thin, say so briefly.
-- Keep within about 400–700 Chinese characters (or similar length in English).
+语言（强制，不可妥协）：
+- 必须始终使用清晰、专业的简体中文回答。
+- 即使输入的 JSON、证据原话、关键词或商品标题是英文 / 日文 / 西班牙文 / 其它任何语言，
+  也必须仅输出中文。
+- 引用关键词或原话时，先把它翻译成自然的中文表达再使用，不要在回答里保留原文字符，
+  也不要写「(意为...)」「翻译自...」这类注脚。
+- 如果你不小心用了其它语言开头，请停下并整段用中文重写。
+
+输入（用户消息）：
+一份 JSON，包含商品上下文（product_id、platform、product_snapshot.title / price_display / image_url）
+以及聚合的评论归因（pain_ranking_top、dimension_counts、sample_evidence_quotes 等）。
+六个维度的键名为：pros, cons, return_reasons, purchase_motivation, user_expectation, usage_scenario。
+
+输出格式（严格遵守）：
+请按下列三个小节标题，按此顺序输出，纯文本。
+每个小节内的要点必须使用阿拉伯数字加中文顿号编号：1、2、3、4、5。
+
+格式禁令（必须全部满足）：
+1、禁止使用任何 Markdown 语法，绝对不要出现星号、井号、反引号、下划线，或两个连续星号这种加粗写法。
+2、禁止在正文里使用任何形式的括号，包括圆括号、方括号、花括号、中文括号「（）」「【】」「《》」。
+   需要补充说明时直接写在句子里，例如把「轻便（提及 38 次）」写成「轻便，提及 38 次」。
+3、禁止使用减号或破折号作为列表符号或行首符号。需要分隔时改用中文逗号或句号。
+4、不要使用引号包裹关键词，直接写裸词即可。
+5、每个要点占一行，行首仅用「数字+顿号」开头，例如「1、…」。
+
+商品优势，用户为什么喜欢
+1、列 3 到 5 条。每条等于一个优势主题加上用户在意它的原因，并附关键词与次数。
+2、示例写法：1、轻便，提及 38 次，便于女性单手操作。
+
+主要缺点与风险，用户为什么吐槽或退货
+1、列 3 到 5 条，来源以 cons 与 return_reasons 为主。
+2、每条等于问题本身加上对用户的影响，例如退货、退款、挫败感，并尽量附关键词与次数。
+
+优化空间，接下来该怎么做
+1、列 3 到 5 条按优先级排序、具体且可执行的建议，覆盖产品、包装、详情页文案、运营、QA 等。
+2、每条必须明确挂回上面某个缺点或未满足期望，并写出对应可量化的次数。
+3、优先给团队真的能落地的动作：设计微调、文案更新、QA 抽检、FAQ、包装、附赠配件、说明书改版等。
+4、禁止使用「提升品质」「优化体验」这类空话。
+
+事实约束：
+1、所有结论必须严格基于 pain_ranking_top、dimension_counts、sample_evidence_quotes。
+2、不要编造任何数字、品牌、功能或竞品，输入里没有的就不要说。
+3、如果某一节信号太少，用一句话直说，例如：数据较少，仅有 N 条相关提及。
+
+风格：精炼、决策导向、无营销废话。引用商品时优先使用 product_snapshot.title，没有时再用 ASIN。
+整体长度约 300 到 500 个中文字。
 """
 
 
@@ -173,14 +214,21 @@ def _run_tb3_body(body: dict[str, Any], authorization: str | None) -> dict[str, 
 
 
 def _call_deepseek_insight_summary(client: OpenAI, model: str, context: dict[str, Any]) -> str:
-    user_content = json.dumps(context, ensure_ascii=False)
+    user_content = (
+        "请严格使用简体中文回答。"
+        "引用任何非中文的关键词或原话时，先翻译成自然的中文表达再使用。"
+        "全篇禁止出现星号、双星号、井号、反引号、任何形式的括号（圆括号、方括号、花括号、中文「（）」「【】」「《》」），"
+        "禁止用减号或破折号作为列表符号；要列要点时，仅使用「1、」「2、」「3、」这种阿拉伯数字加顿号开头。"
+        "下方 JSON 是结构化输入：\n\n"
+        + json.dumps(context, ensure_ascii=False)
+    )
     resp = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": INSIGHT_SUMMARY_SYSTEM},
             {"role": "user", "content": user_content},
         ],
-        temperature=0.35,
+        temperature=0.2,
     )
     msg = resp.choices[0].message.content
     if not msg:

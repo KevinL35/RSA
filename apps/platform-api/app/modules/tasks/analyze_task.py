@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import threading
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -12,6 +14,8 @@ from app.integrations.analysis_provider import AnalysisProviderError, analyze_re
 from app.modules.analysis_results.persist import replace_task_analysis
 from app.modules.tasks import state_machine
 from app.modules.tasks.listing import enrich_task_for_task_center
+
+log = logging.getLogger("rsa.analyze_task")
 
 
 def _utc_now_iso() -> str:
@@ -172,6 +176,9 @@ def run_analyze_for_task(
         raise HTTPException(status_code=500, detail="更新任务为 success 失败")
     task_row = up.data[0]
 
+    if settings.insight_summary_auto_after_analyze:
+        _spawn_ai_summary_async(sb, task_id)
+
     out: dict = {
         "task": enrich_task_for_task_center(task_row),
         "analysis_provider_id_used": effective_id,
@@ -180,3 +187,22 @@ def run_analyze_for_task(
     if agent_stats is not None:
         out["agent_enrichment"] = agent_stats
     return out
+
+
+def _spawn_ai_summary_async(sb: Client, task_id: UUID) -> None:
+    """analyze 成功后后台触发一次 AI 摘要（force regenerate）；失败仅日志，不影响 analyze 返回。"""
+
+    def _runner() -> None:
+        try:
+            from app.modules.insight_summary.service import run_insight_ai_summary
+
+            run_insight_ai_summary(sb, task_id, regenerate=True)
+            log.info("ai_summary auto-generated for task=%s", task_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("ai_summary auto-generate failed for task=%s: %s", task_id, e)
+
+    threading.Thread(
+        target=_runner,
+        name=f"ai-summary-{str(task_id)[:8]}",
+        daemon=True,
+    ).start()

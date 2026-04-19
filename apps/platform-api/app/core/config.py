@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     insight_summary_url: str = "http://127.0.0.1:9100/insight-summary"
     insight_summary_api_key: str | None = None
     insight_summary_timeout_seconds: float = 120.0
+    # 分析任务成功后自动调一次 AI 摘要（异步线程，失败不阻断 analyze）；用户也能在结果页手动「重新生成」
+    insight_summary_auto_after_analyze: bool = True
 
     # 可选：词典分析后的智能 Agent 增强（补洞 / 抽检）；见 agent_enrichment 模块
     agent_enrichment_url: str | None = None

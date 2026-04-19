@@ -36,17 +36,15 @@
           <div class="result-header-title-row">
             <h1 class="result-main-title">{{ mainAsinTitle }}</h1>
             <div class="result-header-actions">
-              <el-button
+              <button
                 v-if="canReanalyzeInsight"
-                type="primary"
-                plain
-                size="small"
-              :loading="reanalyzeSubmitting"
-              :disabled="loading || reanalyzeSubmitting || aiSummarySubmitting"
-              @click="onReanalyzeInsight"
+                type="button"
+                class="rsa-text-back-btn"
+                :disabled="loading || reanalyzeSubmitting || aiSummarySubmitting"
+                @click="onReanalyzeInsight"
               >
-                {{ t('insightResult.reanalyze') }}
-              </el-button>
+                {{ reanalyzeSubmitting ? t('insightResult.reanalyzing') : t('insightResult.reanalyze') }}
+              </button>
               <button type="button" class="rsa-text-back-btn" @click="goBack">
                 {{ t('insightResult.back') }}
               </button>
@@ -95,16 +93,15 @@
     <section v-if="dashboard && !emptyState" class="panel ai-insight-panel" v-loading="aiSummarySubmitting">
       <div class="ai-insight-head">
         <h3 class="subpanel-title">{{ t('insightResult.aiSectionTitle') }}</h3>
-        <el-button
+        <button
           v-if="canReanalyzeInsight"
-          type="primary"
-          size="small"
-          :loading="aiSummarySubmitting"
+          type="button"
+          class="rsa-text-back-btn"
           :disabled="loading || aiSummarySubmitting || reanalyzeSubmitting"
           @click="onGenerateAiSummary"
         >
-          {{ t('insightResult.aiRegenerate') }}
-        </el-button>
+          {{ aiSummarySubmitting ? t('insightResult.aiRegenerating') : t('insightResult.aiRegenerate') }}
+        </button>
       </div>
       <div v-if="storedAiSummaryText" class="ai-insight-body">{{ storedAiSummaryText }}</div>
       <ul v-else-if="aiSummaryLines.length" class="ai-insight-list">
@@ -181,17 +178,50 @@
           <div v-if="!selectedKeyword" class="dim-empty evidence-hint">
             {{ t('insightResult.evidencePickKeyword') }}
           </div>
-          <template v-else-if="topFiveEvidence.length">
-            <div v-for="ev in topFiveEvidence" :key="String(ev.id)" class="evidence-block">
+          <template v-else-if="paginatedEvidence.length">
+            <div v-for="ev in paginatedEvidence" :key="String(ev.id)" class="evidence-block">
               <div class="evidence-block-head">
                 <span class="evidence-time">{{ formatReviewDateTime(ev) }}</span>
+                <button
+                  v-if="evidenceHasQuoteText(ev)"
+                  type="button"
+                  class="evidence-toggle"
+                  @click="toggleEvidenceExpand(ev)"
+                >
+                  {{
+                    isEvidenceExpanded(ev)
+                      ? t('insightResult.evidenceCollapse')
+                      : t('insightResult.evidenceExpand')
+                  }}
+                </button>
               </div>
               <div class="evidence-quote-wrap">
-                <div class="evidence-quote evidence-quote--full" v-html="highlightEvidence(ev)" />
+                <div class="evidence-quote" :class="evidenceQuoteClass(ev)" v-html="highlightEvidence(ev)" />
               </div>
             </div>
           </template>
           <div v-else class="dim-empty">{{ t('insightResult.evidenceEmpty') }}</div>
+        </div>
+        <div v-if="selectedKeyword && evidenceTotalPages > 1" class="evidence-pager">
+          <button
+            type="button"
+            class="rsa-text-back-btn"
+            :disabled="evidencePage <= 1"
+            @click="evidencePage--"
+          >
+            {{ t('insightResult.prev') }}
+          </button>
+          <span class="pager-text">
+            {{ t('insightResult.pageOf', { n: evidencePage, m: evidenceTotalPages }) }}
+          </span>
+          <button
+            type="button"
+            class="rsa-text-back-btn"
+            :disabled="evidencePage >= evidenceTotalPages"
+            @click="evidencePage++"
+          >
+            {{ t('insightResult.next') }}
+          </button>
         </div>
       </div>
     </section>
@@ -217,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -321,6 +351,7 @@ const aiSummarySubmitting = ref(false)
 
 const expandVisible = ref(false)
 const expandDim = ref<Dimension6Key | null>(null)
+
 
 const emptyState = computed(() => dashboard.value?.empty_state ?? null)
 
@@ -590,12 +621,61 @@ const filteredEvidence = computed(() => {
   })
 })
 
-/** 固定展示 5 条，全文展开（无折叠） */
-const topFiveEvidence = computed(() => filteredEvidence.value.slice(0, 5))
+const EVIDENCE_PAGE_SIZE = 5
+const evidencePage = ref(1)
+
+const evidenceTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredEvidence.value.length / EVIDENCE_PAGE_SIZE)),
+)
+
+const paginatedEvidence = computed(() => {
+  const start = (evidencePage.value - 1) * EVIDENCE_PAGE_SIZE
+  return filteredEvidence.value.slice(start, start + EVIDENCE_PAGE_SIZE)
+})
+
+/** 证据条「展开」状态：按 review_dimension_analysis.id 记忆，切换关键词/维度/翻页时清空 */
+const evidenceExpandedIds = ref<Set<string>>(new Set())
 
 watch(painListDimension, () => {
   selectedKeyword.value = null
 })
+
+/** 换关键词或维度时回到第 1 页并折叠所有证据 */
+watch([selectedKeyword, painListDimension], () => {
+  evidencePage.value = 1
+  evidenceExpandedIds.value = new Set()
+})
+
+watch(evidencePage, () => {
+  evidenceExpandedIds.value = new Set()
+})
+
+function evidenceDisplayPlainText(ev: InsightEvidenceItem): string {
+  const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
+  const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
+  return (rawFull.trim() || quote.trim()) || ''
+}
+
+function evidenceHasQuoteText(ev: InsightEvidenceItem): boolean {
+  return evidenceDisplayPlainText(ev).length > 0
+}
+
+function isEvidenceExpanded(ev: InsightEvidenceItem): boolean {
+  return evidenceExpandedIds.value.has(String(ev.id))
+}
+
+function toggleEvidenceExpand(ev: InsightEvidenceItem) {
+  const k = String(ev.id)
+  const next = new Set(evidenceExpandedIds.value)
+  if (next.has(k)) next.delete(k)
+  else next.add(k)
+  evidenceExpandedIds.value = next
+}
+
+function evidenceQuoteClass(ev: InsightEvidenceItem) {
+  if (!evidenceHasQuoteText(ev)) return {}
+  return { 'evidence-quote--collapsed': !isEvidenceExpanded(ev) }
+}
 
 const expandRows = computed(() => (expandDim.value ? cardRows(expandDim.value) : []))
 const expandTitle = computed(() => (expandDim.value ? dimTitle(expandDim.value) : ''))
@@ -734,14 +814,51 @@ async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {
   }
 }
 
+/** 后端 analyze 成功后异步触发 AI 摘要；用最多 4 次轮询等它写回，避免用户手动刷新 */
+const AI_SUMMARY_POLL_INTERVAL_MS = 5000
+const AI_SUMMARY_POLL_MAX = 4
+let aiSummaryPollTimer: number | null = null
+
+function clearAiSummaryPolling() {
+  if (aiSummaryPollTimer != null) {
+    window.clearTimeout(aiSummaryPollTimer)
+    aiSummaryPollTimer = null
+  }
+}
+
+function scheduleAiSummaryPolling(remaining: number) {
+  clearAiSummaryPolling()
+  if (remaining <= 0) return
+  if ((dashboard.value?.ai_summary?.text || '').trim()) return
+  aiSummaryPollTimer = window.setTimeout(async () => {
+    aiSummaryPollTimer = null
+    if ((dashboard.value?.ai_summary?.text || '').trim()) return
+    if (!taskId.value) return
+    try {
+      const next = await fetchInsightDashboard(taskId.value, { evidence_limit: 5000, evidence_offset: 0 })
+      dashboard.value = next
+    } catch {
+      /** 静默：保留已有看板数据 */
+    }
+    if (!(dashboard.value?.ai_summary?.text || '').trim()) {
+      scheduleAiSummaryPolling(remaining - 1)
+    }
+  }, AI_SUMMARY_POLL_INTERVAL_MS)
+}
+
 async function load() {
   errorMsg.value = ''
   loading.value = true
+  clearAiSummaryPolling()
   try {
-    dashboard.value = await fetchInsightDashboard(taskId.value, { evidence_limit: 120, evidence_offset: 0 })
+    /** evidence_limit 调大：保证前端按「维度+关键词」过滤后能与 pain_ranking.count 对齐，不再出现「卡片 249 / 证据 1」 */
+    dashboard.value = await fetchInsightDashboard(taskId.value, { evidence_limit: 5000, evidence_offset: 0 })
     painListDimension.value = 'pros'
     selectedKeyword.value = null
     await loadTaxonomyForDashboard(dashboard.value)
+    if (!(dashboard.value?.ai_summary?.text || '').trim()) {
+      scheduleAiSummaryPolling(AI_SUMMARY_POLL_MAX)
+    }
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e)
     dashboard.value = null
@@ -760,6 +877,10 @@ watch(
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  clearAiSummaryPolling()
+})
 </script>
 
 <style scoped>
@@ -832,9 +953,6 @@ watch(
   flex-shrink: 0;
 }
 
-.result-header-actions :deep(.el-button) {
-  margin-inline: 0;
-}
 
 .result-main-title {
   margin: 0;
@@ -1147,8 +1265,8 @@ watch(
 
 .evidence-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-  align-items: stretch;
-  min-height: 440px;
+  /** 两栏各取自身内容高度：证据面板贴合内容，维度列表用自身固定高度 */
+  align-items: start;
 }
 
 @media (min-width: 1000px) {
@@ -1160,7 +1278,6 @@ watch(
 @media (max-width: 900px) {
   .evidence-row {
     grid-template-columns: 1fr;
-    min-height: 0;
   }
 }
 
@@ -1168,10 +1285,8 @@ watch(
 .evidence-row .evidence-panel {
   min-width: 0;
   min-height: 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .evidence-panel .evidence-panel-title {
@@ -1206,8 +1321,9 @@ watch(
   list-style: none;
   margin: 0;
   padding: 0;
-  flex: 1;
-  min-height: 0;
+  /** 固定容纳约 15 条单行关键词；不足 15 条时仍按真实条数显示，超过则内部滚动 */
+  --pain-list-row: 35px;
+  max-height: calc(var(--pain-list-row) * 15);
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -1244,11 +1360,11 @@ watch(
   word-break: break-word;
 }
 
+/** 不再固定高度：证据面板高度随展开/折叠和当前页内容自然变化，左侧维度列表（stretch）会同步变高 */
 .evidence-list {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .evidence-block {
@@ -1285,11 +1401,33 @@ watch(
   color: var(--el-text-color-primary);
   overflow-wrap: anywhere;
   word-break: break-word;
+  white-space: pre-wrap;
   max-width: 100%;
 }
 
-.evidence-quote--full {
-  display: block;
+.evidence-quote--collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.evidence-toggle {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--rsa-primary, var(--el-color-primary));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.evidence-toggle:hover {
+  color: var(--rsa-primary-hover, var(--el-color-primary-light-3));
 }
 
 .evidence-quote :deep(mark) {
@@ -1298,9 +1436,19 @@ watch(
   border-radius: 2px;
 }
 
+.evidence-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+
 .pager-text {
   font-size: 13px;
   color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .ai-insight-panel {
@@ -1319,10 +1467,6 @@ watch(
   margin: 0;
 }
 
-.ai-insight-head :deep(.el-button) {
-  margin-inline: 0;
-  flex-shrink: 0;
-}
 
 .ai-insight-body {
   font-size: 14px;

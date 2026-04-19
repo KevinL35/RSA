@@ -59,6 +59,22 @@ body,
   outline-offset: 2px;
 }
 
+.rsa-text-back-btn:disabled,
+.rsa-text-back-btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #f1f4fa;
+  color: #94a3b8;
+  border-color: var(--rsa-border);
+}
+
+.rsa-text-back-btn:disabled:hover,
+.rsa-text-back-btn[disabled]:hover {
+  background: #f1f4fa;
+  border-color: var(--rsa-border);
+  color: #94a3b8;
+}
+
 /**
  * 暂时隐藏各菜单页副标题 / 导语（评论洞察、对比、接口配置、词典、痛点审核、操作日志等）。
  * 需要恢复展示时删除本段即可。

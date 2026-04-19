@@ -346,7 +346,7 @@ def get_insight_task_reviews(
 def get_insight_dashboard(
     task_id: UUID,
     _rbac: Annotated[str, Depends(get_rsa_role)],
-    evidence_limit: int = Query(default=50, ge=1, le=200),
+    evidence_limit: int = Query(default=50, ge=1, le=20000),
     evidence_offset: int = Query(default=0, ge=0),
     evidence_dimension: str | None = Query(
         default=None,

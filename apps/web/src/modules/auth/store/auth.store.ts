@@ -22,7 +22,7 @@ export function deriveRoleFromMenuKeys(keys: string[]): UserRole {
   for (const k of ks) {
     if (ADMIN_MENU_KEYS.has(k)) return 'admin'
   }
-  if (ks.has('insight') || ks.has('compare')) return 'operator'
+  if (ks.has('insight')) return 'operator'
   return 'readonly'
 }
 
