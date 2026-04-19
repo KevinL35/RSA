@@ -90,3 +90,36 @@ export function postInsightTaskTopicDiscovery(taskId: string, body?: TopicDiscov
     body ?? {},
   )
 }
+
+/**
+ * 与 postInsightTaskTopicDiscovery 等价，但支持 AbortController：
+ * 前端可调 controller.abort() 取消等待；服务端子进程不受此影响（仍会跑完）。
+ */
+export async function postInsightTaskTopicDiscoveryWithSignal(
+  taskId: string,
+  body: TopicDiscoveryBody | undefined,
+  signal: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const { apiBaseUrl, getStoredRole } = await import('../../shared/services/api')
+  const { getStoredUsername } = await import('../auth/store/auth.store')
+  const base = apiBaseUrl()
+  const path = `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery`
+  const url = `${base}${path}`
+  const u = getStoredUsername()
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-RSA-Role': getStoredRole(),
+      ...(u ? { 'X-RSA-Username': u } : {}),
+    },
+    body: JSON.stringify(body ?? {}),
+    signal,
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return (await res.json()) as Record<string, unknown>
+}
