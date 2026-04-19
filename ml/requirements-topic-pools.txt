@@ -1,0 +1,3 @@
+# 主题三池：bertopic_supabase_pools.py（在 requirements-bertopic 基础上增加 Supabase）
+-r requirements-bertopic.txt
+supabase>=2.0.0,<3

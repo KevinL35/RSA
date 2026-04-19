@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -22,7 +23,8 @@ from .listing import enrich_task_for_task_center, list_insight_tasks_filtered
 from .retry_task import retry_insight_task
 from app.modules.dictionary.verticals import assert_valid_vertical_id
 
-from .schema import InsightTaskCreate, InsightTaskPatch
+from .schema import InsightTaskCreate, InsightTaskPatch, TopicDiscoveryBody
+from .topic_pools_job import run_topic_pools_subprocess
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
 
@@ -451,6 +453,77 @@ def post_analyze_insight_task(
         detail={"task_id": str(task_id)},
     )
     return payload
+
+
+@router.post("/{task_id}/topic-discovery")
+def post_topic_discovery(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    body: TopicDiscoveryBody = TopicDiscoveryBody(),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    """
+    从 review_analysis + reviews 按三分类分桶跑 BERTopic，写入 topic_pool_highlight / pain / observation。
+    依赖子进程环境：与 Platform 相同 SUPABASE_*，且解释器需已安装 ml/requirements-topic-pools.txt；
+    可设置 TOPIC_MINING_PYTHON 指向该 venv 的 python。
+    """
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        res = (
+            sb.table("insight_tasks")
+            .select("id,status")
+            .eq("id", str(task_id))
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Supabase 查询失败：{e!s}") from e
+    rows = res.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if rows[0].get("status") != "success":
+        raise HTTPException(
+            status_code=400,
+            detail="请先完成洞察分析（任务状态须为 success）后再运行主题挖掘",
+        )
+
+    try:
+        out = run_topic_pools_subprocess(
+            task_id,
+            embedding_model=body.embedding_model.strip(),
+            dry_run=body.dry_run,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail=f"主题挖掘超时：{e!s}") from e
+
+    if out["returncode"] != 0:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "主题挖掘子进程失败",
+                "stderr": (out.get("stderr") or "")[:4000],
+                "stdout": (out.get("stdout") or "")[:4000],
+            },
+        )
+
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"主题挖掘入三池 insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "summary": out.get("summary")},
+    )
+    return {
+        "ok": True,
+        "insight_task_id": str(task_id),
+        "summary": out.get("summary"),
+        "stdout_tail": (out.get("stdout") or "")[-2000:],
+    }
 
 
 @router.post("/{task_id}/agent-enrich")

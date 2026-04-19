@@ -78,3 +78,15 @@ export function postInsightTaskImportReviews(taskId: string, file: File) {
 export function postInsightTaskAnalyze(taskId: string) {
   return apiPostJson<Record<string, unknown>>(`/api/v1/insight-tasks/${encodeURIComponent(taskId)}/analyze`, {})
 }
+
+export type TopicDiscoveryBody = {
+  embedding_model?: string
+  dry_run?: boolean
+}
+
+export function postInsightTaskTopicDiscovery(taskId: string, body?: TopicDiscoveryBody) {
+  return apiPostJson<Record<string, unknown>>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery`,
+    body ?? {},
+  )
+}
