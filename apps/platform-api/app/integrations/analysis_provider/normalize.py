@@ -156,16 +156,11 @@ def normalize_analysis_item(
         if norm:
             dimensions.append(norm)
 
-    out_item: dict[str, Any] = {
+    return {
         "review_id": rid_s,
         "sentiment": {"label": label, "confidence": conf},
         "dimensions": dimensions,
     }
-    # Analysis API 可选字段：BERTopic 主题（TB-3 扩展）
-    top = item.get("topic")
-    if isinstance(top, dict):
-        out_item["topic"] = top
-    return out_item
 
 
 def build_canonical_response(

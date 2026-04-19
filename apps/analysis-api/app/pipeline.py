@@ -20,7 +20,6 @@ from attribution_engine import (  # noqa: E402
 
 from .sentiment import predict_sentiment
 from .taxonomy_config import load_merged_taxonomy_dict
-from .topic_bertopic import predict_topics_for_texts
 
 _patterns_by_vertical: dict[str, list[PatternRow]] = {}
 
@@ -62,14 +61,10 @@ def analyze_reviews_body(
     if dvid is not None:
         dvid = str(dvid).strip() or None
     patterns = get_patterns(dictionary_vertical_id=dvid, taxonomy_path=taxonomy_path)
-    rows_in: list[dict[str, Any]] = [r for r in reviews if isinstance(r, dict)]
-    texts_for_topic: list[str] = [
-        str(r.get("analysis_input_en") or r.get("raw_text") or "") for r in rows_in
-    ]
-    topic_rows = predict_topics_for_texts(texts_for_topic)
-
     out: list[dict[str, Any]] = []
-    for i, r in enumerate(rows_in):
+    for r in reviews:
+        if not isinstance(r, dict):
+            continue
         rid = str(r.get("id") or "")
         raw = str(r.get("raw_text") or "")
         rating = r.get("rating")
@@ -82,12 +77,11 @@ def analyze_reviews_body(
         ain = str(r.get("analysis_input_en") or raw)
         sent_label, sent_conf = predict_sentiment(raw, rating_f)
         dims, _meta = attribute_review(rid, raw, ain, patterns)
-        item: dict[str, Any] = {
-            "review_id": rid,
-            "sentiment": {"label": sent_label, "confidence": sent_conf},
-            "dimensions": dims,
-        }
-        if topic_rows and i < len(topic_rows) and topic_rows[i] is not None:
-            item["topic"] = topic_rows[i]
-        out.append(item)
+        out.append(
+            {
+                "review_id": rid,
+                "sentiment": {"label": sent_label, "confidence": sent_conf},
+                "dimensions": dims,
+            }
+        )
     return out

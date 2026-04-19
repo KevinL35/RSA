@@ -105,34 +105,6 @@ export type TopicDiscoveryStartResponse = {
   job: TopicDiscoveryJob
 }
 
-export type TopicDiscoveryLatestResponse = {
-  insight_task_id: string
-  job: TopicDiscoveryJob | null
-}
-
-/** 异步触发某任务的主题挖掘：立即返回 job（pending / running） */
-export function postInsightTaskTopicDiscovery(taskId: string, body?: TopicDiscoveryBody) {
-  return apiPostJson<TopicDiscoveryStartResponse>(
-    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery`,
-    body ?? {},
-  )
-}
-
-/** 轮询：取该 task 的最新一条主题挖掘任务状态 */
-export function fetchInsightTaskTopicDiscoveryLatest(taskId: string) {
-  return apiGetJson<TopicDiscoveryLatestResponse>(
-    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery/jobs/latest`,
-  )
-}
-
-/** 取消进行中的主题挖掘 job */
-export function cancelInsightTaskTopicDiscovery(taskId: string, jobId: string) {
-  return apiPostJson<TopicDiscoveryStartResponse>(
-    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery/jobs/${encodeURIComponent(jobId)}/cancel`,
-    {},
-  )
-}
-
 /** 全局主题挖掘：跨所有任务在三总表上跑 BERTopic */
 export function postTopicDiscoveryGlobal(body?: TopicDiscoveryBody) {
   return apiPostJson<TopicDiscoveryStartResponse>(`/api/v1/topic-discovery/global`, body ?? {})
