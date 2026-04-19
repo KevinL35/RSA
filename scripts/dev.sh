@@ -52,6 +52,24 @@ API_PY="$(pick_python "apps/platform-api")"
 ensure_uvicorn "apps/analysis-api" "${ANALYSIS_PY}"
 ensure_uvicorn "apps/platform-api" "${API_PY}"
 
+# 主题挖掘子进程解释器：优先 .venv-topic / .venv-bertopic（需 pip install -r ml/requirements-topic-pools.txt）
+if [[ -z "${TOPIC_MINING_PYTHON:-}" ]]; then
+  for cand in \
+    "${ROOT}/.venv-topic/bin/python" \
+    "${ROOT}/.venv-bertopic/bin/python" \
+    "${ROOT}/ml/.venv-topic/bin/python" \
+    "${ROOT}/ml/.venv-bertopic/bin/python"; do
+    if [[ -x "${cand}" ]]; then
+      export TOPIC_MINING_PYTHON="${cand}"
+      echo "[dev] TOPIC_MINING_PYTHON=${TOPIC_MINING_PYTHON}"
+      break
+    fi
+  done
+  if [[ -z "${TOPIC_MINING_PYTHON:-}" ]]; then
+    echo "[dev] 未找到含 BERTopic 的 Python；主题挖掘将使用默认解释器（请确认其已安装 ml/requirements-topic-pools.txt）"
+  fi
+fi
+
 (
   cd apps/analysis-api
   exec "${ANALYSIS_PY}" -m uvicorn app.main:app --host 127.0.0.1 --port "${ANALYSIS_PORT}"

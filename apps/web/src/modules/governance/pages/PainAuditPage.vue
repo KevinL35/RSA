@@ -17,8 +17,8 @@
         </div>
         <div class="toolbar-right">
           <el-button
-            :type="miningRunning ? 'danger' : 'success'"
-            :loading="miningRunning"
+            :type="miningRunning ? 'success' : 'primary'"
+            :loading="miningStartingOrCancelling"
             @click="onToggleMining"
           >
             {{ miningRunning ? t('governance.topicMiningCancel') : t('governance.topicMiningStart') }}
@@ -246,9 +246,15 @@ import {
 } from '../../../shared/ui/elementSelectPlacement'
 import type { PainAuditRow, SixDimension } from '../painAuditTypes'
 import { SIX_DIMENSIONS } from '../painAuditTypes'
-import { postInsightTaskTopicDiscoveryWithSignal } from '../../insight/api'
+import {
+  cancelInsightTaskTopicDiscovery,
+  fetchInsightTaskTopicDiscoveryLatest,
+  postInsightTaskTopicDiscovery,
+  type TopicDiscoveryJob,
+} from '../../insight/api'
 import { fetchInsightTasks } from '../../tasks/api'
 import type { InsightTaskRow } from '../../tasks/types'
+import { onBeforeUnmount } from 'vue'
 
 const { t, locale } = useI18n()
 
@@ -308,12 +314,66 @@ function onUploadReviews() {
 }
 
 const miningRunning = ref(false)
+const miningStartingOrCancelling = ref(false)
 const miningDialogVisible = ref(false)
 const miningPickedTaskId = ref<string>('')
 const miningEmbeddingModel = ref<string>('ml/all-MiniLM-L6-v2')
 const miningSuccessTasks = ref<InsightTaskRow[]>([])
 const miningTasksLoading = ref(false)
-let miningAbort: AbortController | null = null
+const activeMiningTaskId = ref<string>('')
+const activeMiningJobId = ref<string>('')
+let miningPoller: number | null = null
+
+function stopMiningPoll() {
+  if (miningPoller != null) {
+    window.clearInterval(miningPoller)
+    miningPoller = null
+  }
+}
+
+async function pollLatestJob() {
+  const tid = activeMiningTaskId.value
+  if (!tid) {
+    stopMiningPoll()
+    return
+  }
+  try {
+    const res = await fetchInsightTaskTopicDiscoveryLatest(tid)
+    const job = res.job
+    if (!job) {
+      miningRunning.value = false
+      activeMiningJobId.value = ''
+      stopMiningPoll()
+      return
+    }
+    activeMiningJobId.value = job.id
+    if (job.status === 'pending' || job.status === 'running') {
+      miningRunning.value = true
+      return
+    }
+    miningRunning.value = false
+    stopMiningPoll()
+    if (job.status === 'success') {
+      ElMessage.success(t('governance.topicMiningOk'))
+      await onRefresh()
+    } else if (job.status === 'cancelled') {
+      ElMessage.warning(t('governance.topicMiningCancelled'))
+    } else {
+      const detail = job.error_message ? `: ${job.error_message}` : ''
+      ElMessage.error(`${t('governance.topicMiningFailed')}${detail}`)
+    }
+  } catch (e) {
+    // 轮询失败不停 polling 避免频繁报错；偶发网络抖动等待下一轮
+    console.warn('[topic-discovery] poll failed', e)
+  }
+}
+
+function startMiningPoll(taskId: string) {
+  activeMiningTaskId.value = taskId
+  stopMiningPoll()
+  void pollLatestJob()
+  miningPoller = window.setInterval(() => void pollLatestJob(), 2500)
+}
 
 async function loadSuccessTasks() {
   miningTasksLoading.value = true
@@ -334,7 +394,20 @@ async function loadSuccessTasks() {
 
 async function onToggleMining() {
   if (miningRunning.value) {
-    miningAbort?.abort()
+    const tid = activeMiningTaskId.value
+    const jid = activeMiningJobId.value
+    if (!tid || !jid) return
+    miningStartingOrCancelling.value = true
+    try {
+      await cancelInsightTaskTopicDiscovery(tid, jid)
+      ElMessage.warning(t('governance.topicMiningCancelled'))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(`${t('governance.topicMiningCancelFail')}: ${msg}`)
+    } finally {
+      miningStartingOrCancelling.value = false
+      void pollLatestJob()
+    }
     return
   }
   miningPickedTaskId.value = ''
@@ -346,29 +419,49 @@ async function confirmStartMining() {
   const tid = miningPickedTaskId.value.trim()
   if (!tid) return
   miningDialogVisible.value = false
-  miningRunning.value = true
-  ElMessage.info(t('governance.topicMiningRunningTip'))
-  miningAbort = new AbortController()
+  miningStartingOrCancelling.value = true
   try {
-    await postInsightTaskTopicDiscoveryWithSignal(
-      tid,
-      { embedding_model: miningEmbeddingModel.value.trim() || 'ml/all-MiniLM-L6-v2' },
-      miningAbort.signal,
-    )
-    ElMessage.success(t('governance.topicMiningOk'))
-    await onRefresh()
+    const res = await postInsightTaskTopicDiscovery(tid, {
+      embedding_model: miningEmbeddingModel.value.trim() || 'ml/all-MiniLM-L6-v2',
+    })
+    activeMiningJobId.value = res.job.id
+    miningRunning.value = true
+    ElMessage.info(t('governance.topicMiningRunningTip'))
+    startMiningPoll(tid)
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') {
-      ElMessage.warning(t('governance.topicMiningCancelled'))
-    } else {
-      const msg = e instanceof Error ? e.message : String(e)
-      ElMessage.error(`${t('governance.topicMiningFailed')}: ${msg}`)
-    }
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('governance.topicMiningFailed')}: ${msg}`)
   } finally {
-    miningRunning.value = false
-    miningAbort = null
+    miningStartingOrCancelling.value = false
   }
 }
+
+async function bootstrapMiningStateOnMount() {
+  // 若刷新页面后仍有 running 任务，恢复按钮状态并继续轮询
+  try {
+    const res = await fetchInsightTasks({ status: 'success', limit: 200 })
+    const items = res.items ?? []
+    for (const t of items) {
+      try {
+        const latest: { job: TopicDiscoveryJob | null } = await fetchInsightTaskTopicDiscoveryLatest(t.id)
+        if (latest.job && (latest.job.status === 'pending' || latest.job.status === 'running')) {
+          activeMiningJobId.value = latest.job.id
+          miningRunning.value = true
+          startMiningPoll(t.id)
+          return
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+onBeforeUnmount(() => {
+  stopMiningPoll()
+})
 
 function parseSynonymsFromTextarea(raw: string): string[] {
   const seen = new Set<string>()
@@ -532,6 +625,7 @@ async function onRefresh() {
 onMounted(async () => {
   await loadVerticals()
   await loadReviewQueue()
+  void bootstrapMiningStateOnMount()
 })
 </script>
 

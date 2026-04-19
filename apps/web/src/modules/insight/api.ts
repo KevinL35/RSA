@@ -84,42 +84,51 @@ export type TopicDiscoveryBody = {
   dry_run?: boolean
 }
 
+export type TopicDiscoveryJob = {
+  id: string
+  insight_task_id: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+  embedding_model: string
+  pid?: number | null
+  pgid?: number | null
+  batch_id?: string | null
+  summary?: Record<string, unknown> | null
+  error_message?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type TopicDiscoveryStartResponse = {
+  ok: boolean
+  job: TopicDiscoveryJob
+}
+
+export type TopicDiscoveryLatestResponse = {
+  insight_task_id: string
+  job: TopicDiscoveryJob | null
+}
+
+/** 异步触发主题挖掘：立即返回 job（pending / running） */
 export function postInsightTaskTopicDiscovery(taskId: string, body?: TopicDiscoveryBody) {
-  return apiPostJson<Record<string, unknown>>(
+  return apiPostJson<TopicDiscoveryStartResponse>(
     `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery`,
     body ?? {},
   )
 }
 
-/**
- * 与 postInsightTaskTopicDiscovery 等价，但支持 AbortController：
- * 前端可调 controller.abort() 取消等待；服务端子进程不受此影响（仍会跑完）。
- */
-export async function postInsightTaskTopicDiscoveryWithSignal(
-  taskId: string,
-  body: TopicDiscoveryBody | undefined,
-  signal: AbortSignal,
-): Promise<Record<string, unknown>> {
-  const { apiBaseUrl, getStoredRole } = await import('../../shared/services/api')
-  const { getStoredUsername } = await import('../auth/store/auth.store')
-  const base = apiBaseUrl()
-  const path = `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery`
-  const url = `${base}${path}`
-  const u = getStoredUsername()
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-RSA-Role': getStoredRole(),
-      ...(u ? { 'X-RSA-Username': u } : {}),
-    },
-    body: JSON.stringify(body ?? {}),
-    signal,
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return (await res.json()) as Record<string, unknown>
+/** 轮询：取该 task 的最新一条主题挖掘任务状态 */
+export function fetchInsightTaskTopicDiscoveryLatest(taskId: string) {
+  return apiGetJson<TopicDiscoveryLatestResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery/jobs/latest`,
+  )
+}
+
+/** 取消进行中的主题挖掘 job */
+export function cancelInsightTaskTopicDiscovery(taskId: string, jobId: string) {
+  return apiPostJson<TopicDiscoveryStartResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/topic-discovery/jobs/${encodeURIComponent(jobId)}/cancel`,
+    {},
+  )
 }

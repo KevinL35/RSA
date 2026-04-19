@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -24,7 +23,12 @@ from .retry_task import retry_insight_task
 from app.modules.dictionary.verticals import assert_valid_vertical_id
 
 from .schema import InsightTaskCreate, InsightTaskPatch, TopicDiscoveryBody
-from .topic_pools_job import run_topic_pools_subprocess
+from .topic_discovery_jobs import (
+    cancel_job as topic_cancel_job,
+    create_job as topic_create_job,
+    get_job as topic_get_job,
+    get_latest_for_task as topic_get_latest_for_task,
+)
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
 
@@ -463,9 +467,12 @@ def post_topic_discovery(
     actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """
-    从 review_analysis + reviews 按三分类分桶跑 BERTopic，写入 topic_pool_highlight / pain / observation。
-    依赖子进程环境：与 Platform 相同 SUPABASE_*，且解释器需已安装 ml/requirements-topic-pools.txt；
-    可设置 TOPIC_MINING_PYTHON 指向该 venv 的 python。
+    异步触发主题挖掘：立即创建一行 topic_discovery_jobs 并在后台子进程运行
+    ml/topic_mining/scripts/bertopic_supabase_pools.py，将三分类结果写入
+    topic_pool_highlight / topic_pool_pain / topic_pool_observation。
+
+    解释器优先级：环境变量 TOPIC_MINING_PYTHON > 仓库根 .venv-topic / .venv-bertopic
+    > 当前 Python（建议在该 venv 安装 ml/requirements-topic-pools.txt）。
     """
     try:
         sb = require_supabase()
@@ -490,40 +497,80 @@ def post_topic_discovery(
             detail="请先完成洞察分析（任务状态须为 success）后再运行主题挖掘",
         )
 
+    latest = topic_get_latest_for_task(sb, task_id)
+    if latest and latest.get("status") in ("pending", "running"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TOPIC_JOB_ALREADY_RUNNING",
+                "message": "已有正在运行的主题挖掘任务，先取消或等待结束",
+                "job": latest,
+            },
+        )
+
     try:
-        out = run_topic_pools_subprocess(
-            task_id,
+        job = topic_create_job(
+            sb,
+            insight_task_id=task_id,
             embedding_model=body.embedding_model.strip(),
             dry_run=body.dry_run,
         )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-    except subprocess.TimeoutExpired as e:
-        raise HTTPException(status_code=504, detail=f"主题挖掘超时：{e!s}") from e
-
-    if out["returncode"] != 0:
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "message": "主题挖掘子进程失败",
-                "stderr": (out.get("stderr") or "")[:4000],
-                "stdout": (out.get("stdout") or "")[:4000],
-            },
-        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"创建主题挖掘任务失败：{e!s}") from e
 
     try_record_audit(
         sb,
         username=audit_actor_name(actor),
         menu_key="insight",
-        message=f"主题挖掘入三池 insight_task_id={task_id}",
-        detail={"task_id": str(task_id), "summary": out.get("summary")},
+        message=f"启动主题挖掘 insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "job_id": job.get("id")},
     )
-    return {
-        "ok": True,
-        "insight_task_id": str(task_id),
-        "summary": out.get("summary"),
-        "stdout_tail": (out.get("stdout") or "")[-2000:],
-    }
+    return {"ok": True, "job": job}
+
+
+@router.get("/{task_id}/topic-discovery/jobs/latest")
+def get_topic_discovery_latest(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(get_rsa_role)],
+) -> dict:
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    job = topic_get_latest_for_task(sb, task_id)
+    return {"insight_task_id": str(task_id), "job": job}
+
+
+@router.post("/{task_id}/topic-discovery/jobs/{job_id}/cancel")
+def post_topic_discovery_cancel(
+    task_id: UUID,
+    job_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    job = topic_get_job(sb, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="主题挖掘任务不存在")
+    if str(job.get("insight_task_id")) != str(task_id):
+        raise HTTPException(status_code=400, detail="job 与 insight_task_id 不匹配")
+
+    try:
+        out = topic_cancel_job(sb, job_id)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"取消主题挖掘失败：{e!s}") from e
+
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"取消主题挖掘 job_id={job_id}",
+        detail={"task_id": str(task_id), "job_id": str(job_id)},
+    )
+    return {"ok": True, "job": out}
 
 
 @router.post("/{task_id}/agent-enrich")

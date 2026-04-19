@@ -60,7 +60,10 @@ pytest
 - `POST /api/v1/insight-tasks/{id}/fetch-reviews`：TB-2 按任务的 `platform`/`product_id` 调用配置的评论抓取 API，写入 `reviews`；成功则任务保持 `running`；失败则 `failed` 且 `failure_stage=fetch` 与 `error_code`
 - `GET /api/v1/insight-tasks/{id}/reviews?limit=`：列出任务已落库评论（默认 `limit=5000`，最大 `20000`），供前端导出 Excel（`.xlsx`）等；只读角色可访问
 - `POST /api/v1/insight-tasks/{id}/analyze`：TB-3 读取已落库 `reviews`，调用分析源（任务上的 `analysis_provider_id` 优先，否则 `ANALYSIS_PROVIDER_DEFAULT_ID`；URL 由 `ANALYSIS_PROVIDER_ROUTES_JSON` 或 `ANALYSIS_PROVIDER_URL` 解析）；返回逐条情感/六维/证据结构；**成功则先写入 TB-4 表再** `running→success`；失败则 `failed` 且 `failure_stage=analyze`
-- `POST /api/v1/insight-tasks/{id}/topic-discovery`：任务状态须为 `success`；子进程执行 `ml/topic_mining/scripts/bertopic_supabase_pools.py`，从 `review_analysis`+`reviews` 按三分类分桶跑 BERTopic，写入 `topic_pool_highlight` / `topic_pool_pain` / `topic_pool_observation`。请求体可选 `{ "embedding_model": "ml/all-MiniLM-L6-v2", "dry_run": false }`；需已安装 `ml/requirements-topic-pools.txt`，可用环境变量 `TOPIC_MINING_PYTHON` 指定含 torch/bertopic 的解释器
+- `POST /api/v1/insight-tasks/{id}/topic-discovery`：任务状态须为 `success`；**异步**创建 `topic_discovery_jobs` 行，立即返回 `{ ok, job }`；后台子进程执行 `ml/topic_mining/scripts/bertopic_supabase_pools.py`，按三分类分桶跑 BERTopic 并写入 `topic_pool_highlight / pain / observation`。请求体可选 `{ "embedding_model": "ml/all-MiniLM-L6-v2", "dry_run": false }`；同一 task 已有 `pending/running` 任务时返回 **409**。
+- `GET /api/v1/insight-tasks/{id}/topic-discovery/jobs/latest`：返回该任务最新一条 `topic_discovery_jobs` 行（含 `status / pid / pgid / batch_id / summary / error_message / started_at / finished_at`），用于前端轮询。
+- `POST /api/v1/insight-tasks/{id}/topic-discovery/jobs/{job_id}/cancel`：取消进行中的主题挖掘 job——按 `pgid`（fallback `pid`）发送 `SIGTERM` 杀子进程组并将 job 置 `cancelled`。
+- `TOPIC_MINING_PYTHON`：解释器优先级 = 该环境变量 > 仓库根 `.venv-topic` / `.venv-bertopic` > 默认 Python（`scripts/dev.sh` 已自动探测前两者）。需已 `pip install -r ml/requirements-topic-pools.txt`。
 - `GET /api/v1/insight-tasks/{id}/analysis`：TB-4 按任务读取已落库分析结果，每条带 `review` 原文片段字段便于证据反查
 - `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
 - `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因
