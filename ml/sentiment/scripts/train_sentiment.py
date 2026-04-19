@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-import evaluate
+from sklearn.metrics import accuracy_score
 from datasets import Dataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -321,13 +321,10 @@ def main() -> None:
 
     collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-    accuracy_metric = evaluate.load("accuracy")
-
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         preds = np.argmax(logits, axis=-1)
-        acc = accuracy_metric.compute(predictions=preds, references=labels)
-        return {"accuracy": acc["accuracy"]}
+        return {"accuracy": float(accuracy_score(labels, preds))}
 
     output_dir = Path(train_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
