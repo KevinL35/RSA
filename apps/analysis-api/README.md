@@ -1,10 +1,10 @@
 # Analysis API（自研模型推理服务 / TA-11）
 
-目录名 **`apps/analysis-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/platform-api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/topic_mining/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：词典 **仅** 从 **`public.taxonomy_entries`**（Supabase）读取 seed + 各垂直 overlay，与 API `taxonomy-preview` 一致；须配置 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**，且库内 seed **非空**。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用，不走库）。
+目录名 **`apps/analysis-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/platform-api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/topic_mining/scripts/attribution_engine.py`）；可选 **BERTopic 主题**（离线训练目录 + 句向量，见下文环境变量）。**未设置** `TAXONOMY_YAML` 时：词典 **仅** 从 **`public.taxonomy_entries`**（Supabase）读取 seed + 各垂直 overlay，与 API `taxonomy-preview` 一致；须配置 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**，且库内 seed **非空**。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用，不走库）。
 
 ## 请求与响应
 
-与 `apps/platform-api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、可选 `dictionary_vertical_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`（与 Platform API 落库及前端分析展示字段一致）。
+与 `apps/platform-api` 发出的一致：JSON 含 `insight_task_id`、`platform`、`product_id`、`analysis_provider_id`、可选 `dictionary_vertical_id`、`reviews[]`（`id`、`raw_text`、`rating` 等）。响应顶层为 `reviews` 数组，元素含 `review_id`、`sentiment`、`dimensions`；若启用 BERTopic，另含 **`topic`**：`{ "id": int, "keywords": string[], "outlier": bool }`（与 Platform API 规范化后结构一致）。
 
 ## 一键启动（Analysis API + Platform API + 前端）
 
@@ -25,9 +25,22 @@ cd apps/analysis-api
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# 可选：启用 TA-5 权重（需 GPU/CPU 与较长时间加载）
+# 可选：仅 RoBERTa 情感（无 BERTopic 时可不装 torch/transformers，见注释行）
 # pip install "transformers>=4.46,<6" "torch>=2.1.0"
 ```
+
+启用 **BERTopic 在线推理** 时需安装 `requirements.txt` 并**追加** `pip install -r ../../ml/requirements-bertopic.txt`（或等价依赖），并设置：
+
+```bash
+# 自仓库根目录起算的相对路径或绝对路径；指向 run_bertopic.py 保存的目录（如 bertopic_cli_1.0.0）
+export BERTOPIC_MODEL_DIR="../../models/topic_mining/rsa-t1/bertopic_cli_1.0.0"
+# 与训练 run_bertopic 时一致的 SentenceTransformer（目录或 Hub 名）
+export TOPIC_EMBEDDING_MODEL_DIR="../../ml/all-MiniLM-L6-v2"
+# 可选：encode 批大小
+# export TOPIC_ENCODE_BATCH_SIZE=32
+```
+
+未设置上述两项时，行为与旧版一致（响应无 `topic` 字段）。
 
 启动：
 
