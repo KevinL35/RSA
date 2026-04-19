@@ -27,10 +27,100 @@ from .topic_discovery_jobs import (
     cancel_job as topic_cancel_job,
     create_job as topic_create_job,
     get_job as topic_get_job,
+    get_latest_active_any as topic_get_latest_active_any,
     get_latest_for_task as topic_get_latest_for_task,
+    get_latest_global as topic_get_latest_global,
 )
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
+topic_discovery_router = APIRouter(
+    prefix="/api/v1/topic-discovery",
+    tags=["topic-discovery"],
+)
+
+
+@topic_discovery_router.post("/global")
+def post_topic_discovery_global(
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    body: TopicDiscoveryBody = TopicDiscoveryBody(),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    """全局主题挖掘：跨所有任务在 review_analysis 三总表上跑 BERTopic。
+    并发保护：任意 pending/running 任务存在时返回 409。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    active = topic_get_latest_active_any(sb)
+    if active:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TOPIC_JOB_ALREADY_RUNNING",
+                "message": "已有正在运行的主题挖掘任务，先取消或等待结束",
+                "job": active,
+            },
+        )
+
+    try:
+        job = topic_create_job(
+            sb,
+            insight_task_id=None,
+            embedding_model=body.embedding_model.strip(),
+            dry_run=body.dry_run,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"创建主题挖掘任务失败：{e!s}") from e
+
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message="启动全局主题挖掘",
+        detail={"job_id": job.get("id")},
+    )
+    return {"ok": True, "job": job}
+
+
+@topic_discovery_router.get("/jobs/latest")
+def get_topic_discovery_global_latest(
+    _rbac: Annotated[str, Depends(get_rsa_role)],
+) -> dict:
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    job = topic_get_latest_global(sb)
+    return {"job": job}
+
+
+@topic_discovery_router.post("/jobs/{job_id}/cancel")
+def post_topic_discovery_global_cancel(
+    job_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    job = topic_get_job(sb, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="主题挖掘任务不存在")
+    try:
+        out = topic_cancel_job(sb, job_id)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"取消主题挖掘失败：{e!s}") from e
+
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"取消主题挖掘 job_id={job_id}",
+        detail={"job_id": str(job_id)},
+    )
+    return {"ok": True, "job": out}
 
 
 def _utc_now_iso() -> str:

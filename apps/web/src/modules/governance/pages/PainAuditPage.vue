@@ -147,55 +147,6 @@
     </el-dialog>
 
     <el-dialog
-      v-model="miningDialogVisible"
-      :title="t('governance.topicMiningSelectTaskTitle')"
-      width="520px"
-      align-center
-      destroy-on-close
-    >
-      <el-form label-position="top" class="edit-form">
-        <el-form-item label-width="auto">
-          <el-select
-            v-model="miningPickedTaskId"
-            :placeholder="t('governance.topicMiningPickTaskPh')"
-            filterable
-            class="dlg-select"
-            teleported
-            placement="bottom-start"
-            :fallback-placements="selectFallbackPlacementsBottom"
-            :popper-options="selectPopperOptionsNoFlip"
-            :loading="miningTasksLoading"
-          >
-            <el-option
-              v-for="row in miningSuccessTasks"
-              :key="row.id"
-              :label="`${row.platform} / ${row.product_id}`"
-              :value="row.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label-width="auto">
-          <el-input
-            v-model="miningEmbeddingModel"
-            :placeholder="t('governance.topicMiningEmbeddingPh')"
-            clearable
-            maxlength="512"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="miningDialogVisible = false">{{ t('governance.topicMiningCancelButton') }}</el-button>
-        <el-button
-          type="primary"
-          :disabled="!miningPickedTaskId"
-          @click="confirmStartMining"
-        >
-          {{ t('governance.topicMiningStartButton') }}
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
       v-model="editVisible"
       :title="t('governance.painAuditEditTitle')"
       width="520px"
@@ -247,13 +198,10 @@ import {
 import type { PainAuditRow, SixDimension } from '../painAuditTypes'
 import { SIX_DIMENSIONS } from '../painAuditTypes'
 import {
-  cancelInsightTaskTopicDiscovery,
-  fetchInsightTaskTopicDiscoveryLatest,
-  postInsightTaskTopicDiscovery,
-  type TopicDiscoveryJob,
+  cancelTopicDiscoveryGlobal,
+  fetchTopicDiscoveryGlobalLatest,
+  postTopicDiscoveryGlobal,
 } from '../../insight/api'
-import { fetchInsightTasks } from '../../tasks/api'
-import type { InsightTaskRow } from '../../tasks/types'
 import { onBeforeUnmount } from 'vue'
 
 const { t, locale } = useI18n()
@@ -315,12 +263,6 @@ function onUploadReviews() {
 
 const miningRunning = ref(false)
 const miningStartingOrCancelling = ref(false)
-const miningDialogVisible = ref(false)
-const miningPickedTaskId = ref<string>('')
-const miningEmbeddingModel = ref<string>('ml/all-MiniLM-L6-v2')
-const miningSuccessTasks = ref<InsightTaskRow[]>([])
-const miningTasksLoading = ref(false)
-const activeMiningTaskId = ref<string>('')
 const activeMiningJobId = ref<string>('')
 let miningPoller: number | null = null
 
@@ -332,13 +274,8 @@ function stopMiningPoll() {
 }
 
 async function pollLatestJob() {
-  const tid = activeMiningTaskId.value
-  if (!tid) {
-    stopMiningPoll()
-    return
-  }
   try {
-    const res = await fetchInsightTaskTopicDiscoveryLatest(tid)
+    const res = await fetchTopicDiscoveryGlobalLatest()
     const job = res.job
     if (!job) {
       miningRunning.value = false
@@ -368,38 +305,19 @@ async function pollLatestJob() {
   }
 }
 
-function startMiningPoll(taskId: string) {
-  activeMiningTaskId.value = taskId
+function startMiningPoll() {
   stopMiningPoll()
   void pollLatestJob()
   miningPoller = window.setInterval(() => void pollLatestJob(), 2500)
 }
 
-async function loadSuccessTasks() {
-  miningTasksLoading.value = true
-  try {
-    const res = await fetchInsightTasks({ status: 'success', limit: 200 })
-    miningSuccessTasks.value = res.items ?? []
-    if (miningSuccessTasks.value.length === 0) {
-      ElMessage.warning(t('governance.topicMiningNoSuccessTasks'))
-    }
-  } catch (e) {
-    miningSuccessTasks.value = []
-    const msg = e instanceof Error ? e.message : String(e)
-    ElMessage.error(`${t('governance.topicMiningTasksLoadFail')}: ${msg}`)
-  } finally {
-    miningTasksLoading.value = false
-  }
-}
-
 async function onToggleMining() {
   if (miningRunning.value) {
-    const tid = activeMiningTaskId.value
     const jid = activeMiningJobId.value
-    if (!tid || !jid) return
+    if (!jid) return
     miningStartingOrCancelling.value = true
     try {
-      await cancelInsightTaskTopicDiscovery(tid, jid)
+      await cancelTopicDiscoveryGlobal(jid)
       ElMessage.warning(t('governance.topicMiningCancelled'))
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -410,24 +328,13 @@ async function onToggleMining() {
     }
     return
   }
-  miningPickedTaskId.value = ''
-  miningDialogVisible.value = true
-  await loadSuccessTasks()
-}
-
-async function confirmStartMining() {
-  const tid = miningPickedTaskId.value.trim()
-  if (!tid) return
-  miningDialogVisible.value = false
   miningStartingOrCancelling.value = true
   try {
-    const res = await postInsightTaskTopicDiscovery(tid, {
-      embedding_model: miningEmbeddingModel.value.trim() || 'ml/all-MiniLM-L6-v2',
-    })
+    const res = await postTopicDiscoveryGlobal({ embedding_model: 'ml/all-MiniLM-L6-v2' })
     activeMiningJobId.value = res.job.id
     miningRunning.value = true
     ElMessage.info(t('governance.topicMiningRunningTip'))
-    startMiningPoll(tid)
+    startMiningPoll()
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     ElMessage.error(`${t('governance.topicMiningFailed')}: ${msg}`)
@@ -437,22 +344,13 @@ async function confirmStartMining() {
 }
 
 async function bootstrapMiningStateOnMount() {
-  // 若刷新页面后仍有 running 任务，恢复按钮状态并继续轮询
   try {
-    const res = await fetchInsightTasks({ status: 'success', limit: 200 })
-    const items = res.items ?? []
-    for (const t of items) {
-      try {
-        const latest: { job: TopicDiscoveryJob | null } = await fetchInsightTaskTopicDiscoveryLatest(t.id)
-        if (latest.job && (latest.job.status === 'pending' || latest.job.status === 'running')) {
-          activeMiningJobId.value = latest.job.id
-          miningRunning.value = true
-          startMiningPoll(t.id)
-          return
-        }
-      } catch {
-        /* ignore */
-      }
+    const res = await fetchTopicDiscoveryGlobalLatest()
+    const job = res.job
+    if (job && (job.status === 'pending' || job.status === 'running')) {
+      activeMiningJobId.value = job.id
+      miningRunning.value = true
+      startMiningPoll()
     }
   } catch {
     /* ignore */

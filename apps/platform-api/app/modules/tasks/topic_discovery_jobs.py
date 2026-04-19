@@ -62,14 +62,15 @@ def _supabase():
 def create_job(
     sb: Any,
     *,
-    insight_task_id: UUID,
+    insight_task_id: UUID | None,
     embedding_model: str,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    """insight_task_id=None 表示全局（在三总表上跨任务挖掘）。"""
     job_id = str(uuid4())
     row = {
         "id": job_id,
-        "insight_task_id": str(insight_task_id),
+        "insight_task_id": str(insight_task_id) if insight_task_id else None,
         "status": "pending",
         "embedding_model": embedding_model,
         "summary": None,
@@ -80,7 +81,12 @@ def create_job(
     inserted = (res.data or [row])[0]
     threading.Thread(
         target=_run_in_thread,
-        args=(job_id, str(insight_task_id), embedding_model, dry_run),
+        args=(
+            job_id,
+            str(insight_task_id) if insight_task_id else None,
+            embedding_model,
+            dry_run,
+        ),
         daemon=True,
         name=f"topic-job-{job_id[:8]}",
     ).start()
@@ -104,6 +110,34 @@ def get_latest_for_task(sb: Any, insight_task_id: UUID) -> dict[str, Any] | None
         sb.table("topic_discovery_jobs")
         .select("*")
         .eq("insight_task_id", str(insight_task_id))
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    return rows[0] if rows else None
+
+
+def get_latest_global(sb: Any) -> dict[str, Any] | None:
+    """最新一条全局（insight_task_id IS NULL）主题挖掘任务。"""
+    res = (
+        sb.table("topic_discovery_jobs")
+        .select("*")
+        .is_("insight_task_id", "null")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    return rows[0] if rows else None
+
+
+def get_latest_active_any(sb: Any) -> dict[str, Any] | None:
+    """全表中最近一条 pending/running 任务（用于阻止并发）。"""
+    res = (
+        sb.table("topic_discovery_jobs")
+        .select("*")
+        .in_("status", ["pending", "running"])
         .order("created_at", desc=True)
         .limit(1)
         .execute()
@@ -164,7 +198,7 @@ def _parse_summary(stdout: str) -> dict[str, Any] | None:
 
 def _run_in_thread(
     job_id: str,
-    insight_task_id: str,
+    insight_task_id: str | None,
     embedding_model: str,
     dry_run: bool,
 ) -> None:
@@ -187,14 +221,9 @@ def _run_in_thread(
         return
 
     py = _resolve_topic_python()
-    cmd = [
-        py,
-        str(script),
-        "--insight-task-id",
-        insight_task_id,
-        "--embedding-model",
-        embedding_model,
-    ]
+    cmd = [py, str(script), "--embedding-model", embedding_model]
+    if insight_task_id:
+        cmd.extend(["--insight-task-id", insight_task_id])
     if dry_run:
         cmd.append("--dry-run")
 

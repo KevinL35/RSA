@@ -1,15 +1,22 @@
 """
-从 Supabase 读取某 insight 任务下「三分类总表」review_analysis + reviews 正文，
-按情感（positive / negative / neutral）分别跑 BERTopic，将主题写入：
+从 Supabase 读取「三分类总表」review_analysis + reviews 正文，按情感
+（positive / negative / neutral）分别跑 BERTopic，将主题写入：
   topic_pool_highlight / topic_pool_pain / topic_pool_observation
+
+两种模式：
+  1. 单任务：传 --insight-task-id <UUID>，仅用该任务下的评论；
+  2. 全局：不传 --insight-task-id，跨所有任务在三个总表上挖掘（platform/product_id 写为 '_all'）。
 
 依赖：pip install -r ml/requirements-bertopic.txt 与 pip install "supabase>=2,<3"
 环境：SUPABASE_URL、SUPABASE_SERVICE_ROLE_KEY（与 platform-api 一致）
 
 用法（仓库根目录）：
   export SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
+  # 单任务
   python ml/topic_mining/scripts/bertopic_supabase_pools.py \\
-    --insight-task-id <UUID> \\
+    --insight-task-id <UUID> --embedding-model ml/all-MiniLM-L6-v2
+  # 全局（三总表）
+  python ml/topic_mining/scripts/bertopic_supabase_pools.py \\
     --embedding-model ml/all-MiniLM-L6-v2
 """
 
@@ -49,29 +56,61 @@ def _require_supabase():
     return create_client(url, key)
 
 
-def fetch_task_corpus(sb: Any, insight_task_id: str) -> tuple[str, str, dict[str, list[str]]]:
-    """返回 platform, product_id, {sentiment_label: [doc, ...]}。"""
-    ra = (
-        sb.table("review_analysis")
-        .select("review_id,sentiment_label,platform,product_id")
-        .eq("insight_task_id", insight_task_id)
-        .execute()
-    )
-    rows = ra.data or []
-    if not rows:
-        raise SystemExit(f"review_analysis 无数据：insight_task_id={insight_task_id}")
+_PAGE_SIZE = 1000
 
-    platform = str(rows[0]["platform"])
-    product_id = str(rows[0]["product_id"])
-    rids = [str(r["review_id"]) for r in rows]
-    # reviews 分批 in_ 查询（避免 URL 过长）
+
+def _fetch_review_analysis_rows(
+    sb: Any, insight_task_id: str | None
+) -> list[dict[str, Any]]:
+    """分页拉 review_analysis；insight_task_id=None 表示全局（跨任务）。"""
+    out: list[dict[str, Any]] = []
+    start = 0
+    while True:
+        q = sb.table("review_analysis").select(
+            "review_id,sentiment_label,platform,product_id"
+        )
+        if insight_task_id is not None:
+            q = q.eq("insight_task_id", insight_task_id)
+        end = start + _PAGE_SIZE - 1
+        res = q.range(start, end).execute()
+        rows = res.data or []
+        out.extend(rows)
+        if len(rows) < _PAGE_SIZE:
+            break
+        start += _PAGE_SIZE
+    return out
+
+
+def _fetch_reviews_text_by_ids(sb: Any, review_ids: list[str]) -> dict[str, str]:
     id_to_text: dict[str, str] = {}
     chunk = 200
-    for i in range(0, len(rids), chunk):
-        part = rids[i : i + chunk]
+    for i in range(0, len(review_ids), chunk):
+        part = review_ids[i : i + chunk]
         rv = sb.table("reviews").select("id,raw_text").in_("id", part).execute()
         for row in rv.data or []:
             id_to_text[str(row["id"])] = str(row.get("raw_text") or "").strip()
+    return id_to_text
+
+
+def fetch_task_corpus(
+    sb: Any, insight_task_id: str | None
+) -> tuple[str, str, dict[str, list[str]]]:
+    """返回 platform, product_id, {sentiment_label: [doc, ...]}。
+    全局模式（insight_task_id=None）下 platform/product_id 固定为 '_all'。"""
+    rows = _fetch_review_analysis_rows(sb, insight_task_id)
+    if not rows:
+        target = insight_task_id or "<global>"
+        raise SystemExit(f"review_analysis 无数据：target={target}")
+
+    if insight_task_id is None:
+        platform = "_all"
+        product_id = "_all"
+    else:
+        platform = str(rows[0]["platform"])
+        product_id = str(rows[0]["product_id"])
+
+    rids = [str(r["review_id"]) for r in rows]
+    id_to_text = _fetch_reviews_text_by_ids(sb, rids)
 
     buckets: dict[str, list[str]] = {"positive": [], "negative": [], "neutral": []}
     for r in rows:
@@ -189,7 +228,7 @@ def _topic_rows_for_pool(
 
 def run_job(
     *,
-    insight_task_id: str,
+    insight_task_id: str | None,
     embedding_model_ref: str,
     config_path: Path,
     encode_batch_size: int,
@@ -202,7 +241,12 @@ def run_job(
 
     platform, product_id, buckets = fetch_task_corpus(sb, insight_task_id)
 
-    bid = batch_id or f"task:{insight_task_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    if batch_id is None:
+        batch_id = (
+            f"global:{ts}" if insight_task_id is None else f"task:{insight_task_id}:{ts}"
+        )
+    bid = batch_id
 
     try:
         import torch
@@ -227,6 +271,7 @@ def run_job(
     summary: dict[str, Any] = {
         "batch_id": bid,
         "insight_task_id": insight_task_id,
+        "scope": "task" if insight_task_id else "global",
         "platform": platform,
         "product_id": product_id,
         "pools": {},
@@ -277,7 +322,11 @@ def run_job(
 
 def main() -> None:
     p = argparse.ArgumentParser(description="BERTopic + 写入主题三池（Supabase）")
-    p.add_argument("--insight-task-id", required=True, help="insight_tasks.id（UUID）")
+    p.add_argument(
+        "--insight-task-id",
+        default=None,
+        help="insight_tasks.id（UUID）；省略时跨所有任务对三个总表全局挖掘",
+    )
     p.add_argument(
         "--embedding-model",
         required=True,
@@ -301,7 +350,7 @@ def main() -> None:
 
     os.chdir(_REPO_ROOT)
     summary = run_job(
-        insight_task_id=args.insight_task_id.strip(),
+        insight_task_id=(args.insight_task_id.strip() or None) if args.insight_task_id else None,
         embedding_model_ref=args.embedding_model.strip(),
         config_path=Path(args.config),
         encode_batch_size=args.encode_batch_size,
