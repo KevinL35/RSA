@@ -514,4 +514,17 @@ CREATE INDEX IF NOT EXISTS idx_topic_jobs_global_created
   ON public.topic_discovery_jobs (created_at DESC)
   WHERE insight_task_id IS NULL;
 
+-- >>> infra/migrations/019_taxonomy_entries_excel_import_defaults.sql
+-- 与平台词典 Excel 导入行为对齐：后端不再从 Excel 解析权重/优先级，写入 overlay 时固定为默认 1.0 / 50。
+COMMENT ON COLUMN public.taxonomy_entries.weight IS '词条权重；词典 Excel 导入固定写入 1.0。';
+COMMENT ON COLUMN public.taxonomy_entries.priority IS '同维排序与匹配消歧优先级；词典 Excel 导入固定写入 50。';
+
+-- >>> infra/migrations/020_insight_tasks_ai_summary.sql
+-- 洞察任务：DeepSeek 等生成的 AI 智能分析摘要（JSON），与六维看板分开更新
+ALTER TABLE public.insight_tasks
+  ADD COLUMN IF NOT EXISTS ai_summary JSONB;
+
+COMMENT ON COLUMN public.insight_tasks.ai_summary IS
+  'AI 洞察摘要：{ text, model, generated_at, fingerprint }，fingerprint 用于与看板数据对齐缓存';
+
 -- done

@@ -11,7 +11,8 @@ _VALID_TRANSITIONS: dict[str, frozenset[str]] = {
     "pending": frozenset({"running", "cancelled"}),
     "running": frozenset({"success", "failed", "cancelled"}),
     "failed": frozenset({"pending"}),  # 重试：回到队列
-    "success": frozenset(),
+    # 词典/分析源更新后，对同一批已落库评论重新跑六维归因（见 analyze_task force_reanalyze）
+    "success": frozenset({"running"}),
     "cancelled": frozenset(),
 }
 

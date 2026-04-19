@@ -1,6 +1,6 @@
 # Analysis API（自研模型推理服务 / TA-11）
 
-目录名 **`apps/analysis-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/platform-api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/topic_mining/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：词典 **仅** 从 **`public.taxonomy_entries`**（Supabase）读取 seed + 各垂直 overlay，与 API `taxonomy-preview` 一致；须配置 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**，且库内 seed **非空**。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用，不走库）。
+目录名 **`apps/analysis-api`**：在 **不依赖外部大模型 API** 的情况下，为 `apps/platform-api` 的 `POST .../insight-tasks/{id}/analyze` 提供 HTTP 分析源：**情感**（可选 RoBERTa 微调权重）+ **六维词典归因**（`ml/topic_mining/scripts/attribution_engine.py`）。**未设置** `TAXONOMY_YAML` 时：词典 **仅** 从 **`public.taxonomy_entries`**（Supabase）合并 seed + 各垂直 overlay，与 API `taxonomy-preview` 一致；须配置 **`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`**。**seed 可为空**（仅 overlay 亦可运行；六维关键词会较少）。显式设置 `TAXONOMY_YAML` 时仅加载该单文件（调试用，不走库）。
 
 ## 请求与响应
 

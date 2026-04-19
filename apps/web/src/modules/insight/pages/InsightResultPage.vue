@@ -35,9 +35,22 @@
         <div class="result-header-body">
           <div class="result-header-title-row">
             <h1 class="result-main-title">{{ mainAsinTitle }}</h1>
-            <button type="button" class="rsa-text-back-btn" @click="goBack">
-              {{ t('insightResult.back') }}
-            </button>
+            <div class="result-header-actions">
+              <el-button
+                v-if="canReanalyzeInsight"
+                type="primary"
+                plain
+                size="small"
+              :loading="reanalyzeSubmitting"
+              :disabled="loading || reanalyzeSubmitting || aiSummarySubmitting"
+              @click="onReanalyzeInsight"
+              >
+                {{ t('insightResult.reanalyze') }}
+              </el-button>
+              <button type="button" class="rsa-text-back-btn" @click="goBack">
+                {{ t('insightResult.back') }}
+              </button>
+            </div>
           </div>
           <p class="result-meta-line">{{ metaSubtitle }}</p>
         </div>
@@ -77,6 +90,27 @@
           <div v-else class="dim-empty">{{ t('insightResult.cardEmpty') }}</div>
         </div>
       </div>
+    </section>
+
+    <section v-if="dashboard && !emptyState" class="panel ai-insight-panel" v-loading="aiSummarySubmitting">
+      <div class="ai-insight-head">
+        <h3 class="subpanel-title">{{ t('insightResult.aiSectionTitle') }}</h3>
+        <el-button
+          v-if="canReanalyzeInsight"
+          type="primary"
+          size="small"
+          :loading="aiSummarySubmitting"
+          :disabled="loading || aiSummarySubmitting || reanalyzeSubmitting"
+          @click="onGenerateAiSummary"
+        >
+          {{ t('insightResult.aiRegenerate') }}
+        </el-button>
+      </div>
+      <div v-if="storedAiSummaryText" class="ai-insight-body">{{ storedAiSummaryText }}</div>
+      <ul v-else-if="aiSummaryLines.length" class="ai-insight-list">
+        <li v-for="(line, i) in aiSummaryLines" :key="i">{{ line }}</li>
+      </ul>
+      <div v-else class="dim-empty ai-insight-empty">{{ t('insightResult.aiSectionEmpty') }}</div>
     </section>
 
     <section class="split-row wordcloud-rank-row">
@@ -142,41 +176,22 @@
         </ul>
       </div>
       <div class="panel evidence-panel">
-        <h3 class="subpanel-title">{{ t('insightResult.evidenceTitle') }}</h3>
+        <h3 class="subpanel-title evidence-panel-title">{{ t('insightResult.evidenceTitle') }}</h3>
         <div class="evidence-list">
           <div v-if="!selectedKeyword" class="dim-empty evidence-hint">
             {{ t('insightResult.evidencePickKeyword') }}
           </div>
-          <template v-else-if="paginatedEvidence.length">
-            <div v-for="ev in paginatedEvidence" :key="String(ev.id)" class="evidence-block">
+          <template v-else-if="topFiveEvidence.length">
+            <div v-for="ev in topFiveEvidence" :key="String(ev.id)" class="evidence-block">
               <div class="evidence-block-head">
                 <span class="evidence-time">{{ formatReviewDateTime(ev) }}</span>
-                <button
-                  v-if="evidenceHasQuoteText(ev)"
-                  type="button"
-                  class="evidence-toggle"
-                  @click="toggleEvidenceExpand(ev)"
-                >
-                  {{
-                    isEvidenceExpanded(ev)
-                      ? t('insightResult.evidenceCollapse')
-                      : t('insightResult.evidenceExpand')
-                  }}
-                </button>
               </div>
               <div class="evidence-quote-wrap">
-                <div class="evidence-quote" :class="evidenceQuoteClass(ev)" v-html="highlightEvidence(ev)" />
+                <div class="evidence-quote evidence-quote--full" v-html="highlightEvidence(ev)" />
               </div>
             </div>
           </template>
           <div v-else class="dim-empty">{{ t('insightResult.evidenceEmpty') }}</div>
-        </div>
-        <div v-if="selectedKeyword && evidenceTotalPages > 1" class="evidence-pager">
-          <el-button :disabled="evidencePage <= 1" @click="evidencePage--">{{ t('insightResult.prev') }}</el-button>
-          <span class="pager-text">{{ t('insightResult.pageOf', { n: evidencePage, m: evidenceTotalPages }) }}</span>
-          <el-button :disabled="evidencePage >= evidenceTotalPages" @click="evidencePage++">
-            {{ t('insightResult.next') }}
-          </el-button>
         </div>
       </div>
     </section>
@@ -205,13 +220,15 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import ReviewTrendChart from '../components/ReviewTrendChart.vue'
 import WordCloudChart from '../components/WordCloudChart.vue'
 import {
   SELECT_FALLBACK_PLACEMENTS_BOTTOM,
   selectPopperOptionsNoFlip,
 } from '../../../shared/ui/elementSelectPlacement'
-import { fetchInsightDashboard } from '../api'
+import { fetchInsightDashboard, postInsightAiSummary, postInsightTaskAnalyze } from '../api'
+import { useAuthStore } from '../../auth/store/auth.store'
 import { fetchTaxonomyPreview, type TaxonomyPreviewResponse } from '../../dictionary/api'
 import type {
   Dimension6Key,
@@ -224,6 +241,9 @@ import type {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
+const canReanalyzeInsight = computed(() => auth.canRetryInsightTasks.value)
+const reanalyzeSubmitting = ref(false)
 
 const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 
@@ -297,15 +317,51 @@ type WordCloudDimFilter = 'all' | Dimension6Key
 const wordCloudDimension = ref<WordCloudDimFilter>('all')
 const painListDimension = ref<Dimension6Key>('pros')
 const selectedKeyword = ref<string | null>(null)
-const evidencePage = ref(1)
-const evidencePageSize = ref(5)
+const aiSummarySubmitting = ref(false)
 
 const expandVisible = ref(false)
 const expandDim = ref<Dimension6Key | null>(null)
 
-const evidenceExpandedIds = ref<Set<string>>(new Set())
-
 const emptyState = computed(() => dashboard.value?.empty_state ?? null)
+
+/** 基于看板数据的规则归纳（非大模型），供「AI 智能分析」快速阅读 */
+const aiSummaryLines = computed(() => {
+  const d = dashboard.value
+  if (!d || d.empty_state) return []
+  const lines: string[] = []
+  const total = d.review_total_count
+  const matched = d.matched_review_count
+  if (typeof total === 'number' && Number.isFinite(total) && typeof matched === 'number' && Number.isFinite(matched)) {
+    lines.push(t('insightResult.aiLineCoverage', { total, matched }))
+  }
+  const ranked = [...(d.pain_ranking ?? [])].sort((a, b) => b.count - a.count).slice(0, 5)
+  for (const p of ranked) {
+    const dims = (p.dimensions ?? [])
+      .filter((x): x is Dimension6Key => dimensionOrder.includes(x as Dimension6Key))
+      .map((x) => dimTitle(x))
+    const dimStr = dims.length ? dims.join(t('insightResult.aiDimJoiner')) : '—'
+    lines.push(t('insightResult.aiLineKeyword', { kw: p.keyword, n: p.count, dims: dimStr }))
+  }
+  const dc = d.dimension_counts
+  if (dc && typeof dc === 'object') {
+    let bestDim: Dimension6Key | null = null
+    let bestN = 0
+    const dimMap = dc as Partial<Record<Dimension6Key, number>>
+    for (const k of dimensionOrder) {
+      const n = dimMap[k]
+      if (typeof n === 'number' && n > bestN) {
+        bestN = n
+        bestDim = k
+      }
+    }
+    if (bestDim && bestN > 0) {
+      lines.push(t('insightResult.aiLineStrongDim', { dim: dimTitle(bestDim), n: bestN }))
+    }
+  }
+  return lines
+})
+
+const storedAiSummaryText = computed(() => (dashboard.value?.ai_summary?.text || '').trim())
 
 function formatLocalDateTime(iso: string): string {
   const d = new Date(iso)
@@ -379,6 +435,54 @@ function dimTitle(dim: Dimension6Key) {
 
 function goBack() {
   router.push('/insight-analysis')
+}
+
+async function onGenerateAiSummary() {
+  if (!canReanalyzeInsight.value || !taskId.value) return
+  aiSummarySubmitting.value = true
+  try {
+    const reg = !!storedAiSummaryText.value
+    const res = await postInsightAiSummary(taskId.value, { regenerate: reg })
+    const next = res.ai_summary
+    if (next && dashboard.value) {
+      dashboard.value = { ...dashboard.value, ai_summary: next }
+    }
+    ElMessage.success(reg ? t('insightResult.aiRegenerateOk') : t('insightResult.aiGenerateOk'))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('insightResult.aiGenerateFail')}: ${msg}`)
+  } finally {
+    aiSummarySubmitting.value = false
+  }
+}
+
+async function onReanalyzeInsight() {
+  if (!canReanalyzeInsight.value || !taskId.value) return
+  try {
+    await ElMessageBox.confirm(
+      t('insightResult.reanalyzeConfirm'),
+      t('insightResult.reanalyzeTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('insight.dialogConfirm'),
+        cancelButtonText: t('insight.dialogCancel'),
+      },
+    )
+  } catch {
+    return
+  }
+  reanalyzeSubmitting.value = true
+  errorMsg.value = ''
+  try {
+    await postInsightTaskAnalyze(taskId.value, { forceReanalyze: true })
+    ElMessage.success(t('insightResult.reanalyzeOk'))
+    await load()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('insightResult.reanalyzeFail')}: ${msg}`)
+  } finally {
+    reanalyzeSubmitting.value = false
+  }
 }
 
 function painForDimension(dim: Dimension6Key, list: PainRankItem[]) {
@@ -486,54 +590,12 @@ const filteredEvidence = computed(() => {
   })
 })
 
-const evidenceTotalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredEvidence.value.length / evidencePageSize.value)),
-)
-
-const paginatedEvidence = computed(() => {
-  const start = (evidencePage.value - 1) * evidencePageSize.value
-  return filteredEvidence.value.slice(start, start + evidencePageSize.value)
-})
-
-watch([selectedKeyword, () => filteredEvidence.value.length], () => {
-  evidencePage.value = 1
-})
+/** 固定展示 5 条，全文展开（无折叠） */
+const topFiveEvidence = computed(() => filteredEvidence.value.slice(0, 5))
 
 watch(painListDimension, () => {
   selectedKeyword.value = null
 })
-
-watch([selectedKeyword, painListDimension, evidencePage], () => {
-  evidenceExpandedIds.value = new Set()
-})
-
-/** 与 highlightEvidence 使用同一套正文来源，保证「是否可展开」与展示内容一致 */
-function evidenceDisplayPlainText(ev: InsightEvidenceItem): string {
-  const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
-  const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
-  return (rawFull.trim() || quote.trim()) || ''
-}
-
-function evidenceHasQuoteText(ev: InsightEvidenceItem): boolean {
-  return evidenceDisplayPlainText(ev).length > 0
-}
-
-function evidenceQuoteClass(ev: InsightEvidenceItem) {
-  if (!evidenceHasQuoteText(ev)) return {}
-  return { 'evidence-quote--collapsed': !isEvidenceExpanded(ev) }
-}
-
-function isEvidenceExpanded(ev: InsightEvidenceItem): boolean {
-  return evidenceExpandedIds.value.has(String(ev.id))
-}
-
-function toggleEvidenceExpand(ev: InsightEvidenceItem) {
-  const k = String(ev.id)
-  const next = new Set(evidenceExpandedIds.value)
-  if (next.has(k)) next.delete(k)
-  else next.add(k)
-  evidenceExpandedIds.value = next
-}
 
 const expandRows = computed(() => (expandDim.value ? cardRows(expandDim.value) : []))
 const expandTitle = computed(() => (expandDim.value ? dimTitle(expandDim.value) : ''))
@@ -761,6 +823,17 @@ watch(
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.result-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.result-header-actions :deep(.el-button) {
+  margin-inline: 0;
 }
 
 .result-main-title {
@@ -1073,13 +1146,36 @@ watch(
 }
 
 .evidence-row {
-  grid-template-columns: minmax(260px, 300px) 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  align-items: stretch;
+  min-height: 440px;
+}
+
+@media (min-width: 1000px) {
+  .evidence-row {
+    grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 900px) {
   .evidence-row {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
+}
+
+.evidence-row .pain-panel,
+.evidence-row .evidence-panel {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.evidence-panel .evidence-panel-title {
+  flex-shrink: 0;
 }
 
 .pain-panel-head {
@@ -1089,6 +1185,7 @@ watch(
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .pain-panel-head .subpanel-title {
@@ -1109,16 +1206,22 @@ watch(
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 360px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
 .pain-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 6px;
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .pain-list li:hover {
@@ -1136,10 +1239,16 @@ watch(
 
 .pain-kw {
   font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .evidence-list {
-  min-height: 120px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .evidence-block {
@@ -1167,38 +1276,20 @@ watch(
 
 .evidence-quote-wrap {
   margin-top: 0;
+  min-width: 0;
 }
 
 .evidence-quote {
   font-size: 14px;
   line-height: 1.55;
   color: var(--el-text-color-primary);
+  overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
 }
 
-.evidence-quote--collapsed {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-}
-
-.evidence-toggle {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--rsa-primary, var(--el-color-primary));
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.evidence-toggle:hover {
-  color: var(--rsa-primary-hover, var(--el-color-primary-light-3));
-  text-decoration: underline;
+.evidence-quote--full {
+  display: block;
 }
 
 .evidence-quote :deep(mark) {
@@ -1207,16 +1298,58 @@ watch(
   border-radius: 2px;
 }
 
-.evidence-pager {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 12px;
-}
-
 .pager-text {
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+
+.ai-insight-panel {
+  margin-bottom: 16px;
+}
+
+.ai-insight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ai-insight-head .subpanel-title {
+  margin: 0;
+}
+
+.ai-insight-head :deep(.el-button) {
+  margin-inline: 0;
+  flex-shrink: 0;
+}
+
+.ai-insight-body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-insight-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--el-text-color-primary);
+}
+
+.ai-insight-list li {
+  margin-bottom: 8px;
+}
+
+.ai-insight-list li:last-child {
+  margin-bottom: 0;
+}
+
+.ai-insight-empty {
+  text-align: left;
+  padding: 4px 0 0;
 }
 </style>

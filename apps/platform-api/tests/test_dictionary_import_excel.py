@@ -20,10 +20,10 @@ def _xlsx_bytes(headers: list[str], rows: list[tuple[object, ...]]) -> bytes:
 
 def test_parse_dictionary_excel_happy_path() -> None:
     content = _xlsx_bytes(
-        ["六维维度", "规范词", "同义词", "权重", "优先级"],
+        ["六维维度", "规范词", "同义词"],
         [
-            ("cons", "battery life", "dies fast;poor battery", 1, 70),
-            ("pros", "fast ship", "quick delivery", "", ""),
+            ("cons", "battery life", "dies fast;poor battery"),
+            ("pros", "fast ship", "quick delivery"),
         ],
     )
     rows, errs = parse_dictionary_excel_rows(content, filename="d.xlsx")
@@ -32,8 +32,6 @@ def test_parse_dictionary_excel_happy_path() -> None:
     assert rows[0]["dimension_6way"] == "cons"
     assert rows[0]["canonical"] == "battery life"
     assert rows[0]["aliases"] == ["dies fast", "poor battery"]
-    assert rows[0]["weight"] == 1.0
-    assert rows[0]["priority"] == 70
     assert rows[1]["aliases"] == ["quick delivery"]
 
 
@@ -46,8 +44,8 @@ def test_parse_dictionary_excel_missing_column() -> None:
 
 def test_parse_dictionary_excel_bad_dimension_row_skipped() -> None:
     content = _xlsx_bytes(
-        ["六维维度", "规范词", "同义词", "权重", "优先级"],
-        [("not_a_dim", "foo", "bar", 1, 50)],
+        ["六维维度", "规范词", "同义词"],
+        [("not_a_dim", "foo", "bar")],
     )
     rows, errs = parse_dictionary_excel_rows(content, filename="d.xlsx")
     assert not rows

@@ -11,6 +11,9 @@ platform-api .env：
 
 Agent 补洞（可选，同一进程）：
   AGENT_ENRICHMENT_URL=http://127.0.0.1:9100/agent-enrich
+
+洞察摘要（可选，同一进程）：
+  INSIGHT_SUMMARY_URL=http://127.0.0.1:9100/insight-summary
 """
 
 from __future__ import annotations
@@ -40,6 +43,18 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     return Settings()
+
+
+INSIGHT_SUMMARY_SYSTEM = """You are a senior e-commerce insights analyst. The user message is a JSON object
+with aggregated review attribution: product_id, pain_ranking_top, dimension_counts, sample_evidence_quotes, etc.
+
+Write a concise summary in the same language as the majority of evidence quotes (use Chinese if quotes are Chinese).
+Rules:
+- Output plain text only (no JSON, no markdown code fences). You may use line breaks and lines starting with "-" for bullets.
+- Cover: main praise themes, main complaints/risks, purchase motivations if visible, and 1–2 actionable suggestions for the product/ops team.
+- Do not invent numbers or claims not supported by the input. If data is thin, say so briefly.
+- Keep within about 400–700 Chinese characters (or similar length in English).
+"""
 
 
 SYSTEM_PROMPT = """You are an e-commerce review analyst. For each review, output structured JSON only.
@@ -155,6 +170,48 @@ def _run_tb3_body(body: dict[str, Any], authorization: str | None) -> dict[str, 
                 )
 
     return {"reviews": out_items, "_adapter": "deepseek", "_model": model}
+
+
+def _call_deepseek_insight_summary(client: OpenAI, model: str, context: dict[str, Any]) -> str:
+    user_content = json.dumps(context, ensure_ascii=False)
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": INSIGHT_SUMMARY_SYSTEM},
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.35,
+    )
+    msg = resp.choices[0].message.content
+    if not msg:
+        raise ValueError("empty model response")
+    return msg.strip()
+
+
+@app.post("/insight-summary")
+async def insight_summary(request: Request, authorization: str | None = Header(default=None)) -> dict:
+    """platform-api 传入 context JSON，返回 { summary, model }。"""
+    try:
+        body = await request.json()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"invalid json: {e!s}") from e
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be object")
+    s = get_settings()
+    if not (s.deepseek_api_key or "").strip():
+        raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY not set")
+    if not _auth_ok(authorization, s.adapter_shared_secret):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    context = body.get("context")
+    if not isinstance(context, dict):
+        raise HTTPException(status_code=400, detail="body.context must be an object")
+    client = OpenAI(
+        api_key=s.deepseek_api_key.strip(),
+        base_url=s.deepseek_base_url.strip().rstrip("/"),
+    )
+    model = s.deepseek_model.strip() or "deepseek-reasoner"
+    text = _call_deepseek_insight_summary(client, model, context)
+    return {"summary": text, "model": model, "_adapter": "deepseek"}
 
 
 @app.post("/analyze")

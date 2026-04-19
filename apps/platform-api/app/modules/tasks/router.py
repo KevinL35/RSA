@@ -12,6 +12,7 @@ from app.core.rbac import get_rsa_role, get_rsa_username_optional, require_mutat
 from app.integrations.supabase import require_supabase
 from app.modules.audit_log.service import audit_actor_name, try_record_audit
 from app.modules.insight_dashboard.service import build_insight_dashboard
+from app.modules.insight_summary.service import run_insight_ai_summary
 
 from . import state_machine
 from .agent_enrich_task import run_agent_enrich_for_task
@@ -22,7 +23,7 @@ from .listing import enrich_task_for_task_center, list_insight_tasks_filtered
 from .retry_task import retry_insight_task
 from app.modules.dictionary.verticals import assert_valid_vertical_id
 
-from .schema import InsightTaskCreate, InsightTaskPatch, TopicDiscoveryBody
+from .schema import InsightAiSummaryBody, InsightTaskCreate, InsightTaskPatch, TopicDiscoveryBody
 from .topic_discovery_jobs import (
     cancel_job as topic_cancel_job,
     create_job as topic_create_job,
@@ -382,6 +383,34 @@ def get_insight_dashboard(
     return payload
 
 
+@router.post("/{task_id}/ai-summary")
+def post_insight_ai_summary(
+    task_id: UUID,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    body: InsightAiSummaryBody = InsightAiSummaryBody(),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    """基于看板聚合数据调用 INSIGHT_SUMMARY_URL（默认 DeepSeek 适配层 /insight-summary），写入 ai_summary。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    try:
+        out = run_insight_ai_summary(sb, task_id, regenerate=body.regenerate)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"AI 摘要异常：{e!s}") from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"AI 洞察摘要 insight_task_id={task_id}",
+        detail={"task_id": str(task_id), "cached": out.get("cached")},
+    )
+    return out
+
+
 @router.post("/{task_id}/retry")
 def post_insight_task_retry(
     task_id: UUID,
@@ -523,6 +552,12 @@ def get_stored_task_analysis(
 def post_analyze_insight_task(
     task_id: UUID,
     _rbac: Annotated[str, Depends(require_mutator_role)],
+    force_reanalyze: Annotated[
+        bool,
+        Query(
+            description="为 true 时，若任务已 success，则先回到 running 并对已落库评论重新跑分析（词典/分析源更新后复用）",
+        ),
+    ] = False,
     actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
 ) -> dict:
     """TB-3：对已抓取评论调用分析源，返回情感/六维/证据结构；成功将任务标为 success。"""
@@ -531,7 +566,7 @@ def post_analyze_insight_task(
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     try:
-        payload = run_analyze_for_task(sb, task_id)
+        payload = run_analyze_for_task(sb, task_id, force_reanalyze=force_reanalyze)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001

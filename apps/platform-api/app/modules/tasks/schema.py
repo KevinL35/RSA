@@ -25,6 +25,15 @@ class InsightTaskPatch(BaseModel):
     failure_stage: str | None = Field(default=None, max_length=128)
 
 
+class InsightAiSummaryBody(BaseModel):
+    """生成或命中缓存的 AI 洞察摘要（DeepSeek 适配层）。"""
+
+    regenerate: bool = Field(
+        default=False,
+        description="为 true 时忽略缓存强制重新调用模型",
+    )
+
+
 class TopicDiscoveryBody(BaseModel):
     """BERTopic 主题三池：需已分析成功且本机/子进程已安装 ml/requirements-topic-pools.txt。"""
 

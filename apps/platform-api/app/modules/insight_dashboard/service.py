@@ -96,6 +96,7 @@ def build_insight_dashboard(
         "pain_ranking": [],
         "evidence": {"items": [], "total": 0, "limit": evidence_limit, "offset": evidence_offset},
         "review_timeseries": [],
+        "ai_summary": task.get("ai_summary"),
     }
 
     if status != "success":
@@ -209,4 +210,5 @@ def build_insight_dashboard(
             "offset": evidence_offset,
         },
         "review_timeseries": _review_volume_by_reviewed_date(sb, task_id),
+        "ai_summary": task.get("ai_summary"),
     }

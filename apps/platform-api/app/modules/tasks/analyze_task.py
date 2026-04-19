@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.integrations.agent_enrichment import enrich_normalized_analyses
 from app.integrations.analysis_provider import AnalysisProviderError, analyze_reviews
 from app.modules.analysis_results.persist import replace_task_analysis
+from app.modules.tasks import state_machine
 from app.modules.tasks.listing import enrich_task_for_task_center
 
 
@@ -17,7 +18,9 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
+def run_analyze_for_task(
+    sb: Client, task_id: UUID, *, force_reanalyze: bool = False
+) -> dict:
     """对任务已落库的 reviews 调用分析源；成功则写入 TB-4 表后 running→success，失败则 failed（failure_stage=analyze）。"""
     res = (
         sb.table("insight_tasks")
@@ -32,13 +35,38 @@ def run_analyze_for_task(sb: Client, task_id: UUID) -> dict:
     task = rows[0]
     status = task["status"]
 
+    if status == "success":
+        if not force_reanalyze:
+            raise HTTPException(status_code=409, detail="任务已成功完成分析，无需重复执行")
+        try:
+            state_machine.assert_valid_transition("success", "running")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        up = (
+            sb.table("insight_tasks")
+            .update(
+                {
+                    "status": "running",
+                    "updated_at": _utc_now_iso(),
+                    "error_code": None,
+                    "error_message": None,
+                    "failure_stage": None,
+                    "ai_summary": None,
+                }
+            )
+            .eq("id", str(task_id))
+            .execute()
+        )
+        if not up.data:
+            raise HTTPException(status_code=500, detail="无法将任务置为 running 以重新分析")
+        task = up.data[0]
+        status = task["status"]
+
     if status == "pending":
         raise HTTPException(
             status_code=400,
             detail="请先完成评论抓取（POST .../fetch-reviews）后再分析",
         )
-    if status == "success":
-        raise HTTPException(status_code=409, detail="任务已成功完成分析，无需重复执行")
     if status == "cancelled":
         raise HTTPException(status_code=409, detail="任务已取消，不可分析")
     if status == "failed":

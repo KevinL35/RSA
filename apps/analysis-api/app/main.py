@@ -34,7 +34,12 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "analysis-api"}
+    # 便于排查：若此处无 taxonomy_empty_seed_ok，多为旧进程未重启（曾要求 seed 非空）。
+    return {
+        "ok": True,
+        "service": "analysis-api",
+        "taxonomy_empty_seed_ok": True,
+    }
 
 
 @app.post("/analyze")
@@ -47,7 +52,7 @@ def analyze(req: AnalyzeRequest) -> dict:
             taxonomy_path=tax_path,
         )
     except RuntimeError as e:
-        # 多为缺 SUPABASE_*、seed 为空等；用 400 避免 API 将配置错误当成可重试的 5xx
+        # 多为缺 SUPABASE_*、词典读取失败等；用 400 避免 API 将配置错误当成可重试的 5xx
         log.warning("analyze failed: %s", e)
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

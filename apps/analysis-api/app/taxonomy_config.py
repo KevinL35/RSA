@@ -1,6 +1,6 @@
 """
 按 dictionary_vertical_id 合并 seed + overlay；**仅**从 Supabase 读取，与 apps/platform-api taxonomy_yaml 口径一致。
-未配置 Supabase 或 seed 为空时会报错（请先在数据库中初始化 taxonomy_entries）。
+未配置 Supabase 时会报错。seed 可为空，此时仅使用 overlay 词条。
 """
 
 from __future__ import annotations
@@ -41,6 +41,4 @@ def load_merged_taxonomy_dict(vertical_id: str | None) -> dict[str, Any]:
         db_overlay = fetch_overlay_rows(sb, vid)
     except Exception as e:
         raise RuntimeError(f"读取 taxonomy_entries 失败：{e}") from e
-    if not db_seed:
-        raise RuntimeError("Supabase taxonomy_entries 中 seed 为空。请先在数据库中导入 seed 词条。")
     return {"entries": _merge_entries(db_seed, db_overlay)}

@@ -27,6 +27,10 @@ FILES=(
   infra/migrations/014_sentiment_temp_tables.sql
   infra/migrations/015_sentiment_unmatched_pools.sql
   infra/migrations/016_topic_discovery_pools.sql
+  infra/migrations/017_topic_discovery_jobs.sql
+  infra/migrations/018_topic_discovery_jobs_global.sql
+  infra/migrations/019_taxonomy_entries_excel_import_defaults.sql
+  infra/migrations/020_insight_tasks_ai_summary.sql
 )
 
 echo "-- RSA infra migrations bundle (empty project)"

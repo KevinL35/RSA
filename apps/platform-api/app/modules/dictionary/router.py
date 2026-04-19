@@ -198,7 +198,7 @@ async def post_dictionary_import_excel(
     actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> dict:
-    """将 Excel 中的词条批量 upsert 进 Supabase 对应垂直的 overlay（表头：六维维度、规范词、同义词、权重、优先级）。"""
+    """将 Excel 中的词条批量 upsert 进 Supabase 对应垂直的 overlay（表头：六维维度、规范词、同义词；权重与优先级使用默认值）。"""
     try:
         vid = assert_valid_vertical_id(vertical_id.strip())
     except ValueError as e:
@@ -233,8 +233,6 @@ async def post_dictionary_import_excel(
                     actor_username=audit_actor_name(actor),
                     batch_id=batch_id,
                     source_topic_id=None,
-                    weight=r["weight"],
-                    priority=r["priority"],
                     entry_source="dictionary_excel",
                 ),
             )

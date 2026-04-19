@@ -46,6 +46,14 @@ export type InsightTaskProductSnapshot = {
   fetched_at?: string | null
 }
 
+/** 服务端写入 insight_tasks.ai_summary，GET dashboard 透传 */
+export type InsightAiSummaryStored = {
+  text?: string
+  model?: string
+  generated_at?: string
+  fingerprint?: string
+}
+
 export type InsightDashboardResponse = {
   insight_task_id: string
   platform: string
@@ -69,4 +77,5 @@ export type InsightDashboardResponse = {
     offset: number
   }
   review_timeseries?: ReviewTimeseriesPoint[]
+  ai_summary?: InsightAiSummaryStored | null
 }

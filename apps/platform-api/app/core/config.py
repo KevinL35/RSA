@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # 前端任务 analysis_provider_id=deepseek_chat 时，在未配置 ROUTES / 默认 URL 下的回退地址
     deepseek_adapter_analyze_url: str = "http://127.0.0.1:9100/analyze"
 
+    # AI 洞察摘要（DeepSeek 适配层 POST /insight-summary，与 TB-3 分析独立）
+    insight_summary_url: str = "http://127.0.0.1:9100/insight-summary"
+    insight_summary_api_key: str | None = None
+    insight_summary_timeout_seconds: float = 120.0
+
     # 可选：词典分析后的智能 Agent 增强（补洞 / 抽检）；见 agent_enrichment 模块
     agent_enrichment_url: str | None = None
     agent_enrichment_api_key: str | None = None

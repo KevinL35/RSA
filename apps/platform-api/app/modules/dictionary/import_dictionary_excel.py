@@ -60,22 +60,6 @@ def _find_aliases_col(headers: list[str]) -> int | None:
     return None
 
 
-def _find_weight_col(headers: list[str]) -> int | None:
-    for i, h in enumerate(headers):
-        s = _norm_header(h)
-        if s in ("weight", "权重"):
-            return i
-    return None
-
-
-def _find_priority_col(headers: list[str]) -> int | None:
-    for i, h in enumerate(headers):
-        s = _norm_header(h)
-        if s in ("priority", "优先级", "优先"):
-            return i
-    return None
-
-
 _SPLIT_ALIASES = re.compile(r"[\n;；|,\，]+")
 
 
@@ -89,28 +73,11 @@ def _split_aliases_cell(val: object) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-def _cell_float(val: object, default: float) -> float:
-    if val is None or val == "":
-        return default
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return default
-
-
-def _cell_int(val: object, default: int) -> int:
-    if val is None or val == "":
-        return default
-    try:
-        return int(float(val))
-    except (TypeError, ValueError):
-        return default
-
-
 def parse_dictionary_excel_rows(content: bytes, filename: str = "") -> tuple[list[dict[str, Any]], list[str]]:
     """
     解析首行表头，返回 (行 dict 列表, 错误信息列表)。
-    每行 dict: dimension_6way, canonical, aliases, weight, priority, _row (1-based excel row)
+    每行 dict: dimension_6way, canonical, aliases, _row（1-based excel row）。
+    权重与优先级不在 Excel 中配置；写入 overlay 时使用默认 weight=1.0、priority=50。
     """
     errors: list[str] = []
     if len(content) > MAX_DICTIONARY_FILE_BYTES:
@@ -144,8 +111,6 @@ def parse_dictionary_excel_rows(content: bytes, filename: str = "") -> tuple[lis
         ic_dim = _find_dim_col(headers)
         ic_can = _find_canonical_col(headers)
         ic_als = _find_aliases_col(headers)
-        ic_w = _find_weight_col(headers)
-        ic_p = _find_priority_col(headers)
 
         if ic_dim is None:
             errors.append("未找到「六维维度」或 dimension_6way 列")
@@ -174,8 +139,6 @@ def parse_dictionary_excel_rows(content: bytes, filename: str = "") -> tuple[lis
             if not dim and not can:
                 continue
             aliases = _split_aliases_cell(als_raw)
-            w = _cell_float(tup[ic_w] if ic_w is not None and ic_w < len(tup) else None, 1.0)
-            p = _cell_int(tup[ic_p] if ic_p is not None and ic_p < len(tup) else None, 50)
 
             if dim not in SIX_WAY_DIMENSION_ORDER:
                 errors.append(f"第 {row_num} 行：无效维度 {dim_raw!r}（须为 pros/cons/… 之一）")
@@ -189,8 +152,6 @@ def parse_dictionary_excel_rows(content: bytes, filename: str = "") -> tuple[lis
                     "dimension_6way": dim,
                     "canonical": can,
                     "aliases": aliases,
-                    "weight": w,
-                    "priority": p,
                     "_row": row_num,
                 },
             )

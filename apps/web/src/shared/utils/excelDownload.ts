@@ -39,8 +39,8 @@ export async function downloadReviewImportTemplate(): Promise<void> {
   )
 }
 
-/** 词典 Excel 列（与后端 import_dictionary_excel 解析一致）。 */
-export const DICTIONARY_IMPORT_COLUMNS = ['六维维度', '规范词', '同义词', '权重', '优先级'] as const
+/** 词典 Excel 列（与后端 import_dictionary_excel 解析一致；权重/优先级可选，默认 1.0 / 50）。 */
+export const DICTIONARY_IMPORT_COLUMNS = ['六维维度', '规范词', '同义词'] as const
 
 export async function downloadDictionaryImportTemplate(): Promise<void> {
   const cols = [...DICTIONARY_IMPORT_COLUMNS]
@@ -51,8 +51,6 @@ export async function downloadDictionaryImportTemplate(): Promise<void> {
         六维维度: 'cons',
         规范词: 'battery life',
         同义词: 'dies fast; poor battery',
-        权重: 1,
-        优先级: 70,
       },
     ],
     cols,
@@ -88,8 +86,6 @@ export function flattenTaxonomyPreviewForExcel(preview: TaxonomyPreviewLike): Re
         六维维度: dim,
         规范词: String(e.canonical ?? '').trim(),
         同义词: aliases.join('；'),
-        权重: e.weight ?? 1,
-        优先级: e.priority ?? 50,
       })
     }
   }

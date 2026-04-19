@@ -75,8 +75,36 @@ export function postInsightTaskImportReviews(taskId: string, file: File) {
   )
 }
 
-export function postInsightTaskAnalyze(taskId: string) {
-  return apiPostJson<Record<string, unknown>>(`/api/v1/insight-tasks/${encodeURIComponent(taskId)}/analyze`, {})
+export type InsightAiSummaryResponse = {
+  cached?: boolean
+  fingerprint?: string
+  ai_summary?: {
+    text?: string
+    model?: string
+    generated_at?: string
+    fingerprint?: string
+  }
+}
+
+export function postInsightAiSummary(taskId: string, body?: { regenerate?: boolean }) {
+  return apiPostJson<InsightAiSummaryResponse>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/ai-summary`,
+    { regenerate: body?.regenerate === true },
+  )
+}
+
+export function postInsightTaskAnalyze(
+  taskId: string,
+  opts?: { forceReanalyze?: boolean },
+) {
+  const q =
+    opts?.forceReanalyze === true
+      ? '?force_reanalyze=true'
+      : ''
+  return apiPostJson<Record<string, unknown>>(
+    `/api/v1/insight-tasks/${encodeURIComponent(taskId)}/analyze${q}`,
+    {},
+  )
 }
 
 export type TopicDiscoveryBody = {

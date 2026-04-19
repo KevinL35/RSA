@@ -193,6 +193,12 @@ export default {
   },
   insightResult: {
     back: 'Back to list',
+    reanalyze: 'Regenerate',
+    reanalyzeTitle: 'Re-run insight analysis',
+    reanalyzeConfirm:
+      'Re-run sentiment and six-dimension attribution on stored reviews (no re-fetch). Use after updating the dictionary to match text that previously missed. Continue?',
+    reanalyzeOk: 'Re-analysis submitted; refreshing…',
+    reanalyzeFail: 'Re-analysis failed',
     headerMetaLine:
       'Insight model: {model}  ·  Analyzed at: {time}  ·  Total reviews: {total}  ·  Matched: {matched}',
     reviewTrendTitle: 'Trend over time',
@@ -230,6 +236,20 @@ export default {
       user_expectation: 'User expectations',
       usage_scenario: 'Usage scenarios',
     },
+    aiSectionTitle: 'AI insight summary',
+    aiSectionDesc:
+      'Uses aggregated dashboard context via DeepSeek (run deepseek-adapter; set INSIGHT_SUMMARY_URL and DEEPSEEK_API_KEY). Until generated, rule-based bullets show below.',
+    aiGenerate: 'Generate AI summary',
+    aiRegenerate: 'Regenerate',
+    aiSummaryMeta: 'Generated: {time}  ·  Model: {model}',
+    aiGenerateOk: 'AI summary saved',
+    aiRegenerateOk: 'AI summary refreshed',
+    aiGenerateFail: 'AI summary failed',
+    aiSectionEmpty: 'Nothing to summarize yet.',
+    aiLineCoverage: '{matched} of {total} reviews matched at least one taxonomy keyword across six dimensions.',
+    aiLineKeyword: '“{kw}” appears {n} times; dimensions: {dims}.',
+    aiLineStrongDim: 'Most attribution rows are under “{dim}” ({n} rows).',
+    aiDimJoiner: ', ',
   },
   governance: {
     painAuditTitle: 'Dictionary review',
@@ -304,7 +324,7 @@ export default {
     dictionaryExcelUpload: 'Upload dictionary',
     dictionaryExcelTitle: 'Upload dictionary (Excel)',
     dictionaryExcelIntro:
-      'Headers: 六维维度 / dimension, 规范词 / canonical, 同义词 / aliases, 权重 / weight, 优先级 / priority. Dimensions: pros, cons, return_reasons, purchase_motivation, user_expectation, usage_scenario. Separate synonyms with semicolons or new lines. Rows merge into the category selected at the top of the page.',
+      'Headers: 六维维度 / dimension, 规范词 / canonical, 同义词 / aliases. Dimensions: pros, cons, return_reasons, purchase_motivation, user_expectation, usage_scenario. Separate synonyms with semicolons or new lines. Rows merge into the category selected at the top of the page.',
     dictionaryExcelTemplateStripLabel: 'Download template (one sample row)',
     dictionaryExcelTemplateDownload: 'Download template',
     dictionaryExcelVertical: 'Target dictionary category',

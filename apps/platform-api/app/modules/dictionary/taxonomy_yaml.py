@@ -35,7 +35,7 @@ def load_merged_entries_for_vertical(
     vertical_id: str,
     sb: "Client | None" = None,
 ) -> list[dict[str, Any]]:
-    """仅从 Supabase `taxonomy_entries` 合并 seed + 指定 vertical 的 overlay；seed 必须非空。"""
+    """从 Supabase `taxonomy_entries` 合并 seed + 指定 vertical 的 overlay。seed 可为空，此时结果仅为 overlay。"""
     from . import taxonomy_db as _taxonomy_db
     from .verticals import VERTICAL_IDS
 
@@ -51,10 +51,6 @@ def load_merged_entries_for_vertical(
         db_overlay = _taxonomy_db.fetch_overlay_rows(sb, vid)
     except Exception as e:
         raise ValueError(f"读取 taxonomy_entries 失败：{e!s}") from e
-    if not db_seed:
-        raise ValueError(
-            "taxonomy_entries 中 seed 为空。请先在数据库中导入种子数据。"
-        )
     return merge_entries(db_seed, db_overlay)
 
 

@@ -7,9 +7,13 @@ def test_failed_to_pending_allowed() -> None:
     assert_valid_transition("failed", "pending")
 
 
-def test_success_is_terminal() -> None:
+def test_success_to_pending_still_invalid() -> None:
     try:
         assert_valid_transition("success", "pending")
     except ValueError:
         return
     raise AssertionError("expected ValueError")
+
+
+def test_success_to_running_allowed() -> None:
+    assert_valid_transition("success", "running")

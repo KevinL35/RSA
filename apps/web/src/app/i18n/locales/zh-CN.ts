@@ -190,6 +190,12 @@ export default {
   },
   insightResult: {
     back: '返回列表',
+    reanalyze: '重新生成',
+    reanalyzeTitle: '重新跑洞察分析',
+    reanalyzeConfirm:
+      '将使用当前六维词典对已落库评论重新做情感与归因（不重新抓取评论）。词典更新后可用此功能补匹配此前未命中的内容。是否继续？',
+    reanalyzeOk: '已提交重新分析，正在刷新…',
+    reanalyzeFail: '重新分析失败',
     headerMetaLine: '洞察模型：{model} 分析时间：{time} 评论总数：{total} 成功匹配：{matched}',
     reviewTrendTitle: '时间趋势',
     reviewTrendEmpty: '暂无按日期的评论量数据',
@@ -226,6 +232,20 @@ export default {
       user_expectation: '用户期望',
       usage_scenario: '应用场景',
     },
+    aiSectionTitle: 'AI 智能分析',
+    aiSectionDesc:
+      '基于当前看板聚合数据调用 DeepSeek（需启动 deepseek-adapter 并配置 INSIGHT_SUMMARY_URL / DEEPSEEK_API_KEY）。未生成时下方为规则要点；点击按钮生成摘要并写入数据库。',
+    aiGenerate: '生成 AI 摘要',
+    aiRegenerate: '重新生成',
+    aiSummaryMeta: '生成时间：{time}  ·  模型：{model}',
+    aiGenerateOk: 'AI 摘要已生成',
+    aiRegenerateOk: 'AI 摘要已更新',
+    aiGenerateFail: 'AI 摘要失败',
+    aiSectionEmpty: '暂无可归纳的要点。',
+    aiLineCoverage: '评论共 {total} 条，其中 {matched} 条在六维词典下完成关键词匹配。',
+    aiLineKeyword: '「{kw}」提及 {n} 次，涉及维度：{dims}。',
+    aiLineStrongDim: '当前命中条数最多的维度为「{dim}」（{n} 条归因记录）。',
+    aiDimJoiner: '、',
   },
   governance: {
     painAuditTitle: '词典审核',
@@ -299,7 +319,7 @@ export default {
     dictionaryExcelUpload: '上传词典',
     dictionaryExcelTitle: '上传词典（Excel）',
     dictionaryExcelIntro:
-      '表头须含：六维维度、规范词、同义词、权重、优先级。六维取值为 pros / cons / return_reasons / purchase_motivation / user_expectation / usage_scenario；同义词可用分号、换行等分隔。导入将合并进页面顶部当前所选类目的 overlay。',
+      '表头须含：六维维度、规范词、同义词。六维取值为 pros / cons / return_reasons / purchase_motivation / user_expectation / usage_scenario；同义词可用分号、换行等分隔。导入将合并进页面顶部当前所选类目的 overlay。',
     dictionaryExcelTemplateStripLabel: '下载空白模板（含示例一行）',
     dictionaryExcelTemplateDownload: '下载模板',
     dictionaryExcelVertical: '目标词典类目',
