@@ -31,6 +31,7 @@ from .topic_discovery_jobs import (
     get_latest_active_any as topic_get_latest_active_any,
     get_latest_for_task as topic_get_latest_for_task,
     get_latest_global as topic_get_latest_global,
+    import_topic_pool_to_review_queue as topic_import_to_review_queue,
 )
 
 router = APIRouter(prefix="/api/v1/insight-tasks", tags=["insight-tasks"])
@@ -94,6 +95,40 @@ def get_topic_discovery_global_latest(
         raise HTTPException(status_code=503, detail=str(e)) from e
     job = topic_get_latest_global(sb)
     return {"job": job}
+
+
+@topic_discovery_router.post("/import-to-review-queue")
+def post_topic_import_to_review_queue(
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    batch_id: str | None = Query(
+        default=None,
+        description="指定 batch_id；省略时使用最近一次成功的全局任务的 batch_id",
+    ),
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+) -> dict:
+    """把指定 batch（或最近一次全局成功批次）的 topic_pool_* 候选回填到 dictionary_review_queue。"""
+    try:
+        sb = require_supabase()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    target_batch = (batch_id or "").strip()
+    if not target_batch:
+        latest = topic_get_latest_global(sb)
+        target_batch = (latest or {}).get("batch_id") or ""
+    if not target_batch:
+        raise HTTPException(status_code=400, detail="未找到可用 batch_id，请先成功跑一次主题挖掘或显式传 batch_id")
+    try:
+        inserted = topic_import_to_review_queue(sb, target_batch)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"导入失败：{e!s}") from e
+    try_record_audit(
+        sb,
+        username=audit_actor_name(actor),
+        menu_key="insight",
+        message=f"导入主题挖掘候选到审核队列 batch_id={target_batch} inserted={inserted}",
+        detail={"batch_id": target_batch, "inserted": inserted},
+    )
+    return {"ok": True, "batch_id": target_batch, "inserted": inserted}
 
 
 @topic_discovery_router.post("/jobs/{job_id}/cancel")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -16,22 +17,61 @@ from app.core.config import get_settings
 from app.modules.insight_dashboard.service import build_insight_dashboard
 
 
+_DIMS: tuple[str, ...] = (
+    "pros",
+    "cons",
+    "return_reasons",
+    "purchase_motivation",
+    "user_expectation",
+    "usage_scenario",
+)
+_TOP_KW_PER_DIM = 5
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _per_dimension_top_keywords(
+    ev_items: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """以「维度 × 关键词」为分组键，统计 review_dimension_analysis 行命中数。
+    口径与前端 cardRows 一致：每行内同一关键词去重后只算一次。
+    """
+    per_dim: dict[str, Counter[str]] = {d: Counter() for d in _DIMS}
+    for ev in ev_items:
+        if not isinstance(ev, dict):
+            continue
+        dim = ev.get("dimension")
+        if not isinstance(dim, str) or dim not in per_dim:
+            continue
+        kws = ev.get("keywords") or []
+        if not isinstance(kws, list):
+            continue
+        seen: set[str] = set()
+        for raw in kws:
+            if raw is None:
+                continue
+            kw = str(raw).strip().lower()
+            if not kw or kw in seen:
+                continue
+            seen.add(kw)
+            per_dim[dim][kw] += 1
+    out: dict[str, list[dict[str, Any]]] = {}
+    for dim in _DIMS:
+        out[dim] = [
+            {"keyword": kw, "count": c}
+            for kw, c in per_dim[dim].most_common(_TOP_KW_PER_DIM)
+        ]
+    return out
+
+
 def _fingerprint_from_dashboard(d: dict[str, Any]) -> str:
     """分析结果变化时指纹变化，用于缓存失效。"""
-    pr = d.get("pain_ranking") or []
-    pr_key = [
-        {"k": x.get("keyword"), "c": x.get("count"), "d": sorted(x.get("dimensions") or [])}
-        for x in pr[:25]
-        if isinstance(x, dict)
-    ]
-    dc = d.get("dimension_counts") or {}
+    ev_items = ((d.get("evidence") or {}).get("items")) or []
+    per_dim_top = _per_dimension_top_keywords(ev_items)
     payload = {
-        "pain_ranking": pr_key,
-        "dimension_counts": dict(sorted(dc.items())) if isinstance(dc, dict) else {},
+        "per_dim_top": per_dim_top,
         "matched_review_count": d.get("matched_review_count"),
         "review_total_count": d.get("review_total_count"),
         "analyzed_at": d.get("analyzed_at"),
@@ -58,12 +98,6 @@ def _build_context_for_llm(d: dict[str, Any]) -> dict[str, Any]:
                 "quote": (quote or "")[:450],
             }
         )
-    pr = d.get("pain_ranking") or []
-    top_kw = [
-        {"keyword": x.get("keyword"), "count": x.get("count"), "dimensions": x.get("dimensions")}
-        for x in pr[:15]
-        if isinstance(x, dict)
-    ]
     snap_raw = d.get("product_snapshot") or {}
     snapshot: dict[str, Any] = {}
     if isinstance(snap_raw, dict):
@@ -78,8 +112,7 @@ def _build_context_for_llm(d: dict[str, Any]) -> dict[str, Any]:
         "dictionary_vertical_id": d.get("dictionary_vertical_id"),
         "review_total_count": d.get("review_total_count"),
         "matched_review_count": d.get("matched_review_count"),
-        "dimension_counts": d.get("dimension_counts") or {},
-        "pain_ranking_top": top_kw,
+        "top_keywords_by_dimension": _per_dimension_top_keywords(ev_list),
         "sample_evidence_quotes": samples,
     }
 

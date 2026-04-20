@@ -174,10 +174,17 @@ def get_taxonomy_preview(
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取词典配置失败：{e!s}") from e
 
-    grouped = group_by_dimension(entries)
+    def _has_aliases(entry: dict[str, Any]) -> bool:
+        als = entry.get("aliases")
+        if not isinstance(als, list):
+            return False
+        return any(str(x).strip() for x in als)
+
+    visible_entries = [e for e in entries if _has_aliases(e)]
+    grouped = group_by_dimension(visible_entries)
     return {
         "vertical_id": vid,
-        "entry_count": len(entries),
+        "entry_count": len(visible_entries),
         "dimension_order": list(SIX_WAY_DIMENSION_ORDER),
         "dimensions": {
             dim: {
@@ -399,6 +406,162 @@ class RejectSynonymBody(BaseModel):
     alias: str = Field(min_length=1, max_length=512)
 
 
+def _remove_alias_from_overlay(
+    sb: Client,
+    *,
+    vertical_id: str,
+    dimension_6way: str,
+    canonical: str,
+    alias: str,
+) -> dict[str, Any]:
+    """
+    从 taxonomy_entries（overlay）中找到 (vertical, dim, canonical) 对应行并去掉 alias。
+    aliases 为空后整行删除（避免词典管理出现 0 同义词的孤词条）。
+    返回 { matched, removed, remaining_aliases, entry_id, entry_deleted }。
+    """
+    canon_norm = canonical.strip().lower()
+    alias_norm = alias.strip().lower()
+    try:
+        res = (
+            sb.table("taxonomy_entries")
+            .select("id, aliases, canonical")
+            .eq("source_layer", "overlay")
+            .eq("dictionary_vertical_id", vertical_id)
+            .eq("dimension_6way", dimension_6way)
+            .eq("canonical_norm", canon_norm)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"查询 taxonomy_entries 失败：{e!s}") from e
+    rows = res.data or []
+    if not rows:
+        return {
+            "matched": False,
+            "removed": False,
+            "remaining_aliases": [],
+            "entry_id": None,
+            "entry_deleted": False,
+        }
+    row = rows[0]
+    raw_aliases = row.get("aliases") or []
+    if not isinstance(raw_aliases, list):
+        raw_aliases = []
+    next_aliases: list[str] = []
+    removed = False
+    for a in raw_aliases:
+        s = str(a).strip()
+        if not s:
+            continue
+        if s.lower() == alias_norm:
+            removed = True
+            continue
+        next_aliases.append(s)
+    if not removed:
+        return {
+            "matched": True,
+            "removed": False,
+            "remaining_aliases": next_aliases,
+            "entry_id": row.get("id"),
+            "entry_deleted": False,
+        }
+    entry_deleted = False
+    try:
+        if not next_aliases:
+            sb.table("taxonomy_entries").delete().eq("id", row["id"]).execute()
+            entry_deleted = True
+        else:
+            sb.table("taxonomy_entries").update(
+                {"aliases": next_aliases, "updated_at": _utc_now_iso()}
+            ).eq("id", row["id"]).execute()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"更新 taxonomy_entries 失败：{e!s}") from e
+    return {
+        "matched": True,
+        "removed": True,
+        "remaining_aliases": next_aliases,
+        "entry_id": row.get("id"),
+        "entry_deleted": entry_deleted,
+    }
+
+
+def _enqueue_rejected_alias_for_review(
+    sb: Client,
+    *,
+    vertical_id: str,
+    dimension_6way: str,
+    canonical: str,
+    alias: str,
+    actor_username: str | None,
+) -> dict[str, Any]:
+    """
+    把被驳回的同义词回流到 dictionary_review_queue：
+      - canonical = 原词典关键词（不变）
+      - synonyms = 当前已驳回的若干同义词（来源同 canonical 时自动合并去重）
+      - kind = 'rejected'
+    返回 { id, action, synonyms }，action ∈ {'inserted','merged','noop'}。
+    """
+    keyword = canonical.strip()
+    al = alias.strip()
+    if not keyword or not al:
+        return {"id": None, "action": "noop", "synonyms": []}
+    try:
+        existed = (
+            sb.table("dictionary_review_queue")
+            .select("id, synonyms, kind")
+            .eq("status", "pending")
+            .eq("dictionary_vertical_id", vertical_id)
+            .eq("dimension_6way", dimension_6way)
+            .ilike("canonical", keyword)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"查询 dictionary_review_queue 失败：{e!s}") from e
+    existed_rows = existed.data or []
+    if existed_rows:
+        cur = existed_rows[0]
+        cur_syn_raw = cur.get("synonyms") or []
+        cur_syn: list[str] = (
+            [str(x).strip() for x in cur_syn_raw if str(x).strip()]
+            if isinstance(cur_syn_raw, list)
+            else []
+        )
+        if any(s.lower() == al.lower() for s in cur_syn):
+            return {"id": str(cur["id"]), "action": "noop", "synonyms": cur_syn}
+        next_syn = [*cur_syn, al]
+        try:
+            sb.table("dictionary_review_queue").update(
+                {
+                    "synonyms": next_syn,
+                    "kind": "rejected",
+                    "updated_at": _utc_now_iso(),
+                }
+            ).eq("id", cur["id"]).execute()
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(
+                status_code=502, detail=f"合并 dictionary_review_queue 失败：{e!s}"
+            ) from e
+        return {"id": str(cur["id"]), "action": "merged", "synonyms": next_syn}
+    payload = {
+        "kind": "rejected",
+        "canonical": keyword,
+        "synonyms": [al],
+        "dictionary_vertical_id": vertical_id,
+        "dimension_6way": dimension_6way,
+        "batch_id": f"reject:{vertical_id}",
+        "source_topic_id": f"reject-from:{keyword}",
+        "status": "pending",
+    }
+    try:
+        ins = sb.table("dictionary_review_queue").insert(payload).execute()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"写入 dictionary_review_queue 失败：{e!s}") from e
+    rows = ins.data or []
+    rid = str(rows[0].get("id") or "") if rows else ""
+    return {"id": rid or None, "action": "inserted" if rid else "noop", "synonyms": [al]}
+
+
 @router.post("/reject-synonym")
 def post_reject_synonym(
     body: RejectSynonymBody,
@@ -406,7 +569,7 @@ def post_reject_synonym(
     actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
     sb: Client = Depends(require_supabase),
 ) -> dict:
-    """记录「同义词与关键词不匹配」的驳回意向，后续接入词典审核队列与词典版本。"""
+    """驳回同义词：从 overlay 删该 alias，再把它作为待审条目写入 dictionary_review_queue。"""
     try:
         assert_valid_vertical_id(body.vertical_id)
     except ValueError as e:
@@ -417,16 +580,38 @@ def post_reject_synonym(
             status_code=400,
             detail=f"无效 dimension_6way：{body.dimension_6way!r}",
         )
+    canonical = body.canonical.strip()
+    alias = body.alias.strip()
+    overlay_result = _remove_alias_from_overlay(
+        sb,
+        vertical_id=body.vertical_id.strip(),
+        dimension_6way=dim,
+        canonical=canonical,
+        alias=alias,
+    )
+    queue_result = _enqueue_rejected_alias_for_review(
+        sb,
+        vertical_id=body.vertical_id.strip(),
+        dimension_6way=dim,
+        canonical=canonical,
+        alias=alias,
+        actor_username=actor,
+    )
     try_record_audit(
         sb,
         username=audit_actor_name(actor),
         menu_key="dictionary",
-        message=f"驳回同义词：{body.canonical.strip()} ↔ {body.alias.strip()}",
+        message=f"驳回同义词：{canonical} ↔ {alias}",
         detail={
             "vertical_id": body.vertical_id.strip(),
             "dimension_6way": dim,
-            "canonical": body.canonical.strip(),
-            "alias": body.alias.strip(),
+            "canonical": canonical,
+            "alias": alias,
+            "overlay_matched": overlay_result.get("matched"),
+            "overlay_removed": overlay_result.get("removed"),
+            "overlay_entry_deleted": overlay_result.get("entry_deleted"),
+            "review_queue_id": queue_result.get("id"),
+            "review_queue_action": queue_result.get("action"),
         },
     )
     return {
@@ -434,6 +619,13 @@ def post_reject_synonym(
         "queued": True,
         "vertical_id": body.vertical_id.strip(),
         "dimension_6way": dim,
-        "canonical": body.canonical.strip(),
-        "alias": body.alias.strip(),
+        "canonical": canonical,
+        "alias": alias,
+        "overlay_matched": overlay_result.get("matched"),
+        "overlay_removed": overlay_result.get("removed"),
+        "overlay_entry_deleted": overlay_result.get("entry_deleted"),
+        "review_queue_id": queue_result.get("id"),
+        "review_queue_action": queue_result.get("action"),
+        "review_queue_synonyms": queue_result.get("synonyms"),
+        "hint": "若使用独立分析服务加载词典，请 POST /admin/reload-taxonomy 或重启该服务。",
     }

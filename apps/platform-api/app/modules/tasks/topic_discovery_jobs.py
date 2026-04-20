@@ -182,6 +182,95 @@ def cancel_job(sb: Any, job_id: UUID) -> dict[str, Any]:
     return get_job(sb, job_id) or {**job, "status": "cancelled"}
 
 
+_POOL_DEFAULT_DIM: dict[str, str] = {
+    "topic_pool_pain": "cons",
+    "topic_pool_highlight": "pros",
+    "topic_pool_observation": "usage_scenario",
+}
+_IMPORT_MAX_PER_POOL = 20
+
+
+def import_topic_pool_to_review_queue(
+    sb: Any, batch_id: str | None, *, max_per_pool: int = _IMPORT_MAX_PER_POOL
+) -> int:
+    """把指定 batch 的 BERTopic 三池候选导入 dictionary_review_queue（status=pending），
+    供「主题挖掘」页面审核入库。
+    - 默认六维：highlight→pros / pain→cons / observation→usage_scenario，可在审核页修改。
+    - 默认词典类目 general。
+    - 同 batch + 同 canonical 去重，且与 dictionary_review_queue 中现有 pending 同名词条去重。
+    返回成功插入条数。
+    """
+    if not batch_id:
+        return 0
+    rows_to_insert: list[dict[str, Any]] = []
+    for table_name, dim in _POOL_DEFAULT_DIM.items():
+        try:
+            r = (
+                sb.table(table_name)
+                .select("suggested_canonical,aliases,quality_score,source_topic_id")
+                .eq("batch_id", batch_id)
+                .order("quality_score", desc=True)
+                .limit(max_per_pool)
+                .execute()
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        for row in r.data or []:
+            canonical = (row.get("suggested_canonical") or "").strip()
+            if not canonical:
+                continue
+            aliases = row.get("aliases") or []
+            if not isinstance(aliases, list) or not aliases:
+                continue
+            rows_to_insert.append(
+                {
+                    "kind": "new_discovery",
+                    "canonical": canonical,
+                    "synonyms": aliases,
+                    "dictionary_vertical_id": "general",
+                    "dimension_6way": dim,
+                    "batch_id": batch_id,
+                    "source_topic_id": str(row.get("source_topic_id") or ""),
+                    "quality_score": row.get("quality_score"),
+                    "status": "pending",
+                }
+            )
+    if not rows_to_insert:
+        return 0
+    # 同批次内去重 canonical（小写）
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for r in rows_to_insert:
+        key = r["canonical"].strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(r)
+    # 跳过队列中已存在 pending 同名（避免每次跑都重复入队）
+    try:
+        existing = (
+            sb.table("dictionary_review_queue")
+            .select("canonical")
+            .eq("status", "pending")
+            .in_("canonical", [r["canonical"] for r in deduped])
+            .execute()
+        )
+        existing_set = {
+            (r.get("canonical") or "").strip().lower() for r in (existing.data or [])
+        }
+    except Exception:  # noqa: BLE001
+        existing_set = set()
+    final_rows = [r for r in deduped if r["canonical"].strip().lower() not in existing_set]
+    if not final_rows:
+        return 0
+    try:
+        sb.table("dictionary_review_queue").insert(final_rows).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("topic-pool-import: insert failed")
+        return 0
+    return len(final_rows)
+
+
 def _parse_summary(stdout: str) -> dict[str, Any] | None:
     s = (stdout or "").strip()
     if not s:
@@ -300,6 +389,18 @@ def _run_in_thread(
                 "updated_at": now,
             }
         ).eq("id", job_id).execute()
+        # 自动把本批 topic_pool_* 候选导入审核队列；失败仅记日志，不影响 job 状态
+        try:
+            inserted = import_topic_pool_to_review_queue(sb, batch_id)
+            if inserted:
+                log.info(
+                    "topic-job %s: imported %d candidates from batch=%s into dictionary_review_queue",
+                    job_id,
+                    inserted,
+                    batch_id,
+                )
+        except Exception:  # noqa: BLE001
+            log.exception("topic-job %s: import_topic_pool_to_review_queue failed", job_id)
     else:
         # SIGTERM/SIGKILL 退出码视为 cancelled
         if proc.returncode in (-signal.SIGTERM, -signal.SIGKILL, 143, 137):

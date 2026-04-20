@@ -98,7 +98,7 @@
               type="primary"
               size="small"
               :disabled="viewResultsDisabled(row)"
-              :title="viewResultsDisabled(row) ? t('insight.viewResultsDisabledHint') : undefined"
+              :title="viewResultsDisabledReason(row)"
               @click="onViewResults(row)"
             >
               {{ t('insight.viewResults') }}
@@ -297,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -354,6 +354,8 @@ type InsightProductRow = {
   statusLabel: string
   /** insight_tasks.status，用于操作按钮禁用逻辑 */
   taskStatus?: string
+  /** AI 智能分析是否已生成（dashboard 与查看结果按钮的解锁前置） */
+  aiSummaryReady?: boolean
   /**
    * 列表缩略图重试阶段：extra 图 → 主 CDN → 备用 CDN → 占位。
    * Amazon 对无效 ASIN 常返回 200 + 1×1 GIF，需配合 @load 尺寸判断。
@@ -526,15 +528,22 @@ function insightThumbLoadHandler(row: InsightProductRow) {
   return fn
 }
 
-/** 洞察状态展示：分析中 / 已完成 / 失败（合并 pending+running → 分析中） */
-function flowInsightStatusLabel(status: string): string {
-  const key = classifyInsightFlowStatus(status)
+/** 洞察状态展示：分析中 / 已完成 / 失败。
+ * 注意：即使后端 status='success'，只要 AI 智能分析尚未生成完成，仍展示「分析中」。
+ */
+function flowInsightStatusLabel(status: string, aiSummaryReady?: boolean): string {
+  const key = classifyInsightFlowStatus(status, aiSummaryReady)
   return t(`insight.flowStatus.${key}`)
 }
 
-function classifyInsightFlowStatus(status: string): 'analyzing' | 'done' | 'failed' {
-  if (status === 'success') return 'done'
+function classifyInsightFlowStatus(
+  status: string,
+  aiSummaryReady?: boolean,
+): 'analyzing' | 'done' | 'failed' {
   if (status === 'failed' || status === 'cancelled') return 'failed'
+  if (status === 'success') {
+    return aiSummaryReady ? 'done' : 'analyzing'
+  }
   return 'analyzing'
 }
 
@@ -578,6 +587,7 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     imageUrl = INSIGHT_LIST_IMAGE_PLACEHOLDER
     imageThumbPhase = 'exhausted'
   }
+  const aiReady = !!(task.ai_summary?.text && task.ai_summary.text.trim())
   return {
     imageUrl,
     imageThumbPhase,
@@ -592,8 +602,9 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
     aiModel: full,
     reviewStatus: rs,
     reviewStatusLabel: reviewStatusLabel(rs),
-    statusLabel: flowInsightStatusLabel(task.status),
+    statusLabel: flowInsightStatusLabel(task.status, aiReady),
     taskStatus: task.status,
+    aiSummaryReady: aiReady,
     taskId: task.id,
     dictionaryVerticalLabel: verticalLabelForTask(task.dictionary_vertical_id),
   }
@@ -754,7 +765,7 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
         row.reviewStatus = 'fetching'
       }
       row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
-      row.statusLabel = flowInsightStatusLabel(task.status)
+      row.statusLabel = flowInsightStatusLabel(task.status, row.aiSummaryReady)
     } catch {
       // Ignore per-row hydration errors to keep list render resilient.
     }
@@ -774,6 +785,7 @@ async function loadTasks() {
     const taskRows = res.items ?? []
     rows.value = taskRows.map(mapTaskToRow)
     await hydrateRowsWithReviewStats(taskRows)
+    schedulePendingAiSummaryRefresh()
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
@@ -783,8 +795,39 @@ async function loadTasks() {
   }
 }
 
+/**
+ * 列表里若存在「success 但 AI 摘要还没生成」的任务，每 6 秒自动轻量刷一次列表，
+ * 直到所有 success 行的 ai_summary 都就绪或视图离开；用户无需手点刷新。
+ */
+const AI_SUMMARY_LIST_POLL_INTERVAL_MS = 6000
+let aiSummaryListPollTimer: number | null = null
+
+function clearPendingAiSummaryRefresh() {
+  if (aiSummaryListPollTimer != null) {
+    window.clearTimeout(aiSummaryListPollTimer)
+    aiSummaryListPollTimer = null
+  }
+}
+
+function hasSuccessWithoutAiSummary(): boolean {
+  return rows.value.some((r) => r.taskStatus === 'success' && r.aiSummaryReady !== true)
+}
+
+function schedulePendingAiSummaryRefresh() {
+  clearPendingAiSummaryRefresh()
+  if (!hasSuccessWithoutAiSummary()) return
+  aiSummaryListPollTimer = window.setTimeout(() => {
+    aiSummaryListPollTimer = null
+    void loadTasks()
+  }, AI_SUMMARY_LIST_POLL_INTERVAL_MS)
+}
+
 onMounted(() => {
   void loadTasks()
+})
+
+onBeforeUnmount(() => {
+  clearPendingAiSummaryRefresh()
 })
 
 watch(locale, () => {
@@ -1049,7 +1092,17 @@ async function copyAsin(asin: string) {
 
 function viewResultsDisabled(row: InsightProductRow): boolean {
   const s = row.taskStatus
-  return s === 'pending' || s === 'running'
+  if (s === 'pending' || s === 'running') return true
+  /** 任务已 success 但 AI 智能分析尚未生成完成 → 不允许查看结果，避免看到「无 AI 摘要 + 规则要点」的中间态 */
+  if (s === 'success' && row.aiSummaryReady !== true) return true
+  return false
+}
+
+function viewResultsDisabledReason(row: InsightProductRow): string | undefined {
+  const s = row.taskStatus
+  if (s === 'pending' || s === 'running') return t('insight.viewResultsDisabledHint')
+  if (s === 'success' && row.aiSummaryReady !== true) return t('insight.viewResultsAiPending')
+  return undefined
 }
 
 function onViewResults(row: InsightProductRow) {

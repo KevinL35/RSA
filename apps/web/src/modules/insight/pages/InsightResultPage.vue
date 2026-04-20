@@ -520,17 +520,37 @@ function painForDimension(dim: Dimension6Key, list: PainRankItem[]) {
   return list.filter((p) => p.dimensions.includes(dim))
 }
 
+/**
+ * 卡片每行的「评论数」严格 = filteredEvidence(dim, keyword).length，
+ * 即同时满足「ev.dimension===dim」且「关键词出现在 ev.keywords」的去重命中行数；
+ * 这样卡片数字和右侧证据列表的总条数（含翻页）完全对得上。
+ * 整体占比分母：当前任务下全部 review_dimension_analysis 命中行数（全维度合计），
+ * 表示「此关键词 × 该维度」占全部归因行的份额。
+ */
 function cardRows(dim: Dimension6Key): { label: string; count: number; pct: number }[] {
   const dash = dashboard.value
   if (!dash) return []
-  const items = painForDimension(dim, dash.pain_ranking)
-  /** 占比分母：全量 pain_ranking 频次之和（整体），非单维度内合计 */
-  const globalTotal = dash.pain_ranking.reduce((s, p) => s + p.count, 0) || 1
-  return items.map((x) => ({
-    label: x.keyword,
-    count: x.count,
-    pct: Math.round((x.count / globalTotal) * 100),
-  }))
+  const counter = new Map<string, number>()
+  for (const ev of dash.evidence.items) {
+    if (String(ev.dimension) !== dim) continue
+    const kws = ev.keywords
+    if (!Array.isArray(kws) || kws.length === 0) continue
+    const seen = new Set<string>()
+    for (const raw of kws) {
+      const kw = String(raw).trim().toLowerCase()
+      if (!kw || seen.has(kw)) continue
+      seen.add(kw)
+      counter.set(kw, (counter.get(kw) || 0) + 1)
+    }
+  }
+  const denom = dash.evidence.items.length || 1
+  return [...counter.entries()]
+    .map(([keyword, count]) => ({
+      label: keyword,
+      count,
+      pct: Math.round((count / denom) * 100),
+    }))
+    .sort((a, b) => b.count - a.count)
 }
 
 function primaryPainRankingDimension(dims: string[]): Dimension6Key {

@@ -41,8 +41,8 @@
         </el-table-column>
         <el-table-column :label="t('governance.painAuditColType')" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.kind === 'new_discovery' ? 'warning' : 'success'" size="small">
-              {{ row.kind === 'new_discovery' ? t('governance.painAuditTypeNew') : t('governance.painAuditTypeExisting') }}
+            <el-tag :type="painAuditTypeTag(row.kind)" size="small">
+              {{ painAuditTypeLabel(row.kind) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -446,7 +446,8 @@ function openApprove(row: PainAuditRow) {
   pendingRow.value = row
   const vid = row.vertical_id || 'general'
   approveVerticalIds.value = [vid]
-  approveDimension.value = row.kind === 'existing' && row.dimension_6way ? row.dimension_6way : ''
+  /** existing / rejected 都带原始 dimension_6way，可直接预填；new_discovery 留空让运营选 */
+  approveDimension.value = row.kind !== 'new_discovery' && row.dimension_6way ? row.dimension_6way : ''
   approveVisible.value = true
 }
 
@@ -487,13 +488,32 @@ async function loadVerticals() {
   }
 }
 
+function normalizeKind(raw: unknown): PainAuditRow['kind'] {
+  const s = String(raw ?? '').trim().toLowerCase()
+  if (s === 'existing') return 'existing'
+  if (s === 'rejected') return 'rejected'
+  return 'new_discovery'
+}
+
+function painAuditTypeTag(kind: PainAuditRow['kind']): 'warning' | 'success' | 'danger' {
+  if (kind === 'existing') return 'success'
+  if (kind === 'rejected') return 'danger'
+  return 'warning'
+}
+
+function painAuditTypeLabel(kind: PainAuditRow['kind']): string {
+  if (kind === 'existing') return t('governance.painAuditTypeExisting')
+  if (kind === 'rejected') return t('governance.painAuditTypeRejected')
+  return t('governance.painAuditTypeNew')
+}
+
 function mapQueueItem(raw: DictionaryReviewQueueItem): PainAuditRow {
   const dimRaw = raw.dimension_6way
   const dimension_6way =
     dimRaw && (SIX_DIMENSIONS as readonly string[]).includes(dimRaw) ? (dimRaw as SixDimension) : undefined
   return {
     id: String(raw.id),
-    kind: raw.kind === 'existing' ? 'existing' : 'new_discovery',
+    kind: normalizeKind(raw.kind),
     canonical: String(raw.canonical ?? '').trim(),
     synonyms: Array.isArray(raw.synonyms) ? raw.synonyms.map((s) => String(s).trim()).filter(Boolean) : [],
     vertical_id: String(raw.vertical_id ?? 'general').trim() || 'general',
