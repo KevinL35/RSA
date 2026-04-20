@@ -188,7 +188,7 @@ export default {
     aiDimJoiner: '、',
   },
   governance: {
-    painAuditTitle: '词典审核',
+    painAuditTitle: '主题挖掘',
     painAuditDesc: '核对待入库的词条关键词与同义词，确认词典类目与六维后完成通过。',
     painAuditIntro:
       '在此处理两类待审项：由离线主题发现拟写入词典的新说法，以及已有词条下待确认的别名。可删除不当同义词；若删至无同义词则整行移出队列。确认无误后点击「通过」，选择词典类目（可多选）与六维归属，系统将写入对应 overlay，词典管理页刷新后即可看到。',

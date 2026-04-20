@@ -189,7 +189,7 @@ export default {
     aiDimJoiner: ', ',
   },
   governance: {
-    painAuditTitle: 'Dictionary review',
+    painAuditTitle: 'Topic mining',
     painAuditDesc: 'Review pending dictionary keywords and synonyms; approve with dictionary category/categories and six-way dimension.',
     painAuditIntro:
       'Handle two kinds of pending items: new phrases proposed for the dictionary from offline topic discovery, and proposed aliases under existing entries. Remove bad synonyms; if none remain, the row drops from the queue. Approve picks categories and six-way dimension; entries are written to the overlay YAML—refresh Dictionary management to see them.',
