@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-reasoner"
-    # 摘要任务（/insight-summary）专用模型；默认 deepseek-chat：比 reasoner 快 5–10 倍且更省钱，
+    # 摘要任务（/insight-summary）专用模型；默认 deepseek-chat
     # 摘要场景不需要思维链。可在 .env 单独覆盖 DEEPSEEK_SUMMARY_MODEL=deepseek-reasoner 强制走推理模型。
     deepseek_summary_model: str = "deepseek-chat"
     deepseek_summary_request_timeout: float = 90.0
