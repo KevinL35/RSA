@@ -42,22 +42,6 @@ export async function downloadReviewImportTemplate(): Promise<void> {
 /** 词典 Excel 列（与后端 import_dictionary_excel 解析一致；权重/优先级可选，默认 1.0 / 50）。 */
 export const DICTIONARY_IMPORT_COLUMNS = ['六维维度', '规范词', '同义词'] as const
 
-export async function downloadDictionaryImportTemplate(): Promise<void> {
-  const cols = [...DICTIONARY_IMPORT_COLUMNS]
-  await downloadReviewsExcel(
-    '词典导入模板.xlsx',
-    [
-      {
-        六维维度: 'cons',
-        规范词: 'battery life',
-        同义词: 'dies fast; poor battery',
-      },
-    ],
-    cols,
-    'Dictionary',
-  )
-}
-
 export type TaxonomyPreviewLike = {
   dimension_order: string[]
   dimensions: Record<
