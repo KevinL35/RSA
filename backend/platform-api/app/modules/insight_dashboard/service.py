@@ -114,7 +114,7 @@ def build_insight_dashboard(
         .eq("insight_task_id", str(task_id))
         .execute()
     )
-    hits_all: list[dict[str, Any]] = dim_res.data or []
+    hits_all: list[dict[str, Any]] = [h for h in (dim_res.data or []) if isinstance(h, dict)]
     matched_review_count = len(
         {
             str(h["review_id"])

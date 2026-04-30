@@ -48,8 +48,8 @@ def _load_roberta():
         log.warning("SENTIMENT_MODEL_DIR is not a directory: %s", path)
         return None
     try:
-        import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        import torch  # type: ignore[import-not-found]
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[import-not-found]
     except ImportError as e:
         log.warning("transformers/torch not installed, skip RoBERTa: %s", e)
         return None
@@ -64,7 +64,7 @@ def sentiment_roberta(text: str, max_length: int = 256) -> tuple[str, float | No
     if loaded is None:
         return "", None
     tokenizer, model = loaded
-    import torch
+    import torch  # type: ignore[import-not-found]
 
     t = (text or "").strip()
     if not t:

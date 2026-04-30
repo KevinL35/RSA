@@ -23,12 +23,14 @@ def row_to_entry(row: dict[str, Any]) -> dict[str, Any]:
     prov = row.get("provenance")
     if prov is not None and not isinstance(prov, dict):
         prov = None
+    weight = row.get("weight")
+    priority = row.get("priority")
     return {
         "dimension_6way": str(row.get("dimension_6way") or "").strip().lower(),
         "canonical": str(row.get("canonical") or "").strip(),
         "aliases": [str(a).strip() for a in als if str(a).strip()],
-        "weight": float(row.get("weight") if row.get("weight") is not None else 1.0),
-        "priority": int(row.get("priority") if row.get("priority") is not None else 50),
+        "weight": float(weight) if weight is not None else 1.0,
+        "priority": int(priority) if priority is not None else 50,
         "entry_source": row.get("entry_source"),
         "provenance": prov,
     }

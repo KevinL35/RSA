@@ -59,14 +59,19 @@ def fetch_reviews_normalized(
         from .pangolin import fetch_reviews_via_pangolin
 
         attempts = max(1, cfg.review_fetch_max_retries)
+        last_error: ReviewProviderError | None = None
         for attempt in range(attempts):
             try:
                 return fetch_reviews_via_pangolin(platform, product_id, settings=cfg)
             except ReviewProviderError as e:
+                last_error = e
                 if e.code == "REVIEW_PROVIDER_TRANSIENT" and attempt < attempts - 1:
                     time.sleep(0.4 * (2**attempt))
                     continue
                 raise
+        if last_error is not None:
+            raise last_error
+        raise ReviewProviderError("REVIEW_PROVIDER_HTTP_ERROR", "Pangolin 抓取未返回结果")
 
     url = (cfg.review_provider_url or "").strip()
     if not url:
@@ -137,3 +142,4 @@ def fetch_reviews_normalized(
                 "REVIEW_PROVIDER_HTTP_ERROR",
                 last_detail or "网络请求失败",
             ) from e
+    raise ReviewProviderError("REVIEW_PROVIDER_HTTP_ERROR", last_detail or "评论抓取未返回结果")

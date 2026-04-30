@@ -91,12 +91,18 @@ def replace_task_analysis(
             }
         )
 
-    ins = sb.table("review_analysis").insert(ra_rows).execute()
-    inserted = ins.data or []
-    if len(inserted) != len(ra_rows):
-        raise RuntimeError("review_analysis 插入数量与预期不符")
-
-    id_by_review = {str(row["review_id"]): row["id"] for row in inserted}
+    sb.table("review_analysis").insert(ra_rows).execute()
+    review_ids = [str(row["review_id"]) for row in ra_rows]
+    fetched = (
+        sb.table("review_analysis")
+        .select("id,review_id")
+        .eq("insight_task_id", insight_task_id)
+        .in_("review_id", review_ids)
+        .execute()
+    ).data or []
+    id_by_review = {str(row["review_id"]): row["id"] for row in fetched if row.get("id") and row.get("review_id")}
+    if len(id_by_review) != len(ra_rows):
+        raise RuntimeError("review_analysis 写入后回查数量与预期不符")
 
     dim_rows: list[dict[str, Any]] = []
     unmatched_rows: list[dict[str, Any]] = []

@@ -101,6 +101,9 @@ def parse_dictionary_excel_rows(content: bytes, filename: str = "") -> tuple[lis
 
     try:
         ws = wb.active
+        if ws is None:
+            errors.append("Excel 无活动工作表")
+            return [], errors
         rows_iter = ws.iter_rows(values_only=True)
         header_row = next(rows_iter, None)
         if not header_row:

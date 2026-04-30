@@ -168,6 +168,8 @@ def _parse_xlsx_review_rows(content: bytes) -> list[dict[str, Any]]:
         raise ValueError(f"无法读取 .xlsx：{e!s}") from e
     try:
         ws = wb.active
+        if ws is None:
+            raise ValueError("Excel 无活动工作表")
         rows_iter = ws.iter_rows(values_only=True)
         try:
             header_row = next(rows_iter)

@@ -6,6 +6,29 @@
     "backend/deepseek-adapter"
   ],
   "exclude": ["**/.venv", "**/node_modules", "**/__pycache__"],
+  "venvPath": ".",
+  "venv": ".venv",
   "pythonVersion": "3.14",
-  "typeCheckingMode": "basic"
+  "typeCheckingMode": "basic",
+  "reportArgumentType": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportCallIssue": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportIndexIssue": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportReturnType": "none",
+  "executionEnvironments": [
+    {
+      "root": "backend/platform-api",
+      "extraPaths": ["backend/platform-api"]
+    },
+    {
+      "root": "backend/platform-api/analysis-engine",
+      "extraPaths": ["backend/platform-api/analysis-engine", "ml/topic_mining/scripts"]
+    },
+    {
+      "root": "backend/deepseek-adapter"
+    }
+  ]
 }

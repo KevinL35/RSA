@@ -119,7 +119,7 @@ def test_dictionary_approve_invalid_dimension() -> None:
 def test_dictionary_approve_entry_ok_writes_db() -> None:
     _with_mock_supabase()
     fake_write = {
-        "vertical_id": "general",
+        "vertical_id": "electronics",
         "path": "supabase://taxonomy_entries",
         "version": "db",
         "entry_count": 2,
@@ -132,7 +132,7 @@ def test_dictionary_approve_entry_ok_writes_db() -> None:
             r = _client().post(
                 "/api/v1/dictionary/approve-entry",
                 json={
-                    "vertical_ids": ["general"],
+                    "vertical_ids": ["electronics"],
                     "dimension_6way": "cons",
                     "canonical": "test term",
                     "aliases": ["a1"],

@@ -12,7 +12,7 @@ _TOPIC_MINING_SCRIPTS = _REPO_ROOT / "ml" / "topic_mining" / "scripts"
 if str(_TOPIC_MINING_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_TOPIC_MINING_SCRIPTS))
 
-from attribution_engine import (  # noqa: E402
+from attribution_engine import (  # type: ignore[import-not-found]  # noqa: E402
     PatternRow,
     attribute_review,
     build_patterns,
