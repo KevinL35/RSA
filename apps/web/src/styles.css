@@ -75,12 +75,20 @@ body,
   color: #94a3b8;
 }
 
-/**
- * 暂时隐藏各菜单页副标题 / 导语（评论洞察、对比、接口配置、词典、痛点审核、操作日志等）。
- * 需要恢复展示时删除本段即可。
- */
-.page-subtitle,
-.intro-text,
-.panel-header-text > p {
-  display: none !important;
+/* 全局统一主/副标题视觉，避免各页面样式不一致 */
+.page-title {
+  margin: 0 0 8px !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  color: var(--el-text-color-primary) !important;
 }
+
+.page-subtitle,
+.intro-text {
+  margin: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  color: var(--el-text-color-secondary) !important;
+}
+

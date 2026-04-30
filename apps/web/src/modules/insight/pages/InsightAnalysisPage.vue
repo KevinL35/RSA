@@ -2,7 +2,7 @@
   <el-card class="view-card" v-loading="loading">
     <header class="page-header">
       <h2 class="page-title">{{ t('insight.title') }}</h2>
-      <p class="page-subtitle">{{ t('insight.pageSubtitle') }}</p>
+      <p class="page-subtitle">{{ t('insight.desc') }}</p>
     </header>
     <div class="toolbar">
       <div class="toolbar-right">

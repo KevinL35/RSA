@@ -14,7 +14,7 @@ export default {
   },
   auditLog: {
     title: '操作日志',
-    subtitle: '记录关键操作，便于审计与追溯。',
+    subtitle: '记录系统级别的操作。',
     empty: '暂无日志数据',
     colAccount: '账号',
     colTime: '时间',
@@ -41,8 +41,7 @@ export default {
   },
   insight: {
     title: '评论洞察',
-    desc: '评论洞察首页：图表与看板将在此接入。分析类文本默认英文展示；界面为中文且已配置翻译 API 时，下方显示译文。证据句仅展示原始评论片段，不翻译。',
-    pageSubtitle: '添加并管理商品，查看评论状态、洞察状态、洞察模型及结果。',
+    desc: '评论将通过情感分析模型，六维词典，智能体分析，未有命中词典的评论自动执行主题挖掘模型。',
     addProduct: '添加商品',
     uploadReviews: '上传评论',
     dialogUploadReviews: '上传评论',
@@ -189,9 +188,7 @@ export default {
   },
   governance: {
     painAuditTitle: '主题挖掘',
-    painAuditDesc: '核对待入库的词条关键词与同义词，在「通过」时确认六维后写入该条所属词典类目。',
-    painAuditIntro:
-      '在此处理两类待审项：由离线主题发现拟写入词典的新说法，以及已有词条下待确认的别名。可删除不当同义词；若删至无同义词则整行移出队列。确认无误后点击「通过」，选择六维归属（词条已绑定所属词典类目），系统将写入对应 overlay，词典管理页刷新后即可看到。',
+    painAuditDesc: '主题挖掘过后的关键词将在列表新发现显示，智能合并和词典管理被驳回的关键词将在列表被驳回显示。',
     painAuditEmpty: '暂无待审项',
     painAuditColKeyword: '关键词',
     painAuditColType: '类型',
@@ -246,7 +243,7 @@ export default {
     agentReview: '智能体审核',
     agentReviewStart: '主题审核',
     agentReviewPanelTitle: '智能体审核',
-    agentReviewPanelIntro: '将待审核关键词与同义词发送给 DeepSeek 做六维建议，再由你手动确认通过。',
+    agentReviewPanelIntro: '通过主题审核，将新发现的关键词由智能体进行审核。支持将对应维度的词典与新关键词进行智能合并。',
     agentReviewPickVertical: '请选择审核词典',
     agentReviewPickDim: '请选择审核维度',
     agentReviewNeedVertical: '请先选择词典后再进行主题审核',
@@ -289,8 +286,7 @@ export default {
     refresh: '刷新',
     refreshed: '列表已刷新',
     dictionaryTitle: '词典管理',
-    dictionaryDesc:
-      '管理平台不同类目的词典，若发现某条同义词与关键词不匹配，可点击该同义词驳回，后续将进入词典审核流程处理。',
+    dictionaryDesc: '存储不同品类的词典，支持维度级别的智能体审核，未通过的将被驳回。',
     dictionaryModify: '修改词典',
     dictionaryModifyIntro:
       '导出与导入均使用页面顶部当前所选词典类目。① 在下载区点击导出当前数据；② 在 Excel 中编辑后，于下方选择文件导入。',
@@ -348,9 +344,7 @@ export default {
   },
   settings: {
     apiTitle: '系统设置',
-    apiDesc: '维护平台对接接口、鉴权方式与调用状态。',
-    apiPageIntro:
-      '维护洞察模型列表（含内置 DeepSeek）、智能 Agent、评论获取、翻译与系统语言；分析地址以服务端 .env 为准，deepseek_chat 默认指向本机适配层。',
+    apiDesc: '支持修改系统语言，智能体的配置与更换，用户权限的设置。',
     apiAdd: '新增',
     apiColName: '名称',
     apiColBaseUrl: '接口地址',

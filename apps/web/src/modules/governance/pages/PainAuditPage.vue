@@ -2,7 +2,7 @@
   <div>
     <section class="config-block">
       <h2 class="page-title">{{ t('governance.painAuditTitle') }}</h2>
-      <p class="intro-text">{{ t('governance.painAuditIntro') }}</p>
+      <p class="intro-text">{{ t('governance.painAuditDesc') }}</p>
       <div class="toolbar">
         <div class="toolbar-left">
           <el-button :type="activeList === 'new' ? 'primary' : 'default'" @click="activeList = 'new'">
@@ -80,11 +80,10 @@
     </section>
 
     <section class="config-block agent-review-block">
-      <div class="toolbar">
-        <div>
-          <h3 class="agent-review-title">{{ t('governance.agentReviewPanelTitle') }}</h3>
-          <p class="agent-review-intro">{{ t('governance.agentReviewPanelIntro') }}</p>
-        </div>
+      <h3 class="agent-review-title">{{ t('governance.agentReviewPanelTitle') }}</h3>
+      <p class="agent-review-intro">{{ t('governance.agentReviewPanelIntro') }}</p>
+      <div class="toolbar agent-review-toolbar">
+        <div class="toolbar-left"></div>
         <div class="toolbar-right">
           <el-button type="primary" :loading="agentReviewing" @click="onAgentReview">
             {{ t('governance.agentReviewStart') }}
@@ -154,7 +153,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('governance.agentRecordActions')" width="220" align="center" fixed="right">
+        <el-table-column :label="t('governance.agentRecordActions')" width="300" align="center" fixed="right">
           <template #default="{ row, $index }">
             <div v-if="isAgentGroupActionRow(row, $index)" class="audit-actions">
               <el-button
@@ -165,6 +164,15 @@
                 @click="onSmartMergeGroup(row)"
               >
                 {{ t('governance.agentSmartMerge') }}
+              </el-button>
+              <el-button
+                type="danger"
+                size="small"
+                :loading="deletingAgentGroupKey === groupKey(row)"
+                :disabled="agentGroupQueueIds(row).length === 0"
+                @click="onDeleteAgentGroup(row)"
+              >
+                {{ t('governance.painAuditDelete') }}
               </el-button>
             </div>
           </template>
@@ -446,6 +454,38 @@ async function onSmartMergeGroup(row: PainAuditRow) {
   }
 }
 
+async function onDeleteAgentGroup(row: PainAuditRow) {
+  const ids = agentGroupQueueIds(row)
+  if (!ids.length) return
+  const dimLabel = row.dimension_6way ? dimensionLabel(row.dimension_6way) : '—'
+  try {
+    await ElMessageBox.confirm(
+      `确定删除该分组的待审记录吗？（词典：${verticalNameById(row.vertical_id)}，维度：${dimLabel}，共 ${ids.length} 条）`,
+      t('governance.painAuditDelete'),
+      {
+        type: 'warning',
+        confirmButtonText: t('governance.painAuditDelete'),
+        cancelButtonText: t('governance.painAuditCancel'),
+      },
+    )
+  } catch {
+    return
+  }
+  const key = groupKey(row)
+  deletingAgentGroupKey.value = key
+  try {
+    await Promise.all(ids.map((id) => deleteDictionaryReviewQueue(id)))
+    rows.value = rows.value.filter((r) => !ids.includes(r.id))
+    agentReviewIds.value = agentReviewIds.value.filter((id) => !ids.includes(id))
+    ElMessage.success(t('governance.painAuditDeletedOk'))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('governance.painAuditDeleteFail')}: ${msg}`)
+  } finally {
+    deletingAgentGroupKey.value = ''
+  }
+}
+
 function verticalLabel(v: DictionaryVerticalItem) {
   return locale.value === 'zh-CN' ? v.label_zh : v.label_en
 }
@@ -510,6 +550,8 @@ const activeMiningJobId = ref<string>('')
 const agentReviewing = ref(false)
 /** 智能合并请求中：groupKey(vertical::dim)，避免同组重复点 */
 const smartMergeLoadingKey = ref('')
+/** 删除请求中：groupKey(vertical::dim)，避免同组重复点 */
+const deletingAgentGroupKey = ref('')
 let miningPoller: number | null = null
 
 function stopMiningPoll() {
@@ -997,16 +1039,21 @@ onMounted(async () => {
 
 .agent-review-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  line-height: 1.3;
 }
 
 .agent-review-intro {
-  margin: 6px 0 0;
-  font-size: 13px;
+  margin: 8px 0 0;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
+}
+
+.agent-review-toolbar {
+  margin-top: 14px;
 }
 
 .page-title {

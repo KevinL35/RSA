@@ -2,7 +2,7 @@
   <div>
     <section class="config-block config-block--intro">
       <h2 class="page-title">{{ t('settings.apiTitle') }}</h2>
-      <p class="intro-text">{{ t('settings.apiPageIntro') }}</p>
+      <p class="intro-text">{{ t('settings.apiDesc') }}</p>
     </section>
 
     <section class="config-block config-block--lang">
