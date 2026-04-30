@@ -50,7 +50,7 @@ ensure_uvicorn() {
   local py_bin="$2"
   if ! "${py_bin}" -c "import uvicorn" >/dev/null 2>&1; then
     echo "[dev] ${app_dir} 使用的 Python 无法 import uvicorn：${py_bin}"
-    echo "  可执行：cd ${app_dir} && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    echo "  可执行：${ROOT}/.venv/bin/pip install -r ${ROOT}/${app_dir}/requirements.txt"
     exit 1
   fi
 }
@@ -127,32 +127,24 @@ elif [[ ! -d "${ADAPTER_DIR}" ]]; then
 else
   ADAPTER_PY="$(pick_shared_python)"
   if ! "${ADAPTER_PY}" -c "import uvicorn,openai" >/dev/null 2>&1; then
-    echo "[dev] deepseek-adapter 依赖缺失，自动安装到 ${ADAPTER_DIR}/.venv …"
-    if [[ ! -x "${ADAPTER_DIR}/.venv/bin/python" ]]; then
-      python3 -m venv "${ADAPTER_DIR}/.venv"
-    fi
-    ADAPTER_PY="${ADAPTER_DIR}/.venv/bin/python"
-    if ! "${ADAPTER_PY}" -m pip install -r "${ADAPTER_DIR}/requirements.txt"; then
-      echo "[dev] 警告：deepseek-adapter 依赖安装失败，AI 摘要将不可用"
-      ADAPTER_PY=""
-    fi
+    echo "[dev] deepseek-adapter 依赖缺失：当前仅使用根 .venv，不再自动创建 apps/deepseek-adapter/.venv"
+    echo "  请执行：${ROOT}/.venv/bin/pip install -r ${ADAPTER_DIR}/requirements.txt"
+    exit 1
   fi
-  if [[ -n "${ADAPTER_PY}" ]]; then
-    ADAPTER_KEY_PRESENT=0
-    if [[ -n "${DEEPSEEK_API_KEY:-}" ]]; then
-      ADAPTER_KEY_PRESENT=1
-    elif [[ -f "${ADAPTER_DIR}/.env" ]] && grep -q '^DEEPSEEK_API_KEY=..' "${ADAPTER_DIR}/.env"; then
-      ADAPTER_KEY_PRESENT=1
-    fi
-    if [[ "${ADAPTER_KEY_PRESENT}" != "1" ]]; then
-      echo "[dev] 警告：未检测到 DEEPSEEK_API_KEY（环境变量或 ${ADAPTER_DIR}/.env），AI 摘要将返回 503"
-    fi
-    (
-      cd "${ADAPTER_DIR}"
-      exec "${ADAPTER_PY}" -m uvicorn main:app --reload --host 127.0.0.1 --port "${ADAPTER_PORT}"
-    ) &
-    ADAPTER_PID=$!
+  ADAPTER_KEY_PRESENT=0
+  if [[ -n "${DEEPSEEK_API_KEY:-}" ]]; then
+    ADAPTER_KEY_PRESENT=1
+  elif [[ -f "${ADAPTER_DIR}/.env" ]] && grep -q '^DEEPSEEK_API_KEY=..' "${ADAPTER_DIR}/.env"; then
+    ADAPTER_KEY_PRESENT=1
   fi
+  if [[ "${ADAPTER_KEY_PRESENT}" != "1" ]]; then
+    echo "[dev] 警告：未检测到 DEEPSEEK_API_KEY（环境变量或 ${ADAPTER_DIR}/.env），AI 摘要将返回 503"
+  fi
+  (
+    cd "${ADAPTER_DIR}"
+    exec "${ADAPTER_PY}" -m uvicorn main:app --reload --host 127.0.0.1 --port "${ADAPTER_PORT}"
+  ) &
+  ADAPTER_PID=$!
 fi
 
 echo "[dev] Analysis API     http://127.0.0.1:${ANALYSIS_PORT}/health"

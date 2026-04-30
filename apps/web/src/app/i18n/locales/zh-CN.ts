@@ -344,7 +344,7 @@ export default {
   },
   settings: {
     apiTitle: '系统设置',
-    apiDesc: '支持修改系统语言，智能体的配置与更换，用户权限的设置。',
+    apiDesc: '支持修改系统语言、管理用户权限设置。',
     apiAdd: '新增',
     apiColName: '名称',
     apiColBaseUrl: '接口地址',

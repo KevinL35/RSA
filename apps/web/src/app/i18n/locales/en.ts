@@ -352,7 +352,7 @@ export default {
   },
   settings: {
     apiTitle: 'System settings',
-    apiDesc: 'Manage platform integrations, auth, and call status.',
+    apiDesc: 'Support system language changes and user permission management.',
     apiPageIntro:
       'Manage insight models (includes built-in DeepSeek), agent, review-fetch, translation, and UI language; runtime URLs follow server .env, deepseek_chat defaults to local adapter.',
     apiAdd: 'Add',

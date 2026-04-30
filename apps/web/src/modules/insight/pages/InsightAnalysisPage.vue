@@ -772,7 +772,7 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
   }
 }
 
-async function loadTasks() {
+async function loadTasks(skipAutoRefresh = false) {
   loading.value = true
   await ensureDictionaryVerticals()
   try {
@@ -780,7 +780,9 @@ async function loadTasks() {
     const taskRows = res.items ?? []
     rows.value = taskRows.map(mapTaskToRow)
     await hydrateRowsWithReviewStats(taskRows)
-    schedulePendingAiSummaryRefresh()
+    if (!skipAutoRefresh) {
+      schedulePendingAiSummaryRefresh()
+    }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
@@ -950,21 +952,40 @@ async function submitAddProduct() {
     resetAddForm()
     page.value = 1
     ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
-    await loadTasks()
-    for (const taskId of createdTaskIds) {
-      void (async () => {
-        try {
-          await postInsightTaskFetchReviews(taskId)
-          await loadTasks()
-          await postInsightTaskAnalyze(taskId)
-          await loadTasks()
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          ElMessage.warning(`${t('insight.addProductPipelineFailed')}: ${msg}`)
-          await loadTasks()
-        }
-      })()
-    }
+    await loadTasks(true)
+    // 按阶段刷新：添加成功 -> 抓评完成 -> 分析完成
+    void (async () => {
+      const failed: string[] = []
+      const fetchedTaskIds: string[] = []
+      await Promise.all(
+        createdTaskIds.map(async (taskId) => {
+          try {
+            await postInsightTaskFetchReviews(taskId)
+            fetchedTaskIds.push(taskId)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            failed.push(msg)
+          }
+        }),
+      )
+      await loadTasks(true)
+
+      await Promise.all(
+        fetchedTaskIds.map(async (taskId) => {
+          try {
+            await postInsightTaskAnalyze(taskId)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            failed.push(msg)
+          }
+        }),
+      )
+      await loadTasks(true)
+
+      if (failed.length > 0) {
+        ElMessage.warning(`${t('insight.addProductPipelineFailed')}: ${failed[0]}`)
+      }
+    })()
   } catch (e) {
     ElMessage.error(
       e instanceof Error ? `${t('insight.addProductPipelineFailed')}: ${e.message}` : t('insight.addProductPipelineFailed'),
