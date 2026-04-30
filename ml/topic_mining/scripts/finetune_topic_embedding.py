@@ -143,7 +143,6 @@ def main() -> None:
             show_progress_bar=True,
         )
     else:
-        # sentence-transformers 3+ 推荐 Trainer；此处兜底提示
         raise RuntimeError(
             "当前 sentence-transformers 版本不支持 SentenceTransformer.fit。"
             "请安装 sentence-transformers 2.x（含 fit），或改用官方 SentenceTransformerTrainer 示例改写本脚本。"

@@ -173,7 +173,6 @@ def replace_task_analysis(
                 }
             )
 
-    # 先落三张临时表，再做六维命中写入
     if pos_tmp_rows:
         sb.table("review_sentiment_positive_tmp").insert(pos_tmp_rows).execute()
     if neu_tmp_rows:

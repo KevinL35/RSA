@@ -25,7 +25,6 @@ from uuid import UUID, uuid4
 
 log = logging.getLogger("rsa.topic_jobs")
 
-# backend/platform-api/app/modules/tasks/topic_discovery_jobs.py → 仓库根 = parents[5]
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
@@ -234,7 +233,6 @@ def import_topic_pool_to_review_queue(
             )
     if not rows_to_insert:
         return 0
-    # 同批次内去重 canonical（小写）
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
     for r in rows_to_insert:
@@ -243,7 +241,6 @@ def import_topic_pool_to_review_queue(
             continue
         seen.add(key)
         deduped.append(r)
-    # 跳过队列中已存在 pending 同名（避免每次跑都重复入队）
     try:
         existing = (
             sb.table("dictionary_review_queue")
@@ -312,7 +309,6 @@ def _run_in_thread(
         str(script),
         "--embedding-model",
         embedding_model,
-        # 与 bertopic_supabase_pools.py 默认一致；单任务情感桶较小时仍能跑
         "--min-bucket-docs",
         "8",
     ]
@@ -374,7 +370,6 @@ def _run_in_thread(
         ).eq("id", job_id).execute()
         return
 
-    # 若期间被取消，避免覆盖 cancelled 状态
     cur = get_job(sb, UUID(job_id))
     if cur and cur.get("status") == "cancelled":
         return
@@ -394,7 +389,6 @@ def _run_in_thread(
                 "updated_at": now,
             }
         ).eq("id", job_id).execute()
-        # 自动把本批 topic_pool_* 候选导入审核队列；失败仅记日志，不影响 job 状态
         try:
             inserted = import_topic_pool_to_review_queue(sb, batch_id)
             if inserted:
@@ -407,7 +401,6 @@ def _run_in_thread(
         except Exception:  # noqa: BLE001
             log.exception("topic-job %s: import_topic_pool_to_review_queue failed", job_id)
     else:
-        # SIGTERM/SIGKILL 退出码视为 cancelled
         if proc.returncode in (-signal.SIGTERM, -signal.SIGKILL, 143, 137):
             sb.table("topic_discovery_jobs").update(
                 {
@@ -427,5 +420,4 @@ def _run_in_thread(
                     "error_message": err[:4000],
                 }
             ).eq("id", job_id).execute()
-    # 留点时间让最后一行写入完成（Supabase 写入是同步的，但保险起见）
     time.sleep(0.05)

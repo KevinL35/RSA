@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-# 合法状态与允许的单步迁移；终端态不可再迁出
 ALLOWED_STATUSES = frozenset(
     {"pending", "running", "success", "failed", "cancelled"}
 )
@@ -10,8 +9,7 @@ ALLOWED_STATUSES = frozenset(
 _VALID_TRANSITIONS: dict[str, frozenset[str]] = {
     "pending": frozenset({"running", "cancelled"}),
     "running": frozenset({"success", "failed", "cancelled"}),
-    "failed": frozenset({"pending"}),  # 重试：回到队列
-    # 词典/分析源更新后，对同一批已落库评论重新跑六维归因（见 analyze_task force_reanalyze）
+    "failed": frozenset({"pending"}),
     "success": frozenset({"running"}),
     "cancelled": frozenset(),
 }

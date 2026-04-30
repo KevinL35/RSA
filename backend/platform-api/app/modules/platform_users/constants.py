@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# 与前端 menu.config 中 item.key 一致（系统设置用子项 key）
 ALLOWED_MENU_KEYS: frozenset[str] = frozenset(
     {
         "insight",
@@ -12,7 +11,6 @@ ALLOWED_MENU_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# 任一为真则 API 层视为 admin（与 X-RSA-Role 对齐）
 ADMIN_MENU_KEYS: frozenset[str] = frozenset(
     {"smart-mining", "dictionary", "api-config", "audit-log", "account-permissions"}
 )

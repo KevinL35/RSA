@@ -4,7 +4,6 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-# 超过此大小（字节）默认用分块清洗，避免一次性 read_csv 占满内存
 STREAMING_THRESHOLD_BYTES = 256 * 1024 * 1024
 DEFAULT_CHUNK_ROWS = 100_000
 

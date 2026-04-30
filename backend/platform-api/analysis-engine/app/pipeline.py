@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# app/pipeline.py -> analysis-engine -> platform-api -> backend -> <repo_root>
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _TOPIC_MINING_SCRIPTS = _REPO_ROOT / "ml" / "topic_mining" / "scripts"
 if str(_TOPIC_MINING_SCRIPTS) not in sys.path:
@@ -74,7 +73,6 @@ def analyze_reviews_body(
             rating_f = float(rating) if rating is not None else None
         except (TypeError, ValueError):
             rating_f = None
-        # 在线评论表无 analysis_input_en 列时，用原文做词典匹配（英文评论场景）
         ain = str(r.get("analysis_input_en") or raw)
         sent_label, sent_conf = predict_sentiment(raw, rating_f)
         dims, _meta = attribute_review(rid, raw, ain, patterns)

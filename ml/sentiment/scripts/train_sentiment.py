@@ -17,7 +17,6 @@ from transformers import (
     TrainingArguments,
 )
 
-# 压低 Hub/权重加载时的 LOAD REPORT 等 INFO，避免被误认为报错；Trainer 仍会用 tqdm 打训练进度。
 import transformers
 
 transformers.logging.set_verbosity_error()
@@ -56,7 +55,6 @@ def resolve_train_csv_paths(data_cfg: dict) -> list[Path]:
         paths = sorted(Path(p) for p in glob.glob(glob_pat))
         if paths:
             return paths
-        # e.g. merged to train.csv and removed shards — fall back to single train_csv
         tc = Path(data_cfg["train_csv"])
         if tc.exists():
             print(
@@ -135,7 +133,6 @@ def build_training_arguments(train_cfg: dict, output_dir: Path) -> TrainingArgum
         "load_best_model_at_end": True,
         "report_to": [],
     }
-    # Optional perf/runtime knobs from yaml (only passed when provided)
     optional_keys = (
         "fp16",
         "bf16",
@@ -349,7 +346,6 @@ def main() -> None:
 
     trainer.train()
 
-    # Evaluate on test split and write minimal report
     test_metrics = trainer.evaluate(eval_dataset=ds_test)
     report_path = Path(eval_cfg.get("report_output", "reports/sentiment_eval.json"))
     report_path.parent.mkdir(parents=True, exist_ok=True)

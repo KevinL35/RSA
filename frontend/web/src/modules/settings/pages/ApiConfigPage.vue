@@ -229,7 +229,7 @@ function usersFriendlyError(e: unknown): string {
     const d = j?.detail
     if (typeof d === 'object' && d?.code === 'USERNAME_TAKEN') return t('settings.accUsernameTaken')
   } catch {
-    /* ignore */
+    
   }
   return raw || t('settings.accSaveFail')
 }

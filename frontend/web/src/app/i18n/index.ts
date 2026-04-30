@@ -9,7 +9,7 @@ function readStoredLocale(): AppLocale {
     const s = localStorage.getItem('rsa_locale')
     if (s === 'en' || s === 'zh-CN') return s
   } catch {
-    /* ignore */
+    
   }
   return 'zh-CN'
 }

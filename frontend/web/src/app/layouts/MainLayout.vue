@@ -71,7 +71,7 @@ const auth = useAuthStore()
 
 function menuVisible(item: MenuItem): boolean {
   if (isPlatformMenuAuth()) {
-    // 依赖 auth.menuKeys，账号权限保存后会触发重算（勿仅用 getStoredMenuKeys，否则非响应式）
+
     const keys = auth.menuKeys.value
     if (keys.length === 0) return false
     return keys.includes(item.key)
@@ -374,7 +374,7 @@ async function onLogout() {
   display: none !important;
 }
 
-/* 收起状态：全栏元素锁定同一中心线，防止图标漂移 */
+
 .sidebar.collapsed .sidebar-top,
 .sidebar.collapsed .sidebar-bottom {
   display: flex;

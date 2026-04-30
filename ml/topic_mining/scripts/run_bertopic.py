@@ -107,7 +107,6 @@ def main() -> None:
     if nr_topics is not None:
         nr_topics = int(nr_topics)
 
-    # UMAP：n_neighbors < n_samples；n_components 不宜 ≥ n_samples
     n_neighbors = min(15, max(2, n_docs - 1))
     n_components = min(5, max(2, n_docs - 1))
     min_df = 2 if n_docs >= 20 else 1

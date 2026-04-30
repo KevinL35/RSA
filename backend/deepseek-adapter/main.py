@@ -25,9 +25,9 @@ import json
 import re
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Request  # pyright: ignore[reportMissingImports]
-from openai import OpenAI  # pyright: ignore[reportMissingImports]
-from pydantic_settings import BaseSettings, SettingsConfigDict  # pyright: ignore[reportMissingImports]
+from fastapi import FastAPI, Header, HTTPException, Request
+from openai import OpenAI
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 app = FastAPI(title="RSA DeepSeek TB-3 Adapter", version="0.1.0")
 
@@ -38,10 +38,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-reasoner"
-    # 摘要任务（/insight-summary）专用模型；默认 deepseek-chat
-    # 摘要场景不需要思维链。可在 .env 单独覆盖 DEEPSEEK_SUMMARY_MODEL=deepseek-reasoner 强制走推理模型。
     deepseek_summary_model: str = "deepseek-chat"
-    # 词典智能合并：结构化 JSON，默认用 chat 避免 reasoner 输出夹杂思维链
     deepseek_dictionary_merge_model: str = "deepseek-chat"
     deepseek_summary_request_timeout: float = 90.0
     deepseek_max_reviews_per_call: int = 25
@@ -257,7 +254,6 @@ def _run_tb3_body(body: dict[str, Any], authorization: str | None) -> dict[str, 
         if not all(isinstance(x, dict) for x in batch):
             continue
         part = _call_deepseek_batch(client, model, batch)
-        # align by review_id from batch
         by_id = {str(x.get("review_id") or x.get("id") or ""): x for x in part}
         for r in batch:
             rid = str(r.get("id", ""))
@@ -377,8 +373,6 @@ async def insight_summary(request: Request, authorization: str | None = Header(d
         api_key=s.deepseek_api_key.strip(),
         base_url=s.deepseek_base_url.strip().rstrip("/"),
     )
-    # 摘要走专用模型（默认 deepseek-chat），避免 reasoner 长思维链导致 platform-api 120s 超时；
-    # 实在想用 reasoner，把 .env 里 DEEPSEEK_SUMMARY_MODEL 改成 deepseek-reasoner 即可。
     model = (s.deepseek_summary_model or "").strip() or "deepseek-chat"
     timeout = float(s.deepseek_summary_request_timeout or 90.0)
     text = _call_deepseek_insight_summary(client, model, context, timeout=timeout)

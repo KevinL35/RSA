@@ -463,7 +463,7 @@ onMounted(async () => {
 }
 
 .config-block--intro {
-  /* 与接口配置 ApiConfigPage 顶部模块一致 */
+  
   padding: 16px 20px;
 }
 
@@ -487,7 +487,7 @@ onMounted(async () => {
 }
 
 .intro-head-right {
-  /* 与评论洞察「添加商品」等默认按钮视觉宽度同档（约 90～110px） */
+  
   --dict-head-control-width: 100px;
   display: flex;
   align-items: center;

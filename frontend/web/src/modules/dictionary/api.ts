@@ -95,7 +95,7 @@ export type ApproveDictionaryEntryBody = {
   aliases: string[]
   batch_id?: string | null
   source_topic_id?: string | null
-  /** 对应 Supabase dictionary_review_queue.id，通过后标记 approved */
+  
   review_queue_id?: string | null
 }
 
@@ -157,7 +157,7 @@ export function fetchDictionaryReviewQueue() {
 export type PostDictionaryReviewQueueBody = {
   canonical: string
   synonyms: string[]
-  /** 省略时使用平台默认类目（与后端 DEFAULT_VERTICAL_ID 一致） */
+  
   vertical_id?: string | null
 }
 
@@ -207,7 +207,7 @@ export type DictionarySmartMergeResponse = {
   merge_drops_deleted?: number
   updates?: number
   rejects?: number
-  /** 本次请求里带给模型的「已入库词条」条数（同词典同六维） */
+  
   existing_dictionary_context_sent?: number
   existing_dictionary_context_total?: number
   existing_dictionary_context_truncated?: boolean

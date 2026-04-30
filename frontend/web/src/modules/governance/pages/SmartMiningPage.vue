@@ -373,7 +373,7 @@ const _dimOrder = SIX_DIMENSIONS as readonly string[]
 const agentGroupedRows = computed(() =>
   rows.value
     .filter((r) => agentReviewIds.value.includes(r.id))
-    // 仅展示可继续处理（有六维判定）的项；不可通过项不进入智能体审核列表
+
     .filter((r) => !!r.dimension_6way)
     .slice()
     .sort((a, b) => {
@@ -420,7 +420,7 @@ function agentGroupQueueIds(row: SmartMiningRow): string[] {
   const vid = (row.vertical_id || '').trim()
   const dim = row.dimension_6way || ''
   if (!dim) return []
-  // 只从原始队列中按「同词典 + 同维度 + 已进入智能体审核」严格取 id，避免跨维度误并
+
   return rows.value
     .filter((r) => agentReviewIds.value.includes(r.id))
     .filter((r) => (r.vertical_id || '').trim() === vid)
@@ -548,9 +548,9 @@ const miningRunning = ref(false)
 const miningStartingOrCancelling = ref(false)
 const activeMiningJobId = ref<string>('')
 const agentReviewing = ref(false)
-/** 智能合并请求中：groupKey(vertical::dim)，避免同组重复点 */
+
 const smartMergeLoadingKey = ref('')
-/** 删除请求中：groupKey(vertical::dim)，避免同组重复点 */
+
 const deletingAgentGroupKey = ref('')
 let miningPoller: number | null = null
 
@@ -588,7 +588,7 @@ async function pollLatestJob() {
       ElMessage.error(`${t('governance.topicMiningFailed')}${detail}`)
     }
   } catch (e) {
-    // 轮询失败不停 polling 避免频繁报错；偶发网络抖动等待下一轮
+
     console.warn('[topic-discovery] poll failed', e)
   }
 }
@@ -809,7 +809,7 @@ async function bootstrapMiningStateOnMount() {
       startMiningPoll()
     }
   } catch {
-    /* ignore */
+    
   }
 }
 
@@ -905,7 +905,7 @@ function queueRowVerticalId(row: SmartMiningRow): string {
 function openApprove(row: SmartMiningRow) {
   if (row.synonyms.length === 0) return
   pendingRow.value = row
-  // 通过前维度必须由智能体给出（row.dimension_6way）
+
   approveDimension.value = row.dimension_6way ?? ''
   approveVisible.value = true
 }

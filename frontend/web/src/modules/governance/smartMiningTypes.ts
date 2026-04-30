@@ -1,4 +1,4 @@
-/** 词典审核列表行（前端态；与 TA-9 候选 / TA-10 决策可对齐） */
+
 
 export type SmartMiningRowKind = 'new_discovery' | 'existing' | 'rejected'
 
@@ -13,7 +13,7 @@ export type SixDimension =
 export interface SmartMiningRow {
   id: string
   kind: SmartMiningRowKind
-  /** 规范词 / 关键词 */
+  
   canonical: string
   synonyms: string[]
   vertical_id: string

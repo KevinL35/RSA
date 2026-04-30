@@ -347,21 +347,21 @@ type InsightProductRow = {
   reviewCount: number
   creator: string
   createdAt: string
-  /** 透传给结果页 meta 的模型描述（当前固定内置） */
+  
   aiModel: string
   reviewStatus: 'fetching' | 'completed' | 'failed'
   reviewStatusLabel: string
   statusLabel: string
-  /** insight_tasks.status，用于操作按钮禁用逻辑 */
+  
   taskStatus?: string
-  /** AI 智能分析是否已生成（dashboard 与查看结果按钮的解锁前置） */
+  
   aiSummaryReady?: boolean
-  /**
-   * 列表缩略图重试阶段：extra 图 → 主 CDN → 备用 CDN → 占位。
-   * Amazon 对无效 ASIN 常返回 200 + 1×1 GIF，需配合 @load 尺寸判断。
-   */
+  
+
+
+
   imageThumbPhase?: 'extra' | 'amazon_primary' | 'amazon_fallback' | 'exhausted'
-  /** 洞察任务 UUID */
+  
   taskId?: string
   dictionaryVerticalLabel: string
 }
@@ -384,7 +384,7 @@ const uploadLinkInput = ref('')
 const uploadExcelFile = ref<File | null>(null)
 const uploadExcelRef = ref<UploadInstance | null>(null)
 const uploadSubmitting = ref(false)
-/** 与后端 import-reviews 一致 */
+
 const UPLOAD_REVIEW_MAX_BYTES = 10 * 1024 * 1024
 const downloadReviewingId = ref<string | null>(null)
 const deletingTaskId = ref<string | null>(null)
@@ -454,7 +454,7 @@ function resetAddForm() {
 
 const rows = ref<InsightProductRow[]>([])
 
-/** 非真实 ASIN 或双 CDN 均无效时的列表占位（避免 Amazon 200+1×1 GIF 看起来像「没图」） */
+
 const INSIGHT_LIST_IMAGE_PLACEHOLDER =
   'data:image/svg+xml,' +
   encodeURIComponent(
@@ -466,7 +466,7 @@ function isLikelyHttpImageUrl(s: string): boolean {
   return t.startsWith('https://') || t.startsWith('http://') || t.startsWith('data:image/')
 }
 
-/** 美国站主图：先试 m.media-amazon，失败由 @error / 1×1 检测切 ssl-images-na */
+
 function amazonUsImageUrlPrimary(productId: string): string {
   const asin = encodeURIComponent(productId.trim())
   return `https://m.media-amazon.com/images/P/${asin}.01._AC_SL80_.jpg`
@@ -523,9 +523,9 @@ function insightThumbLoadHandler(row: InsightProductRow) {
   return fn
 }
 
-/** 洞察状态展示：分析中 / 已完成 / 失败。
- * 注意：即使后端 status='success'，只要 AI 智能分析尚未生成完成，仍展示「分析中」。
- */
+
+
+
 function flowInsightStatusLabel(status: string, aiSummaryReady?: boolean): string {
   const key = classifyInsightFlowStatus(status, aiSummaryReady)
   return t(`insight.flowStatus.${key}`)
@@ -605,7 +605,7 @@ function mapTaskToRow(task: InsightTaskRow): InsightProductRow {
   }
 }
 
-/** 列表创建人：优先库内 created_by，否则当前登录名，再否则按角色占位 */
+
 function creatorForTask(task: InsightTaskRow): string {
   const fromDb = typeof task.created_by === 'string' ? task.created_by.trim() : ''
   if (fromDb) return fromDb
@@ -674,7 +674,7 @@ function pickFromExtra(extraList: ReviewExtra[], keys: string[]): string | null 
   return null
 }
 
-/** 同时拉取多任务 reviews（各 up to 20000 条）易打满 Supabase / 触发 502，分批并发。 */
+
 const HYDRATE_REVIEWS_CONCURRENCY = 3
 const HYDRATE_REVIEWS_RETRIES = 3
 
@@ -745,7 +745,7 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
         row.imageThumbPhase = 'extra'
       }
       row.countryLabel = country
-      // 评论 extra 里通常没有商品价：勿用「空」覆盖 product_snapshot 已展示的售价
+
       if (rawPrice && rawPrice.trim()) {
         row.priceLabel = parsePriceLabel(rawPrice)
       }
@@ -762,7 +762,7 @@ async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
       row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
       row.statusLabel = flowInsightStatusLabel(task.status, row.aiSummaryReady)
     } catch {
-      // Ignore per-row hydration errors to keep list render resilient.
+
     }
   }
 
@@ -792,10 +792,10 @@ async function loadTasks(skipAutoRefresh = false) {
   }
 }
 
-/**
- * 列表里若存在「success 但 AI 摘要还没生成」的任务，每 6 秒自动轻量刷一次列表，
- * 直到所有 success 行的 ai_summary 都就绪或视图离开；用户无需手点刷新。
- */
+
+
+
+
 const AI_SUMMARY_LIST_POLL_INTERVAL_MS = 6000
 let aiSummaryListPollTimer: number | null = null
 
@@ -953,7 +953,7 @@ async function submitAddProduct() {
     page.value = 1
     ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
     await loadTasks(true)
-    // 按阶段刷新：添加成功 -> 抓评完成 -> 分析完成
+
     void (async () => {
       const failed: string[] = []
       const fetchedTaskIds: string[] = []
@@ -1109,7 +1109,7 @@ async function copyAsin(asin: string) {
 function viewResultsDisabled(row: InsightProductRow): boolean {
   const s = row.taskStatus
   if (s === 'pending' || s === 'running') return true
-  /** 任务已 success 但 AI 智能分析尚未生成完成 → 不允许查看结果，避免看到「无 AI 摘要 + 规则要点」的中间态 */
+  
   if (s === 'success' && row.aiSummaryReady !== true) return true
   return false
 }
@@ -1190,12 +1190,12 @@ function onViewResults(row: InsightProductRow) {
   justify-content: flex-end;
 }
 
-/* Element Plus 相邻按钮默认有 margin-left（约 12px），会盖掉 flex gap；清零后 gap 才生效 */
+
 .toolbar-right :deep(.el-button) {
   margin-inline: 0;
 }
 
-/* 仅图标的刷新：与默认按钮同高的正方形外框 */
+
 .toolbar-refresh-square {
   width: var(--el-component-size);
   min-width: var(--el-component-size);
@@ -1335,7 +1335,7 @@ function onViewResults(row: InsightProductRow) {
   vertical-align: bottom;
 }
 
-/* 下载 / 查看 / 删除：与词典审核「通过」同款实心 small 按钮 */
+
 .insight-actions-row {
   display: inline-flex;
   flex-wrap: wrap;

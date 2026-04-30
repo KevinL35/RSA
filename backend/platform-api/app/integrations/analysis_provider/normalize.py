@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-# 与 TA-1 冻结六维 key 对齐
 DIMENSION_KEYS = frozenset(
     {
         "pros",

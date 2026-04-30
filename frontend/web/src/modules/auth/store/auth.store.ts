@@ -8,7 +8,7 @@ const USE_PLATFORM_AUTH_KEY = 'rsa_use_platform_auth'
 
 export type UserRole = 'admin' | 'operator' | 'readonly'
 
-/** 与 backend/platform-api platform_users.constants ADMIN_MENU_KEYS 一致 */
+
 const ADMIN_MENU_KEYS = new Set([
   'smart-mining',
   'dictionary',
@@ -35,7 +35,7 @@ const role = ref<UserRole>((localStorage.getItem(ROLE_KEY) as UserRole) || 'read
 const menuKeys = ref<string[]>(readMenuKeysFromStorage())
 const displayUsername = ref<string>(localStorage.getItem(USERNAME_KEY) || '')
 
-// 不做自动登录：启动时清理旧 token，刷新后需重新登录
+
 localStorage.removeItem(TOKEN_KEY)
 if (!token.value) {
   role.value = 'readonly'
@@ -75,7 +75,7 @@ export function isPlatformMenuAuth(): boolean {
   }
 }
 
-/** 当前登录用户名（平台登录或演示登录写入），供创建人展示与 API 请求头 */
+
 export function getStoredUsername(): string {
   try {
     const s = localStorage.getItem(USERNAME_KEY)
@@ -85,9 +85,9 @@ export function getStoredUsername(): string {
   }
 }
 
-/**
- * 在「账号权限」中保存 menu_keys 后同步到当前会话，侧栏会立即更新（无需重新登录）。
- */
+
+
+
 export function syncPlatformMenusFromRemote(keys: string[], usernameNext?: string) {
   if (!isPlatformMenuAuth()) return
   const next = keys.map((k) => normalizeMenuKey(k))
@@ -105,7 +105,7 @@ export function syncPlatformMenusFromRemote(keys: string[], usernameNext?: strin
 export function useAuthStore() {
   const isLogin = () => !!token.value
 
-  /** 本地演示登录（未走平台用户库） */
+  
   const login = async (username: string, password: string, userRole: UserRole = 'admin') => {
     if (!username || !password) throw new Error('请输入账号和密码')
     token.value = `token_${Date.now()}`

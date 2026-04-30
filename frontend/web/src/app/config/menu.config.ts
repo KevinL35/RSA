@@ -5,7 +5,7 @@ export type MenuItem = {
   labelKey: string
   path: string
   icon: string
-  /** 未设置表示三角色均可见（TB-7 菜单 RBAC） */
+  
   allowedRoles?: UserRole[]
   children?: MenuItem[]
 }

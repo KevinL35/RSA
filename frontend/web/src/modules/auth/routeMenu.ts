@@ -1,4 +1,4 @@
-/** 路由 path → 所需侧栏菜单 key（与 menu.config 一致） */
+
 export function pathRequiredMenuKey(path: string): string | null {
   if (path.startsWith('/insight-analysis')) return 'insight'
   if (path.startsWith('/smart-mining')) return 'smart-mining'

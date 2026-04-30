@@ -1,6 +1,6 @@
-/**
- * TB-14：前端 RBAC 与请求头契约（角色来自 localStorage）。
- */
+
+
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 let mem: Record<string, string> = {}

@@ -94,7 +94,7 @@ function loadBundle(): Bundle {
       }
     }
   } catch {
-    /* ignore */
+    
   }
 
   return {
@@ -108,7 +108,7 @@ function persistBundle(b: Bundle) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(b))
   } catch {
-    /* ignore */
+    
   }
 }
 

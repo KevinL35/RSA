@@ -42,7 +42,7 @@ const router = createRouter({
   ],
 })
 
-// TB-7：登录 + 路由级 RBAC；平台用户另按 menu_keys 约束路由
+
 router.beforeEach((to: RouteLocationNormalized) => {
   const auth = useAuthStore()
   if (to.path === '/login') return true

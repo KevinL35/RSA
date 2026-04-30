@@ -290,7 +290,6 @@ def get_dictionary_review_records(
             "target_dictionary_table": None,
         }
 
-        # 智能体审核事件
         if "suggested_dimension_6way" in detail:
             item["agent_reviewed_at"] = row.get("created_at")
             item["suggested_dimension_6way"] = detail.get("suggested_dimension_6way")
@@ -298,7 +297,6 @@ def get_dictionary_review_records(
             if isinstance(syns, list):
                 item["synonyms"] = [str(x).strip() for x in syns if str(x).strip()]
 
-        # 人工通过事件
         if "vertical_ids" in detail and "dimension_6way" in detail:
             item["approved_at"] = row.get("created_at")
             item["approved_dimension_6way"] = detail.get("dimension_6way")
@@ -922,7 +920,6 @@ def post_dictionary_review_queue_smart_merge(
         ],
     }
 
-    # 同一词典、同一六维下「已入库」词条，供模型对照去重（只读；模型仍只能改 items 里的 queue_id）
     try:
         merged = load_merged_entries_for_vertical(vid, sb=sb)
     except Exception:  # noqa: BLE001
@@ -1119,7 +1116,6 @@ def patch_dictionary_review_queue(
         raise HTTPException(status_code=400, detail="synonyms 不能为空")
     now = _utc_now_iso()
     try:
-        # postgrest 2.x：.eq() 后为 FilterRequestBuilder，不可再 .select()；默认 Prefer: return=representation
         res = (
             sb.table("dictionary_review_queue")
             .update(

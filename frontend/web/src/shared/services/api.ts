@@ -1,9 +1,9 @@
 import { getStoredUsername } from '../../modules/auth/store/auth.store'
 
-/**
- * 调用 FastAPI。开发环境走 Vite proxy `/api` → 后端；生产用 VITE_API_BASE_URL。
- * TB-13：携带 `X-RSA-Role`；创建人等链路携带 `X-RSA-Username`（与 `rsa_login_username` 一致）。
- */
+
+
+
+
 export function apiBaseUrl(): string {
   const env = import.meta.env.VITE_API_BASE_URL as string | undefined
   if (env && env.replace(/\s/g, '') !== '') {
@@ -21,7 +21,7 @@ export function getStoredRole(): ApiRole {
     const r = localStorage.getItem(ROLE_KEY)
     if (r === 'admin' || r === 'operator' || r === 'readonly') return r
   } catch {
-    /* ignore */
+    
   }
   return 'readonly'
 }
@@ -69,7 +69,7 @@ export async function apiPostFormData<T>(path: string, formData: FormData): Prom
   return (await res.json()) as T
 }
 
-/** 登录等无需携带 X-RSA-Role 的接口 */
+
 export async function apiPostJsonPublic<T>(path: string, body: unknown): Promise<T> {
   const base = apiBaseUrl()
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`

@@ -49,7 +49,7 @@ const { t } = useI18n()
 const REMEMBER_KEY = 'rsa_login_remember'
 const CRED_KEY = 'rsa_login_credentials'
 
-/** 进入页时同步读取，避免先闪现默认账号再被 onMounted 改掉 */
+
 function readRememberedForm(): { username: string; password: string; remember: boolean } {
   try {
     const remember = localStorage.getItem(REMEMBER_KEY) === '1'

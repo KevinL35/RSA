@@ -286,13 +286,13 @@ const dimensionOrder: Dimension6Key[] = [
   'usage_scenario',
 ]
 
-/** 痛点排行榜仅统计「缺点」「退货原因」两维 */
+
 const painRankingDimensions: Dimension6Key[] = ['cons', 'return_reasons']
 
-/**
- * 词云色阶（与 dim-tag 同色相、略深，白底可读）
- * 六维语义：绿=优点、琥珀=缺点、玫红=退货、蓝=购买动机、青=期望、紫=场景
- */
+
+
+
+
 const WORDCLOUD_PALETTES: Record<Dimension6Key, string[]> = {
   pros: ['#047857', '#059669', '#10b981', '#34d399', '#6ee7b7'],
   cons: ['#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fcd34d'],
@@ -308,14 +308,14 @@ function hashKeywordHue(keyword: string): number {
   return h
 }
 
-/** 同一维度内用关键词哈希取色阶，避免整朵词云单色 */
+
 function pickWordCloudColor(keyword: string, dim: Dimension6Key): string {
   const palette = WORDCLOUD_PALETTES[dim]
   if (!palette?.length) return '#047857'
   return palette[hashKeywordHue(keyword) % palette.length]!
 }
 
-/** 从 pain_ranking 行解析「主维度」（与 dimensionOrder 优先级一致） */
+
 function primaryDimensionFromRankDims(dims: string[]): Dimension6Key {
   for (const d of dimensionOrder) {
     if (dims.includes(d)) return d
@@ -337,7 +337,7 @@ function primaryDimensionForPainKeyword(keyword: string): Dimension6Key {
 const loading = ref(false)
 const errorMsg = ref('')
 const dashboard = ref<InsightDashboardResponse | null>(null)
-/** 当前任务词典垂直下的 taxonomy，用于证据句同义词高亮 */
+
 const taxonomyPreview = ref<TaxonomyPreviewResponse | null>(null)
 
 const taskId = computed(() => String(route.params.taskId || ''))
@@ -355,7 +355,7 @@ const expandDim = ref<Dimension6Key | null>(null)
 
 const emptyState = computed(() => dashboard.value?.empty_state ?? null)
 
-/** 基于看板数据的规则归纳（非大模型），供「AI 智能分析」快速阅读 */
+
 const aiSummaryLines = computed(() => {
   const d = dashboard.value
   if (!d || d.empty_state) return []
@@ -401,7 +401,7 @@ function formatLocalDateTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-/** 主标题：商品 ID（如 ASIN） */
+
 const mainAsinTitle = computed(() => {
   const d = dashboard.value
   if (d?.product_id) return d.product_id
@@ -409,7 +409,7 @@ const mainAsinTitle = computed(() => {
   return a || t('insightResult.productFallback')
 })
 
-/** 副标题仅展示短模型名：内置源统一 rsa-v1，其它为 analysis_provider_id（不用列表页「平台自研：…」长文案） */
+
 const insightModelDisplay = computed(() => {
   const id = dashboard.value?.analysis_provider_id
   if (id && String(id).trim() !== '' && id !== 'ins_builtin') return String(id).trim()
@@ -429,7 +429,7 @@ function isHeaderImageUrl(s: string): boolean {
   return x.startsWith('https://') || x.startsWith('http://') || x.startsWith('data:image/')
 }
 
-/** 主图：优先接口 product_snapshot，其次列表跳转带来的 query.imageUrl */
+
 const headerProductImageUrl = computed(() => {
   const snap = dashboard.value?.product_snapshot
   const fromApi = typeof snap?.image_url === 'string' ? snap.image_url.trim() : ''
@@ -520,13 +520,13 @@ function painForDimension(dim: Dimension6Key, list: PainRankItem[]) {
   return list.filter((p) => p.dimensions.includes(dim))
 }
 
-/**
- * 卡片每行的「评论数」严格 = filteredEvidence(dim, keyword).length，
- * 即同时满足「ev.dimension===dim」且「关键词出现在 ev.keywords」的去重命中行数；
- * 这样卡片数字和右侧证据列表的总条数（含翻页）完全对得上。
- * 整体占比分母：当前任务下全部 review_dimension_analysis 命中行数（全维度合计），
- * 表示「此关键词 × 该维度」占全部归因行的份额。
- */
+
+
+
+
+
+
+
 function cardRows(dim: Dimension6Key): { label: string; count: number; pct: number }[] {
   const dash = dashboard.value
   if (!dash) return []
@@ -566,7 +566,7 @@ function trendForKeyword(kw: string) {
   return h === 0 ? '↑' : h === 1 ? '→' : '↓'
 }
 
-/** 某维度下关键词频次聚合（词云与维度列表共用） */
+
 function keywordsAggregatedForDimension(dim: Dimension6Key): { keyword: string; count: number }[] {
   const dash = dashboard.value
   if (!dash?.pain_ranking?.length) return []
@@ -582,7 +582,7 @@ function keywordsAggregatedForDimension(dim: Dimension6Key): { keyword: string; 
     .sort((a, b) => b.count - a.count)
 }
 
-/** 词云「全部」：使用排行榜全量关键词（与后端 pain_ranking 一致，不按维度过滤） */
+
 function keywordsAggregatedAllDimensions(): { keyword: string; count: number }[] {
   const dash = dashboard.value
   if (!dash?.pain_ranking?.length) return []
@@ -653,14 +653,14 @@ const paginatedEvidence = computed(() => {
   return filteredEvidence.value.slice(start, start + EVIDENCE_PAGE_SIZE)
 })
 
-/** 证据条「展开」状态：按 review_dimension_analysis.id 记忆，切换关键词/维度/翻页时清空 */
+
 const evidenceExpandedIds = ref<Set<string>>(new Set())
 
 watch(painListDimension, () => {
   selectedKeyword.value = null
 })
 
-/** 换关键词或维度时回到第 1 页并折叠所有证据 */
+
 watch([selectedKeyword, painListDimension], () => {
   evidencePage.value = 1
   evidenceExpandedIds.value = new Set()
@@ -705,7 +705,7 @@ function openCardExpand(dim: Dimension6Key) {
   expandVisible.value = true
 }
 
-/** 证据条仅展示评论日期 YYYY-MM-DD（无则 —） */
+
 function formatReviewDateTime(ev: InsightEvidenceItem): string {
   const raw = ev.review?.reviewed_at
   if (typeof raw !== 'string' || !raw.trim()) return '—'
@@ -728,7 +728,6 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** 当前维度下每条词典词条 = 一组同义词（规范词 + aliases） */
 function buildSynonymGroups(dim: Dimension6Key, preview: TaxonomyPreviewResponse | null): string[][] {
   const block = preview?.dimensions?.[dim]
   const entries = block?.entries
@@ -771,7 +770,6 @@ function collectEvidenceHighlightTerms(ev: InsightEvidenceItem, groups: string[]
   return [...acc].sort((a, b) => b.length - a.length)
 }
 
-/** 在已 escape 的正文上合并区间再包 mark，避免多次 replace 嵌套或覆盖 */
 function highlightByMergedIntervals(escapedText: string, terms: string[]): string {
   if (!terms.length) return escapedText
   const intervals: [number, number][] = []
@@ -834,7 +832,6 @@ async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {
   }
 }
 
-/** 后端 analyze 成功后异步触发 AI 摘要；用最多 4 次轮询等它写回，避免用户手动刷新 */
 const AI_SUMMARY_POLL_INTERVAL_MS = 5000
 const AI_SUMMARY_POLL_MAX = 4
 let aiSummaryPollTimer: number | null = null
@@ -858,7 +855,6 @@ function scheduleAiSummaryPolling(remaining: number) {
       const next = await fetchInsightDashboard(taskId.value, { evidence_limit: 5000, evidence_offset: 0 })
       dashboard.value = next
     } catch {
-      /** 静默：保留已有看板数据 */
     }
     if (!(dashboard.value?.ai_summary?.text || '').trim()) {
       scheduleAiSummaryPolling(remaining - 1)
@@ -871,7 +867,6 @@ async function load() {
   loading.value = true
   clearAiSummaryPolling()
   try {
-    /** evidence_limit 调大：保证前端按「维度+关键词」过滤后能与 pain_ranking.count 对齐，不再出现「卡片 249 / 证据 1」 */
     dashboard.value = await fetchInsightDashboard(taskId.value, { evidence_limit: 5000, evidence_offset: 0 })
     painListDimension.value = 'pros'
     selectedKeyword.value = null
@@ -1065,7 +1060,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/** 与数据行后两列同宽，与 flex 右对齐组合后垂线与正文一致 */
 .dim-metrics-cols {
   display: grid;
   grid-template-columns: 4.75rem 4.25rem;
@@ -1285,7 +1279,6 @@ onBeforeUnmount(() => {
 
 .evidence-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-  /** 两栏各取自身内容高度：证据面板贴合内容，维度列表用自身固定高度 */
   align-items: start;
 }
 
@@ -1341,7 +1334,6 @@ onBeforeUnmount(() => {
   list-style: none;
   margin: 0;
   padding: 0;
-  /** 固定容纳约 15 条单行关键词；不足 15 条时仍按真实条数显示，超过则内部滚动 */
   --pain-list-row: 35px;
   max-height: calc(var(--pain-list-row) * 15);
   overflow-x: hidden;
@@ -1380,7 +1372,6 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
-/** 不再固定高度：证据面板高度随展开/折叠和当前页内容自然变化，左侧维度列表（stretch）会同步变高 */
 .evidence-list {
   flex: 1;
   min-height: 0;

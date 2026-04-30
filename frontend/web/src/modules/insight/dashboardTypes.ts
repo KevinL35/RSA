@@ -1,4 +1,4 @@
-/** 洞察看板 API 响应形状（与 GET .../dashboard 一致） */
+
 
 export type Dimension6Key =
   | 'pros'
@@ -36,7 +36,7 @@ export type ReviewTimeseriesPoint = {
   count: number
 }
 
-/** 与 insight_tasks.product_snapshot / contracts 对齐 */
+
 export type InsightTaskProductSnapshot = {
   title?: string | null
   image_url?: string | null
@@ -46,7 +46,7 @@ export type InsightTaskProductSnapshot = {
   fetched_at?: string | null
 }
 
-/** 服务端写入 insight_tasks.ai_summary，GET dashboard 透传 */
+
 export type InsightAiSummaryStored = {
   text?: string
   model?: string
@@ -59,9 +59,9 @@ export type InsightDashboardResponse = {
   platform: string
   product_id: string
   task_status: string
-  /** 任务下已入库评论条数 */
+  
   review_total_count?: number
-  /** 至少有一条六维归因行的去重评论数 */
+  
   matched_review_count?: number
   analysis_provider_id?: string | null
   analyzed_at?: string | null

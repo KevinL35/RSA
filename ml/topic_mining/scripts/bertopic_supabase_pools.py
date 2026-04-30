@@ -34,7 +34,6 @@ from typing import Any
 import yaml
 from postgrest.exceptions import APIError
 
-# 仓库根：.../ml/topic_mining/scripts -> parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -97,7 +96,6 @@ def _fetch_review_analysis_rows(
         try:
             res = _execute_with_retry(q.range(start, end))
         except APIError as e:
-            # 向后兼容：若数据库尚未执行 022 迁移，则退化为“仅按 unmatched 过滤”。
             msg = str(getattr(e, "message", "") or e)
             if use_topic_processed_filter and ("topic_mining_processed_at" in msg or "42703" in msg):
                 use_topic_processed_filter = False
@@ -176,7 +174,6 @@ def _build_bertopic(
     n_docs = len(docs)
     if n_docs < 3:
         raise ValueError(f"文档数过少（{n_docs}），至少需要 3 条有效评论文本才能跑 BERTopic")
-    # yaml 里的 min_topic_size 往往按「大任务」调；单 ASIN / 小桶时必须压到 < n_docs，否则全是噪声簇或 0 主题
     min_topic_size_cfg = int(cfg.get("min_topic_size", 10))
     min_topic_size = max(2, min(min_topic_size_cfg, n_docs - 1))
     nr_topics = cfg.get("nr_topics")
@@ -185,8 +182,6 @@ def _build_bertopic(
 
     n_neighbors = min(15, max(2, n_docs - 1))
     n_components = min(5, max(2, n_docs - 1))
-    # BERTopic 在 _c_tf_idf 阶段会把「每个主题」当成一条文档；min_df>1 时主题数一少就会触发
-    # ValueError: max_df corresponds to < documents than min_df。小样本统一用 min_df=1 更稳。
     vectorizer_model = CountVectorizer(
         min_df=1,
         max_df=1.0,
@@ -385,7 +380,6 @@ def run_job(
                 )
             summary["processed_review_analysis"] = len(ids)
         except APIError as e:
-            # 向后兼容：未迁移时允许主题挖掘成功，只是暂不回写“已处理”标记。
             msg = str(getattr(e, "message", "") or e)
             if "topic_mining_processed_at" in msg or "topic_mining_batch_id" in msg or "42703" in msg:
                 summary["processed_review_analysis"] = 0

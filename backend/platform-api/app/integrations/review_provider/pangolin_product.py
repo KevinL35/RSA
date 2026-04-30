@@ -85,7 +85,6 @@ def parse_pangolin_product_detail_payload(payload: dict[str, Any]) -> dict[str, 
     prod = rows[0]
     if not isinstance(prod, dict):
         return None
-    # 评论行通常含 content/reviewId；商品详情含 asin + title 等
     if prod.get("reviewId") or prod.get("review_id"):
         return None
     if not prod.get("title") and not prod.get("image") and not prod.get("asin"):

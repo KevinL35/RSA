@@ -81,7 +81,6 @@ def sentiment_roberta(text: str, max_length: int = 256) -> tuple[str, float | No
         probs = torch.softmax(logits, dim=-1)
         idx = int(torch.argmax(probs).item())
         conf = float(probs[idx].item())
-    # 与 TA-1 及训练数据一致：0=negative, 1=neutral, 2=positive
     if 0 <= idx < len(_SENTIMENT_ORDER):
         return _SENTIMENT_ORDER[idx], conf
     return "neutral", conf

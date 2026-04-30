@@ -68,7 +68,7 @@ function formatTime(iso: string) {
   return Number.isNaN(d.getTime()) ? iso : fmt.format(d)
 }
 
-/** 与账号权限里存的 menu_keys（kebab）对齐到现有 menu.* 文案 */
+
 const MENU_I18N: Record<string, string> = {
   login: 'menu.login',
   insight: 'menu.insight',

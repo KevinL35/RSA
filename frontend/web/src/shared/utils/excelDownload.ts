@@ -1,6 +1,6 @@
-/**
- * 浏览器端导出 .xlsx（依赖 sheetjs / xlsx）。
- */
+
+
+
 export async function downloadReviewsExcel(
   filename: string,
   items: Record<string, unknown>[],
@@ -23,10 +23,10 @@ export async function downloadReviewsExcel(
   XLSX.writeFile(wb, name)
 }
 
-/** 评论导入模板表头（与后端 import-reviews 解析一致）。 */
+
 export const REVIEW_IMPORT_TEMPLATE_COLUMNS = ['时间', '评论'] as const
 
-/** 下载空模板（含表头与一行示例，可删除后填写）。 */
+
 export async function downloadReviewImportTemplate(): Promise<void> {
   const cols = [...REVIEW_IMPORT_TEMPLATE_COLUMNS]
   await downloadReviewsExcel(
@@ -39,7 +39,7 @@ export async function downloadReviewImportTemplate(): Promise<void> {
   )
 }
 
-/** 词典 Excel 列（与后端 import_dictionary_excel 解析一致；权重/优先级可选，默认 1.0 / 50）。 */
+
 export const DICTIONARY_IMPORT_COLUMNS = ['六维维度', '规范词', '同义词'] as const
 
 export type TaxonomyPreviewLike = {
@@ -57,7 +57,7 @@ export type TaxonomyPreviewLike = {
   >
 }
 
-/** 将 taxonomy-preview 展平为词典 Excel 行（中文表头）。 */
+
 export function flattenTaxonomyPreviewForExcel(preview: TaxonomyPreviewLike): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = []
   for (const dim of preview.dimension_order) {

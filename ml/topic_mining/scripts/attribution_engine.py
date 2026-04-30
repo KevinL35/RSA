@@ -84,7 +84,6 @@ def build_patterns(data: dict[str, Any]) -> list[PatternRow]:
                     weight=weight,
                 )
             )
-    # Longer phrase first, then priority, then stable text for reproducibility
     rows.sort(key=lambda r: (-len(r.text), -r.priority, r.text.lower(), r.dimension))
     return rows
 
@@ -182,8 +181,6 @@ def attribute_review(
                 seen.add(x.canonical)
                 keywords.append(x.canonical)
 
-        # evidence_quote 与 phrase=ain[win_s:win_e] 等长（映射到 raw 时按同长度切片），
-        # 高亮区间相对于 evidence_quote 起点 = 命中在窗口内的偏移。
         spans: list[dict[str, Any]] = []
         for x in ms:
             rel_s = x.start - win_s

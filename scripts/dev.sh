@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# 本地一键启动：analysis-engine (8089) + platform-api (8000) + deepseek-adapter (9100, 可选) + Web (Vite)
-# 用法：在仓库根目录执行  bash scripts/dev.sh
-# 可选：ANALYSIS_PORT=8089 API_PORT=8000 ADAPTER_PORT=9100 bash scripts/dev.sh
-# 跳过适配层：SKIP_DEEPSEEK_ADAPTER=1 bash scripts/dev.sh
+# bash scripts/dev.sh
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# backend/platform-api 通过 pydantic 读 backend/platform-api/.env；analysis-engine 不会自动读该文件。
-# 启动前注入同一 .env，避免分析阶段因缺 SUPABASE_* 读不到 taxonomy_entries 而 HTTP 500。
 if [[ -f "${ROOT}/backend/platform-api/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -56,10 +51,6 @@ API_PY="$(pick_shared_python)"
 ensure_uvicorn "backend/platform-api/analysis-engine" "${ANALYSIS_PY}"
 ensure_uvicorn "backend/platform-api" "${API_PY}"
 
-# 主题挖掘子进程解释器（Platform API 子进程跑 bertopic_supabase_pools.py）：
-# 优先级：已有 TOPIC_MINING_PYTHON → 仓库根 .venv-topic →
-#（可选）自动创建 ROOT/.venv-topic 并 pip install
-# 跳过自动安装：SKIP_TOPIC_VENV_BOOTSTRAP=1 bash scripts/dev.sh
 _topic_python_imports_bertopic() {
   local py="$1"
   [[ -x "${py}" ]] && "${py}" -c "import bertopic" >/dev/null 2>&1
@@ -102,7 +93,6 @@ fi
 
 (
   cd backend/platform-api/analysis-engine
-  # 与 platform-api 一样启用 --reload：改词典/分析逻辑后无需手杀进程（否则易仍跑旧代码，例如已移除的 seed 非空校验）
   exec "${ANALYSIS_PY}" -m uvicorn app.main:app --reload --host 127.0.0.1 --port "${ANALYSIS_PORT}"
 ) &
 ANALYSIS_PID=$!
@@ -113,8 +103,6 @@ ANALYSIS_PID=$!
 ) &
 API_PID=$!
 
-# DeepSeek 适配层（TB-3 /analyze + AI 摘要 /insight-summary + Agent /agent-enrich）
-# 跳过：SKIP_DEEPSEEK_ADAPTER=1 bash scripts/dev.sh
 ADAPTER_DIR="${ROOT}/backend/deepseek-adapter"
 if [[ "${SKIP_DEEPSEEK_ADAPTER:-}" == "1" ]]; then
   echo "[dev] SKIP_DEEPSEEK_ADAPTER=1，未启动 deepseek-adapter（AI 摘要 / DeepSeek 路由不可用）"
@@ -136,7 +124,6 @@ else
   if [[ "${ADAPTER_KEY_PRESENT}" != "1" ]]; then
     echo "[dev] 警告：未检测到 DEEPSEEK_API_KEY（环境变量或 ${ADAPTER_DIR}/.env），AI 摘要将返回 503"
   fi
-  # 9100 已有可用服务时直接复用，避免重复启动报 Address already in use
   if lsof -nP -iTCP:"${ADAPTER_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
     if curl --max-time 2 -fsS "http://127.0.0.1:${ADAPTER_PORT}/health" >/dev/null 2>&1; then
       ADAPTER_REUSED=1
