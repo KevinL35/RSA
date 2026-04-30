@@ -26,10 +26,20 @@ export function deriveRoleFromMenuKeys(keys: string[]): UserRole {
   return 'readonly'
 }
 
-const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
+const token = ref<string>('')
 const role = ref<UserRole>((localStorage.getItem(ROLE_KEY) as UserRole) || 'readonly')
 const menuKeys = ref<string[]>(readMenuKeysFromStorage())
 const displayUsername = ref<string>(localStorage.getItem(USERNAME_KEY) || '')
+
+// 不做自动登录：启动时清理旧 token，刷新后需重新登录
+localStorage.removeItem(TOKEN_KEY)
+if (!token.value) {
+  role.value = 'readonly'
+  menuKeys.value = []
+  localStorage.removeItem(ROLE_KEY)
+  localStorage.removeItem(MENU_KEYS_KEY)
+  localStorage.removeItem(USE_PLATFORM_AUTH_KEY)
+}
 
 function readMenuKeysFromStorage(): string[] {
   try {
@@ -95,7 +105,6 @@ export function useAuthStore() {
   const login = async (username: string, password: string, userRole: UserRole = 'admin') => {
     if (!username || !password) throw new Error('请输入账号和密码')
     token.value = `token_${Date.now()}`
-    localStorage.setItem(TOKEN_KEY, token.value)
     role.value = userRole
     localStorage.setItem(ROLE_KEY, userRole)
     localStorage.removeItem(MENU_KEYS_KEY)
@@ -112,7 +121,6 @@ export function useAuthStore() {
     keys: string[],
   ) => {
     token.value = accessToken
-    localStorage.setItem(TOKEN_KEY, accessToken)
     role.value = userRole
     localStorage.setItem(ROLE_KEY, userRole)
     menuKeys.value = [...keys]

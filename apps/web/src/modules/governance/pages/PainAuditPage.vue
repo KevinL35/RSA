@@ -3,7 +3,15 @@
     <section class="config-block">
       <h2 class="page-title">{{ t('governance.painAuditTitle') }}</h2>
       <p class="intro-text">{{ t('governance.painAuditIntro') }}</p>
-      <div class="toolbar toolbar--topic-mining-actions">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <el-button :type="activeList === 'new' ? 'primary' : 'default'" @click="activeList = 'new'">
+            {{ t('governance.painAuditNewDirection') }}
+          </el-button>
+          <el-button :type="activeList === 'rejected' ? 'primary' : 'default'" @click="activeList = 'rejected'">
+            {{ t('governance.painAuditRejectedList') }}
+          </el-button>
+        </div>
         <div class="toolbar-right">
           <el-button
             :type="miningRunning ? 'success' : 'primary'"
@@ -21,7 +29,7 @@
           />
         </div>
       </div>
-      <el-table :data="displayRows" stripe class="audit-table" :empty-text="t('governance.painAuditEmpty')">
+      <el-table :data="filteredRows" stripe class="audit-table" :empty-text="t('governance.painAuditEmpty')">
         <el-table-column :label="t('governance.painAuditCategory')" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             <span>{{ verticalNameById(row.vertical_id) }}</span>
@@ -30,13 +38,6 @@
         <el-table-column :label="t('governance.painAuditColKeyword')" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="kw">{{ row.canonical }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.painAuditColType')" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag :type="painAuditTypeTag(row.kind)" size="small">
-              {{ painAuditTypeLabel(row.kind) }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="t('governance.painAuditColSynonyms')" min-width="320">
@@ -87,9 +88,6 @@
         <div class="toolbar-right">
           <el-button type="primary" :loading="agentReviewing" @click="onAgentReview">
             {{ t('governance.agentReviewStart') }}
-          </el-button>
-          <el-button type="primary" :loading="mergeLogsLoading" @click="openMergeLogs">
-            {{ t('governance.mergeLogs') }}
           </el-button>
           <el-button
             class="toolbar-refresh-square"
@@ -199,17 +197,9 @@
         </div>
         <div class="dlg-field">
           <span class="dlg-label">{{ t('governance.painAuditDimension') }}</span>
-          <el-select
-            v-model="approveDimension"
-            class="dlg-select"
-            teleported
-            placement="bottom-start"
-            :fallback-placements="selectFallbackPlacementsBottom"
-            :popper-options="selectPopperOptionsNoFlip"
-            :placeholder="t('governance.painAuditPickDim')"
-          >
-            <el-option v-for="d in SIX_DIMENSIONS" :key="d" :label="dimensionLabel(d)" :value="d" />
-          </el-select>
+          <span class="dlg-value">
+            {{ approveDimension ? dimensionLabel(approveDimension) : t('governance.painAuditNoAgentDimension') }}
+          </span>
         </div>
       </template>
       <template #footer>
@@ -302,57 +292,6 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="mergeLogsVisible"
-      :title="t('governance.mergeLogsTitle')"
-      width="880px"
-      align-center
-      destroy-on-close
-    >
-      <el-table :data="mergeLogsRows" stripe class="audit-table" :empty-text="t('governance.mergeLogsEmpty')">
-        <el-table-column :label="t('governance.mergeLogsTime')" min-width="170" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.at || '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.painAuditColKeyword')" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.canonical || '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.painAuditCategory')" min-width="130" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.vertical_id ? verticalNameById(row.vertical_id) : '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.painAuditDimension')" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.dimension_6way ? dimensionLabel(row.dimension_6way) : '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.mergeLogsResult')" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.action === 'approved' ? 'success' : 'danger'" size="small">
-              {{ row.action === 'approved' ? t('governance.mergeLogsApproved') : t('governance.mergeLogsRejected') }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.mergeLogsSource')" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.source || '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('governance.mergeLogsReason')" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.reason_zh || '—' }}
-          </template>
-        </el-table-column>
-      </el-table>
-      <template #footer>
-        <el-button @click="mergeLogsVisible = false">{{ t('governance.painAuditCancel') }}</el-button>
-      </template>
-    </el-dialog>
-
   </div>
 </template>
 
@@ -364,7 +303,6 @@ import { Refresh } from '@element-plus/icons-vue'
 import type { DictionaryReviewQueueItem, DictionaryVerticalItem } from '../../dictionary/api'
 import {
   deleteDictionaryReviewQueue,
-  fetchDictionaryReviewMergeLogs,
   fetchDictionaryReviewRecords,
   fetchDictionaryReviewQueue,
   fetchDictionaryVerticals,
@@ -408,21 +346,9 @@ const addTopicCanonical = ref('')
 const addTopicSynonymsText = ref('')
 const addTopicSubmitting = ref(false)
 const deletingQueueId = ref<string | null>(null)
-const mergeLogsVisible = ref(false)
-const mergeLogsRows = ref<
-  Array<{
-    at?: string | null
-    action: 'approved' | 'rejected'
-    canonical?: string | null
-    vertical_id?: string | null
-    dimension_6way?: SixDimension
-    source?: string | null
-    reason_zh?: string | null
-  }>
->([])
-const mergeLogsLoading = ref(false)
 const approveDimension = ref<SixDimension | ''>('')
 const approveSubmitting = ref(false)
+const activeList = ref<'new' | 'rejected'>('new')
 
 const canConfirmApprove = computed(() => !!pendingRow.value && !!approveDimension.value)
 
@@ -430,10 +356,17 @@ const agentReviewIds = ref<string[]>([])
 const displayRows = computed(() =>
   rows.value.filter((row) => !agentReviewIds.value.includes(row.id)),
 )
+const filteredRows = computed(() =>
+  activeList.value === 'rejected'
+    ? displayRows.value.filter((row) => row.kind === 'rejected')
+    : displayRows.value.filter((row) => row.kind !== 'rejected'),
+)
 const _dimOrder = SIX_DIMENSIONS as readonly string[]
 const agentGroupedRows = computed(() =>
   rows.value
     .filter((r) => agentReviewIds.value.includes(r.id))
+    // 仅展示可继续处理（有六维判定）的项；不可通过项不进入智能体审核列表
+    .filter((r) => !!r.dimension_6way)
     .slice()
     .sort((a, b) => {
       const avv = (a.vertical_id || '').trim()
@@ -476,8 +409,15 @@ function isAgentGroupActionRow(row: PainAuditRow, $index: number): boolean {
 }
 
 function agentGroupQueueIds(row: PainAuditRow): string[] {
-  const k = groupKey(row)
-  return agentGroupedRows.value.filter((r) => groupKey(r) === k).map((r) => r.id)
+  const vid = (row.vertical_id || '').trim()
+  const dim = row.dimension_6way || ''
+  if (!dim) return []
+  // 只从原始队列中按「同词典 + 同维度 + 已进入智能体审核」严格取 id，避免跨维度误并
+  return rows.value
+    .filter((r) => agentReviewIds.value.includes(r.id))
+    .filter((r) => (r.vertical_id || '').trim() === vid)
+    .filter((r) => (r.dimension_6way || '') === dim)
+    .map((r) => r.id)
 }
 
 async function onSmartMergeGroup(row: PainAuditRow) {
@@ -672,34 +612,6 @@ async function onAgentReview() {
     ElMessage.error(`${t('governance.agentReviewFail')}: ${msg}`)
   } finally {
     agentReviewing.value = false
-  }
-}
-
-async function openMergeLogs() {
-  mergeLogsVisible.value = true
-  mergeLogsLoading.value = true
-  try {
-    const res = await fetchDictionaryReviewMergeLogs(200)
-    mergeLogsRows.value = (res.items ?? []).map((x) => {
-      const dimRaw = x.dimension_6way
-      const dim =
-        dimRaw && (SIX_DIMENSIONS as readonly string[]).includes(dimRaw) ? (dimRaw as SixDimension) : undefined
-      return {
-        at: x.at ?? null,
-        action: x.action === 'rejected' ? 'rejected' : 'approved',
-        canonical: x.canonical ?? null,
-        vertical_id: x.vertical_id ?? null,
-        dimension_6way: dim,
-        source: x.source ?? null,
-        reason_zh: x.reason_zh ?? null,
-      }
-    })
-  } catch (e) {
-    mergeLogsRows.value = []
-    const msg = e instanceof Error ? e.message : String(e)
-    ElMessage.error(`${t('governance.mergeLogsLoadFail')}: ${msg}`)
-  } finally {
-    mergeLogsLoading.value = false
   }
 }
 
@@ -951,8 +863,8 @@ function queueRowVerticalId(row: PainAuditRow): string {
 function openApprove(row: PainAuditRow) {
   if (row.synonyms.length === 0) return
   pendingRow.value = row
-  /** existing / rejected 都带原始 dimension_6way，可直接预填；new_discovery 留空让运营选 */
-  approveDimension.value = row.kind !== 'new_discovery' && row.dimension_6way ? row.dimension_6way : ''
+  // 通过前维度必须由智能体给出（row.dimension_6way）
+  approveDimension.value = row.dimension_6way ?? ''
   approveVisible.value = true
 }
 
@@ -960,6 +872,10 @@ async function confirmApprove() {
   const row = pendingRow.value
   const dim = approveDimension.value
   if (!row || !dim) return
+  if (!row.dimension_6way) {
+    ElMessage.warning(t('governance.painAuditNeedAgentDimension'))
+    return
+  }
   approveSubmitting.value = true
   try {
     await postDictionaryApproveEntry({
@@ -1114,10 +1030,6 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px;
   margin-top: 14px;
-}
-
-.toolbar--topic-mining-actions {
-  justify-content: flex-end;
 }
 
 .toolbar-left {

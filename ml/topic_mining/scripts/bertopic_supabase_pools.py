@@ -26,11 +26,13 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
+from postgrest.exceptions import APIError
 
 # 仓库根：.../ml/topic_mining/scripts -> parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -59,20 +61,53 @@ def _require_supabase():
 _PAGE_SIZE = 1000
 
 
+def _execute_with_retry(builder: Any, *, retries: int = 3, backoff_sec: float = 1.5):
+    """对 Supabase/PostgREST 请求做轻量重试，缓解偶发 TLS/网络抖动。"""
+    last_err: Exception | None = None
+    for i in range(retries):
+        try:
+            return builder.execute()
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            if i >= retries - 1:
+                raise
+            sleep_s = backoff_sec * (2**i)
+            print(f"[topic-mining] supabase request failed, retry {i + 1}/{retries - 1} in {sleep_s:.1f}s: {e}")
+            time.sleep(sleep_s)
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("unreachable")
+
+
 def _fetch_review_analysis_rows(
     sb: Any, insight_task_id: str | None
 ) -> list[dict[str, Any]]:
-    """分页拉 review_analysis；insight_task_id=None 表示全局（跨任务）。"""
+    """分页拉 review_analysis（仅六维未命中且未主题挖掘过）。"""
     out: list[dict[str, Any]] = []
     start = 0
+    use_topic_processed_filter = True
     while True:
         q = sb.table("review_analysis").select(
-            "review_id,sentiment_label,platform,product_id"
+            "id,review_id,sentiment_label,platform,product_id"
         )
         if insight_task_id is not None:
             q = q.eq("insight_task_id", insight_task_id)
+        q = q.eq("dimension_match_status", "unmatched").is_("topic_mining_processed_at", "null")
         end = start + _PAGE_SIZE - 1
-        res = q.range(start, end).execute()
+        try:
+            res = _execute_with_retry(q.range(start, end))
+        except APIError as e:
+            # 向后兼容：若数据库尚未执行 022 迁移，则退化为“仅按 unmatched 过滤”。
+            msg = str(getattr(e, "message", "") or e)
+            if use_topic_processed_filter and ("topic_mining_processed_at" in msg or "42703" in msg):
+                use_topic_processed_filter = False
+                q = sb.table("review_analysis").select("id,review_id,sentiment_label,platform,product_id")
+                if insight_task_id is not None:
+                    q = q.eq("insight_task_id", insight_task_id)
+                q = q.eq("dimension_match_status", "unmatched")
+                res = _execute_with_retry(q.range(start, end))
+            else:
+                raise
         rows = res.data or []
         out.extend(rows)
         if len(rows) < _PAGE_SIZE:
@@ -86,7 +121,7 @@ def _fetch_reviews_text_by_ids(sb: Any, review_ids: list[str]) -> dict[str, str]
     chunk = 200
     for i in range(0, len(review_ids), chunk):
         part = review_ids[i : i + chunk]
-        rv = sb.table("reviews").select("id,raw_text").in_("id", part).execute()
+        rv = _execute_with_retry(sb.table("reviews").select("id,raw_text").in_("id", part))
         for row in rv.data or []:
             id_to_text[str(row["id"])] = str(row.get("raw_text") or "").strip()
     return id_to_text
@@ -94,7 +129,7 @@ def _fetch_reviews_text_by_ids(sb: Any, review_ids: list[str]) -> dict[str, str]
 
 def fetch_task_corpus(
     sb: Any, insight_task_id: str | None
-) -> tuple[str, str, dict[str, list[str]]]:
+) -> tuple[str, str, dict[str, list[str]], dict[str, list[str]]]:
     """返回 platform, product_id, {sentiment_label: [doc, ...]}。
     全局模式（insight_task_id=None）下 platform/product_id 固定为 '_all'。"""
     rows = _fetch_review_analysis_rows(sb, insight_task_id)
@@ -113,6 +148,7 @@ def fetch_task_corpus(
     id_to_text = _fetch_reviews_text_by_ids(sb, rids)
 
     buckets: dict[str, list[str]] = {"positive": [], "negative": [], "neutral": []}
+    analysis_ids_by_bucket: dict[str, list[str]] = {"positive": [], "negative": [], "neutral": []}
     for r in rows:
         lab = str(r.get("sentiment_label") or "neutral").lower()
         if lab not in buckets:
@@ -122,7 +158,10 @@ def fetch_task_corpus(
         if not t:
             t = " "
         buckets[lab].append(t)
-    return platform, product_id, buckets
+        ra_id = str(r.get("id") or "").strip()
+        if ra_id:
+            analysis_ids_by_bucket[lab].append(ra_id)
+    return platform, product_id, buckets, analysis_ids_by_bucket
 
 
 def _build_bertopic(
@@ -242,7 +281,7 @@ def run_job(
     cfg = load_yaml(config_path)
     sb = _require_supabase()
 
-    platform, product_id, buckets = fetch_task_corpus(sb, insight_task_id)
+    platform, product_id, buckets, analysis_ids_by_bucket = fetch_task_corpus(sb, insight_task_id)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     if batch_id is None:
@@ -285,6 +324,7 @@ def run_job(
         ("negative", "pain", buckets["negative"]),
         ("neutral", "observation", buckets["neutral"]),
     ]
+    processed_analysis_ids: set[str] = set()
 
     for sentiment_label, table_kind, docs in mapping:
         if len(docs) < min_bucket_docs:
@@ -328,7 +368,30 @@ def run_job(
             summary["pools"][sentiment_label]["rows_preview"] = rows[:3]
             continue
         if rows:
-            sb.table(table_name).insert(rows).execute()
+            _execute_with_retry(sb.table(table_name).insert(rows))
+        processed_analysis_ids.update(analysis_ids_by_bucket.get(sentiment_label, []))
+
+    if not dry_run and processed_analysis_ids:
+        now = datetime.now(timezone.utc).isoformat()
+        ids = sorted(processed_analysis_ids)
+        chunk = 200
+        try:
+            for i in range(0, len(ids), chunk):
+                part = ids[i : i + chunk]
+                _execute_with_retry(
+                    sb.table("review_analysis")
+                    .update({"topic_mining_processed_at": now, "topic_mining_batch_id": bid})
+                    .in_("id", part)
+                )
+            summary["processed_review_analysis"] = len(ids)
+        except APIError as e:
+            # 向后兼容：未迁移时允许主题挖掘成功，只是暂不回写“已处理”标记。
+            msg = str(getattr(e, "message", "") or e)
+            if "topic_mining_processed_at" in msg or "topic_mining_batch_id" in msg or "42703" in msg:
+                summary["processed_review_analysis"] = 0
+                summary["processed_review_analysis_skipped_reason"] = "missing_topic_mining_columns"
+            else:
+                raise
 
     return summary
 

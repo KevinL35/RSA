@@ -533,14 +533,20 @@ def post_dictionary_agent_review_queue(
             username=audit_actor_name(actor),
             menu_key="pain-audit",
             message=f"智能体审核词条：{row.get('canonical')}",
-            detail={
-                "review_queue_id": qid,
-                "canonical": row.get("canonical"),
-                "synonyms": row.get("synonyms") or [],
-                "before_dimension_6way": before_dim,
-                "suggested_dimension_6way": suggest_dim,
-                "agent_provider": "deepseek-adapter",
-            },
+            detail=_audit_detail(
+                event_type="topic_agent_review_item",
+                action="review",
+                entity="dictionary_review_queue",
+                source="deepseek-adapter",
+                extra={
+                    "review_queue_id": qid,
+                    "canonical": row.get("canonical"),
+                    "synonyms": row.get("synonyms") or [],
+                    "before_dimension_6way": before_dim,
+                    "suggested_dimension_6way": suggest_dim,
+                    "agent_provider": "deepseek-adapter",
+                },
+            ),
         )
         items.append(
             {
@@ -556,7 +562,13 @@ def post_dictionary_agent_review_queue(
         username=audit_actor_name(actor),
         menu_key="pain-audit",
         message=f"智能体审核队列：reviewed={reviewed} updated={updated}",
-        detail={"reviewed": reviewed, "updated": updated, "limit": limit},
+        detail=_audit_detail(
+            event_type="topic_agent_review_batch",
+            action="review",
+            entity="dictionary_review_queue",
+            source="deepseek-adapter",
+            counts={"reviewed": reviewed, "updated": updated, "limit": limit, "total": len(rows)},
+        ),
     )
 
     return {
@@ -586,6 +598,32 @@ def _vertical_label_zh(vid: str) -> str:
         if v["id"] == vid:
             return str(v.get("label_zh") or vid)
     return vid
+
+
+def _audit_detail(
+    *,
+    event_type: str,
+    action: str,
+    entity: str,
+    result: str = "success",
+    source: str | None = None,
+    counts: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """统一审计 detail 字段，便于按事件检索与复盘。"""
+    out: dict[str, Any] = {
+        "event_type": event_type,
+        "action": action,
+        "entity": entity,
+        "result": result,
+    }
+    if source:
+        out["source"] = source
+    if counts:
+        out["counts"] = counts
+    if extra:
+        out.update(extra)
+    return out
 
 
 def _validate_smart_merge_plan(plan: dict[str, Any], expected_ids: set[str]) -> None:
@@ -647,6 +685,181 @@ class DictionarySmartMergeRequest(BaseModel):
     vertical_id: str = Field(min_length=1, max_length=64)
     dimension_6way: str = Field(min_length=1, max_length=64)
     queue_ids: list[str] = Field(min_length=1, max_length=120)
+
+
+class DictionaryTaxonomyAgentReviewRequest(BaseModel):
+    vertical_id: str = Field(min_length=1, max_length=64)
+    dimension_6way: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/taxonomy/agent-review")
+def post_dictionary_taxonomy_agent_review(
+    body: DictionaryTaxonomyAgentReviewRequest,
+    _rbac: Annotated[str, Depends(require_mutator_role)],
+    actor: Annotated[str | None, Depends(get_rsa_username_optional)] = None,
+    sb: Client = Depends(require_supabase),
+) -> dict:
+    """词典维度智能审核：把该维度词条交给模型，驳回不合适词条并回流到主题挖掘队列。"""
+    settings = get_settings()
+    url = (settings.deepseek_adapter_dictionary_smart_merge_url or "").strip()
+    if not url:
+        raise HTTPException(
+            status_code=400,
+            detail="未配置 DEEPSEEK_ADAPTER_DICTIONARY_SMART_MERGE_URL（默认 http://127.0.0.1:9100/dictionary-smart-merge）",
+        )
+    try:
+        vid = assert_valid_vertical_id(body.vertical_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    dim = body.dimension_6way.strip().lower()
+    if dim not in _SIX_DIMS:
+        raise HTTPException(status_code=400, detail="无效 dimension_6way")
+
+    try:
+        res = (
+            sb.table("taxonomy_entries")
+            .select("id,canonical,aliases")
+            .eq("source_layer", "overlay")
+            .eq("dictionary_vertical_id", vid)
+            .eq("dimension_6way", dim)
+            .order("updated_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取词典条目失败：{e!s}") from e
+    rows = res.data or []
+    entries: list[dict[str, Any]] = []
+    for r in rows:
+        canonical = str(r.get("canonical") or "").strip()
+        aliases = _normalize_synonyms_json(r.get("aliases"))
+        if not canonical or not aliases:
+            continue
+        entries.append(
+            {
+                "id": str(r.get("id") or "").strip(),
+                "canonical": canonical,
+                "aliases": aliases,
+            }
+        )
+    if not entries:
+        return {
+            "ok": True,
+            "vertical_id": vid,
+            "dimension_6way": dim,
+            "total": 0,
+            "rejected_entries": 0,
+            "rejected_aliases": 0,
+            "queued": 0,
+        }
+
+    payload = {
+        "dictionary_vertical_id": vid,
+        "dictionary_label_zh": _vertical_label_zh(vid),
+        "dimension_6way": dim,
+        "items": [
+            {
+                "queue_id": str(i),
+                "canonical": x["canonical"],
+                "synonyms": x["aliases"],
+            }
+            for i, x in enumerate(entries)
+        ],
+    }
+    timeout = min(240.0, max(60.0, float(settings.agent_enrichment_timeout_seconds or 120.0) * 1.5))
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(url, json=payload, headers=_adapter_auth_headers(settings))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"智能审核服务不可达：{e!s}") from e
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=f"智能审核服务错误 HTTP {resp.status_code}: {resp.text[:1200]}",
+        )
+    try:
+        outer = resp.json()
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=f"智能审核响应非 JSON：{e!s}") from e
+    plan = outer.get("plan") if isinstance(outer, dict) else None
+    if not isinstance(plan, dict):
+        raise HTTPException(status_code=502, detail="智能审核响应缺少 plan")
+    rejects = plan.get("rejects") or []
+    if not isinstance(rejects, list):
+        raise HTTPException(status_code=502, detail="智能审核 plan.rejects 非数组")
+
+    rejected_entries = 0
+    rejected_aliases = 0
+    queued = 0
+    now = _utc_now_iso()
+    for item in rejects:
+        if not isinstance(item, dict):
+            continue
+        qid = str(item.get("queue_id") or "").strip()
+        reason = str(item.get("reason_zh") or "").strip()[:500]
+        if not qid.isdigit():
+            continue
+        idx = int(qid)
+        if idx < 0 or idx >= len(entries):
+            continue
+        e = entries[idx]
+        if not e["id"]:
+            continue
+        try:
+            sb.table("taxonomy_entries").delete().eq("id", e["id"]).execute()
+        except Exception as ex:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"删除词典条目失败：{ex!s}") from ex
+        rejected_entries += 1
+        aliases = e["aliases"]
+        rejected_aliases += len(aliases)
+        first_qid: str | None = None
+        for al in aliases:
+            qr = _enqueue_rejected_alias_for_review(
+                sb,
+                vertical_id=vid,
+                dimension_6way=dim,
+                canonical=e["canonical"],
+                alias=al,
+                actor_username=actor,
+            )
+            qrid = str(qr.get("id") or "").strip() or None
+            if qrid and not first_qid:
+                first_qid = qrid
+            if qr.get("action") in {"inserted", "merged"}:
+                queued += 1
+        try_record_audit(
+            sb,
+            username=audit_actor_name(actor),
+            menu_key="pain-audit",
+            message=f"词典智能审核驳回：{e['canonical']}",
+            detail=_audit_detail(
+                event_type="dictionary_taxonomy_agent_reject",
+                action="reject",
+                entity="taxonomy_entry",
+                source="dictionary-taxonomy-agent-review",
+                counts={"aliases": len(aliases)},
+                extra={
+                    "review_queue_id": first_qid,
+                    "vertical_id": vid,
+                    "dimension_6way": dim,
+                    "canonical": e["canonical"],
+                    "aliases": aliases,
+                    "reason_zh": reason,
+                    "agent_provider": "dictionary-taxonomy-agent-review",
+                    "updated_at": now,
+                },
+            ),
+        )
+
+    return {
+        "ok": True,
+        "vertical_id": vid,
+        "dimension_6way": dim,
+        "total": len(entries),
+        "rejected_entries": rejected_entries,
+        "rejected_aliases": rejected_aliases,
+        "queued": queued,
+    }
 
 
 @router.post("/review-queue/smart-merge")
@@ -833,13 +1046,19 @@ def post_dictionary_review_queue_smart_merge(
             username=audit_actor_name(actor),
             menu_key="pain-audit",
             message=f"智能合并驳回：{qid}",
-            detail={
-                "review_queue_id": qid,
-                "vertical_id": vid,
-                "dimension_6way": dim,
-                "reason_zh": reason,
-                "agent_provider": "dictionary-smart-merge",
-            },
+            detail=_audit_detail(
+                event_type="topic_smart_merge_reject",
+                action="reject",
+                entity="dictionary_review_queue",
+                source="dictionary-smart-merge",
+                extra={
+                    "review_queue_id": qid,
+                    "vertical_id": vid,
+                    "dimension_6way": dim,
+                    "reason_zh": reason,
+                    "agent_provider": "dictionary-smart-merge",
+                },
+            ),
         )
 
     try_record_audit(
@@ -847,15 +1066,24 @@ def post_dictionary_review_queue_smart_merge(
         username=audit_actor_name(actor),
         menu_key="pain-audit",
         message=f"智能合并完成：merge_keeps={merged_keeps} drops={deleted_drops} updates={updated_rows} rejects={rejected_n}",
-        detail={
-            "vertical_id": vid,
-            "dimension_6way": dim,
-            "queue_ids": sorted(expected_ids),
-            "merge_keeps": merged_keeps,
-            "merge_drops_deleted": deleted_drops,
-            "updates": updated_rows,
-            "rejects": rejected_n,
-        },
+        detail=_audit_detail(
+            event_type="topic_smart_merge_batch",
+            action="merge",
+            entity="dictionary_review_queue",
+            source="dictionary-smart-merge",
+            counts={
+                "merge_keeps": merged_keeps,
+                "merge_drops_deleted": deleted_drops,
+                "updates": updated_rows,
+                "rejects": rejected_n,
+                "queue_count": len(expected_ids),
+            },
+            extra={
+                "vertical_id": vid,
+                "dimension_6way": dim,
+                "queue_ids": sorted(expected_ids),
+            },
+        ),
     )
 
     return {
@@ -1047,14 +1275,20 @@ async def post_dictionary_import_excel(
         username=audit_actor_name(actor),
         menu_key="dictionary",
         message=f"词典 Excel 导入：{vid}，{len(entries)} 条",
-        detail={
-            "vertical_id": vid,
-            "imported": len(entries),
-            "batch_id": batch_id,
-            "filename": raw_name,
-            "overlay": updated,
-            "warnings": row_errors[:100],
-        },
+        detail=_audit_detail(
+            event_type="dictionary_import_excel",
+            action="import",
+            entity="taxonomy_entries.overlay",
+            source="excel",
+            counts={"imported": len(entries), "warnings": len(row_errors)},
+            extra={
+                "vertical_id": vid,
+                "batch_id": batch_id,
+                "filename": raw_name,
+                "overlay": updated,
+                "warnings": row_errors[:100],
+            },
+        ),
     )
     return {
         "ok": True,
@@ -1152,16 +1386,23 @@ def post_approve_dictionary_entry(
         username=audit_actor_name(actor),
         menu_key="pain-audit",
         message=f"词典审核通过：{body.canonical.strip()} → {','.join(vertical_ids)} / {dim}",
-        detail={
-            "vertical_ids": vertical_ids,
-            "dimension_6way": dim,
-            "canonical": body.canonical.strip(),
-            "aliases": entry.get("aliases"),
-            "overlay_writes": updated,
-            "batch_id": _strip_opt(body.batch_id),
-            "source_topic_id": _strip_opt(body.source_topic_id),
-            "review_queue_id": rq or None,
-        },
+        detail=_audit_detail(
+            event_type="topic_review_approve",
+            action="approve",
+            entity="dictionary_review_queue",
+            source="manual",
+            counts={"vertical_ids": len(vertical_ids), "aliases": len(entry.get("aliases") or [])},
+            extra={
+                "vertical_ids": vertical_ids,
+                "dimension_6way": dim,
+                "canonical": body.canonical.strip(),
+                "aliases": entry.get("aliases"),
+                "overlay_writes": updated,
+                "batch_id": _strip_opt(body.batch_id),
+                "source_topic_id": _strip_opt(body.source_topic_id),
+                "review_queue_id": rq or None,
+            },
+        ),
     )
     if rq:
         now = _utc_now_iso()
@@ -1384,17 +1625,23 @@ def post_reject_synonym(
         username=audit_actor_name(actor),
         menu_key="dictionary",
         message=f"驳回同义词：{canonical} ↔ {alias}",
-        detail={
-            "vertical_id": body.vertical_id.strip(),
-            "dimension_6way": dim,
-            "canonical": canonical,
-            "alias": alias,
-            "overlay_matched": overlay_result.get("matched"),
-            "overlay_removed": overlay_result.get("removed"),
-            "overlay_entry_deleted": overlay_result.get("entry_deleted"),
-            "review_queue_id": queue_result.get("id"),
-            "review_queue_action": queue_result.get("action"),
-        },
+        detail=_audit_detail(
+            event_type="dictionary_reject_synonym",
+            action="reject",
+            entity="taxonomy_entries.overlay",
+            source="manual",
+            extra={
+                "vertical_id": body.vertical_id.strip(),
+                "dimension_6way": dim,
+                "canonical": canonical,
+                "alias": alias,
+                "overlay_matched": overlay_result.get("matched"),
+                "overlay_removed": overlay_result.get("removed"),
+                "overlay_entry_deleted": overlay_result.get("entry_deleted"),
+                "review_queue_id": queue_result.get("id"),
+                "review_queue_action": queue_result.get("action"),
+            },
+        ),
     )
     return {
         "ok": True,

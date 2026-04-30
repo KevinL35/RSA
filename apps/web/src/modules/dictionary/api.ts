@@ -49,6 +49,25 @@ export function fetchTaxonomyPreview(verticalId: string) {
   return apiGetJson<TaxonomyPreviewResponse>(`/api/v1/dictionary/taxonomy-preview?${q}`)
 }
 
+export type DictionaryTaxonomyAgentReviewBody = {
+  vertical_id: string
+  dimension_6way: string
+}
+
+export type DictionaryTaxonomyAgentReviewResponse = {
+  ok: boolean
+  vertical_id: string
+  dimension_6way: string
+  total: number
+  rejected_entries: number
+  rejected_aliases: number
+  queued: number
+}
+
+export function postDictionaryTaxonomyAgentReview(body: DictionaryTaxonomyAgentReviewBody) {
+  return apiPostJson<DictionaryTaxonomyAgentReviewResponse>('/api/v1/dictionary/taxonomy/agent-review', body)
+}
+
 export type RejectSynonymBody = {
   vertical_id: string
   dimension_6way: string

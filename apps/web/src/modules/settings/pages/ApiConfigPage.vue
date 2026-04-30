@@ -82,9 +82,12 @@
       />
       <el-table :data="userRows" stripe class="block-table">
         <el-table-column prop="username" :label="t('settings.accColUser')" min-width="140" />
-        <el-table-column :label="t('settings.accColStatus')" width="110">
+        <el-table-column :label="t('settings.accColStatus')" width="140">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+            <el-tag v-if="isCurrentLoginUser(row)" type="primary" size="small">
+              {{ t('settings.accCurrentLogin') }}
+            </el-tag>
+            <el-tag v-else :type="row.status === 'active' ? 'success' : 'info'" size="small">
               {{ row.status === 'active' ? t('settings.accStatusActive') : t('settings.accStatusDisabled') }}
             </el-tag>
           </template>
@@ -562,7 +565,7 @@ async function submitEditUser() {
 }
 
 async function confirmDeleteUser(row: PlatformUserRow) {
-  if (row.username === auth.displayUsername.value) {
+  if (isCurrentLoginUser(row)) {
     ElMessage.warning(t('settings.accDeleteSelf'))
     return
   }
@@ -587,6 +590,25 @@ async function confirmDeleteUser(row: PlatformUserRow) {
 onMounted(() => {
   void loadUsers()
 })
+
+function isCurrentLoginUser(row: PlatformUserRow): boolean {
+  const rowName = (row.username || '').trim().toLowerCase()
+  const currentName = resolveCurrentLoginUsername().toLowerCase()
+  return !!rowName && !!currentName && rowName === currentName
+}
+
+function resolveCurrentLoginUsername(): string {
+  const direct = (auth.displayUsername.value || getStoredUsername()).trim()
+  if (direct) return direct
+  try {
+    const raw = localStorage.getItem('rsa_login_credentials')
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { username?: string }
+    return (parsed.username || '').trim()
+  } catch {
+    return ''
+  }
+}
 </script>
 
 <style scoped>

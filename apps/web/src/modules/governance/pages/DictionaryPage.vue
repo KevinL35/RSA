@@ -45,6 +45,16 @@
               {{ preview.dimensions[dim]?.count ?? 0 }}
             </el-tag>
           </div>
+          <div class="block-head-right">
+            <el-button
+              type="primary"
+              class="dim-agent-review-btn"
+              :loading="dimensionReviewing[dim] === true"
+              @click="onDimensionAgentReview(dim)"
+            >
+              {{ t('governance.dictionaryAgentReview') }}
+            </el-button>
+          </div>
         </div>
         <el-table
           :data="preview.dimensions[dim]?.entries ?? []"
@@ -186,6 +196,7 @@ import type { DictionaryVerticalItem, TaxonomyPreviewEntry, TaxonomyPreviewRespo
 import {
   fetchDictionaryVerticals,
   fetchTaxonomyPreview,
+  postDictionaryTaxonomyAgentReview,
   postDictionaryImportExcel,
   postDictionaryRejectSynonym,
 } from '../../dictionary/api'
@@ -220,6 +231,7 @@ const pendingReject = ref<{
   canonical: string
   alias: string
 } | null>(null)
+const dimensionReviewing = ref<Record<string, boolean>>({})
 
 const emptyDescription = computed(() =>
   loadError.value ? t('governance.dictionaryLoadFail') : t('governance.dictionaryPreviewEmpty'),
@@ -373,6 +385,29 @@ async function confirmReject() {
     ElMessage.error(`${t('governance.rejectSynonymFail')}: ${msg}`)
   } finally {
     rejectSubmitting.value = false
+  }
+}
+
+async function onDimensionAgentReview(dim: string) {
+  if (dimensionReviewing.value[dim]) return
+  dimensionReviewing.value = { ...dimensionReviewing.value, [dim]: true }
+  try {
+    const res = await postDictionaryTaxonomyAgentReview({
+      vertical_id: verticalId.value,
+      dimension_6way: dim,
+    })
+    await loadPreview()
+    ElMessage.success(
+      t('governance.dictionaryAgentReviewOk', {
+        rejected_entries: res.rejected_entries ?? 0,
+        queued: res.queued ?? 0,
+      }),
+    )
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`${t('governance.dictionaryAgentReviewFail')}: ${msg}`)
+  } finally {
+    dimensionReviewing.value = { ...dimensionReviewing.value, [dim]: false }
   }
 }
 
@@ -599,6 +634,17 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.block-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dim-agent-review-btn {
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .block-title {

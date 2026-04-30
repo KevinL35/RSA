@@ -31,6 +31,7 @@ FILES=(
   infra/migrations/019_taxonomy_entries_excel_import_defaults.sql
   infra/migrations/020_insight_tasks_ai_summary.sql
   infra/migrations/021_dictionary_review_queue_rejected_kind.sql
+  infra/migrations/022_review_analysis_topic_mining_processed.sql
 )
 
 echo "-- RSA infra migrations bundle (empty project)"

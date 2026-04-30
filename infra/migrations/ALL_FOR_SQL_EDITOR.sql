@@ -503,4 +503,35 @@ ALTER TABLE public.insight_tasks
 COMMENT ON COLUMN public.insight_tasks.ai_summary IS
   'AI 洞察摘要：{ text, model, generated_at, fingerprint }，fingerprint 用于与看板数据对齐缓存';
 
+-- >>> infra/migrations/021_dictionary_review_queue_rejected_kind.sql
+-- 让词典审核队列的 kind 支持 'rejected'，用于「词典管理→驳回同义词」回写场景
+ALTER TABLE public.dictionary_review_queue
+  DROP CONSTRAINT IF EXISTS dictionary_review_queue_kind_check;
+
+ALTER TABLE public.dictionary_review_queue
+  ADD CONSTRAINT dictionary_review_queue_kind_check
+  CHECK (kind IN ('new_discovery', 'existing', 'rejected'));
+
+COMMENT ON COLUMN public.dictionary_review_queue.kind IS
+  'new_discovery: BERTopic 等离线管线发现；existing: 词典已有词条的别名建议；rejected: 词典管理人工驳回同义词回流';
+
+-- >>> infra/migrations/022_review_analysis_topic_mining_processed.sql
+-- 主题挖掘去重标记：避免同一条 review_analysis 被重复送入 BERTopic
+
+ALTER TABLE public.review_analysis
+ADD COLUMN IF NOT EXISTS topic_mining_processed_at TIMESTAMPTZ;
+
+ALTER TABLE public.review_analysis
+ADD COLUMN IF NOT EXISTS topic_mining_batch_id TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_review_analysis_topic_mining_unprocessed
+  ON public.review_analysis (dimension_match_status, topic_mining_processed_at)
+  WHERE dimension_match_status = 'unmatched' AND topic_mining_processed_at IS NULL;
+
+COMMENT ON COLUMN public.review_analysis.topic_mining_processed_at IS
+'Timestamp when this unmatched review_analysis row was consumed by topic mining';
+
+COMMENT ON COLUMN public.review_analysis.topic_mining_batch_id IS
+'Batch id that consumed this row in topic mining';
+
 -- done

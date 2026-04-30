@@ -5,7 +5,7 @@
       <p class="page-subtitle">{{ t('insight.pageSubtitle') }}</p>
     </header>
     <div class="toolbar">
-      <div class="toolbar-left">
+      <div class="toolbar-right">
         <el-button type="primary" @click="onAddProduct">{{ t('insight.addProduct') }}</el-button>
         <el-button
           type="primary"
@@ -14,14 +14,14 @@
         >
           {{ t('insight.uploadReviews') }}
         </el-button>
+        <el-button
+          class="toolbar-refresh-square"
+          :icon="Refresh"
+          @click="onRefresh"
+          :loading="loading"
+          :title="t('insight.refresh')"
+        />
       </div>
-      <el-button
-        class="toolbar-refresh-square"
-        :icon="Refresh"
-        @click="onRefresh"
-        :loading="loading"
-        :title="t('insight.refresh')"
-      />
     </div>
 
     <el-table :data="pagedRows" stripe class="insight-table" :empty-text="t('insight.tableEmpty')">
@@ -1156,20 +1156,21 @@ function onViewResults(row: InsightProductRow) {
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-bottom: 16px;
 }
 
-.toolbar-left {
+.toolbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Element Plus 相邻按钮默认有 margin-left（约 12px），会盖掉 flex gap；清零后 gap 才生效 */
-.toolbar-left :deep(.el-button) {
+.toolbar-right :deep(.el-button) {
   margin-inline: 0;
 }
 

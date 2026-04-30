@@ -46,9 +46,6 @@ import { useAuthStore, type UserRole } from '../store/auth.store'
 
 const { t } = useI18n()
 
-const DEMO_USER = 'admin'
-const DEMO_PASS = 'admin'
-
 const REMEMBER_KEY = 'rsa_login_remember'
 const CRED_KEY = 'rsa_login_credentials'
 
@@ -147,24 +144,9 @@ async function onSubmit() {
   loading.value = true
   try {
     const plat = await tryPlatformLogin()
-    if (plat === 'auth_fail') {
+    if (plat !== 'ok') {
       ElMessage.error(t('login.failed'))
       return
-    }
-    if (plat === 'ok') {
-      persistRememberPreference()
-      const redir = route.query.redirect
-      router.replace(typeof redir === 'string' && redir.startsWith('/') ? redir : '/insight-analysis')
-      return
-    }
-
-    await auth.login(username.value, password.value, 'admin')
-    if (
-      username.value === DEMO_USER &&
-      password.value === DEMO_PASS &&
-      plat === 'skip'
-    ) {
-      ElMessage.warning(t('login.demoFallback'))
     }
     persistRememberPreference()
     const redir = route.query.redirect
