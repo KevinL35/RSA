@@ -64,9 +64,16 @@ class Settings(BaseSettings):
     insight_summary_timeout_seconds: float = 120.0
     # 分析任务成功后自动调一次 AI 摘要（异步线程，失败不阻断 analyze）；用户也能在结果页手动「重新生成」
     insight_summary_auto_after_analyze: bool = True
+    # 分析任务成功后自动触发一次「单任务主题挖掘」（异步线程，失败不阻断 analyze）
+    topic_discovery_auto_after_analyze: bool = False
+    topic_discovery_auto_embedding_model: str = "ml/all-MiniLM-L6-v2"
 
     # 可选：词典分析后的智能 Agent 增强（补洞 / 抽检）；见 agent_enrichment 模块
     agent_enrichment_url: str | None = None
+    # 词典「智能体审核」默认走 DeepSeek 适配层；未显式配置 AGENT_ENRICHMENT_URL 时回退到此地址
+    deepseek_adapter_agent_enrich_url: str = "http://127.0.0.1:9100/agent-enrich"
+    # 智能体审核「智能合并」：专用 JSON 规划（不走 TB-3 agent-enrich）
+    deepseek_adapter_dictionary_smart_merge_url: str = "http://127.0.0.1:9100/dictionary-smart-merge"
     agent_enrichment_api_key: str | None = None
     agent_enrichment_timeout_seconds: float = 120.0
     agent_enrichment_max_retries: int = 2

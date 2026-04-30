@@ -372,8 +372,9 @@ const pageSize = ref(20)
 const pageSizeOptions = [10, 20, 50] as const
 
 const dictionaryVerticals = ref<DictionaryVerticalItem[]>([])
-const dictionaryVerticalId = ref('general')
-const uploadDictionaryVerticalId = ref('general')
+const DEFAULT_VERTICAL_ID = 'electronics'
+const dictionaryVerticalId = ref(DEFAULT_VERTICAL_ID)
+const uploadDictionaryVerticalId = ref(DEFAULT_VERTICAL_ID)
 
 const addDialogVisible = ref(false)
 const linkInputs = ref<string[]>([''])
@@ -403,17 +404,11 @@ const dictionaryVerticalOptions = computed(() => {
       label: locale.value === 'zh-CN' ? v.label_zh : v.label_en,
     }))
   }
-  return [
-    { id: 'general', label: locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary' },
-    { id: 'electronics', label: locale.value === 'zh-CN' ? '电子产品' : 'Electronics' },
-  ]
+  return [{ id: 'electronics', label: locale.value === 'zh-CN' ? '电子产品' : 'Electronics' }]
 })
 
 function verticalLabelForTask(vid: string | null | undefined): string {
-  const id = (vid || 'general').trim() || 'general'
-  if (id === 'general') {
-    return locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary'
-  }
+  const id = (vid || DEFAULT_VERTICAL_ID).trim() || DEFAULT_VERTICAL_ID
   const v = dictionaryVerticals.value.find((x) => x.id === id)
   if (!v) return id
   return locale.value === 'zh-CN' ? v.label_zh : v.label_en
@@ -454,7 +449,7 @@ function appendLinkRow() {
 
 function resetAddForm() {
   linkInputs.value = ['']
-  dictionaryVerticalId.value = 'general'
+  dictionaryVerticalId.value = DEFAULT_VERTICAL_ID
 }
 
 const rows = ref<InsightProductRow[]>([])
@@ -994,7 +989,7 @@ function onUploadReviews() {
 
 function resetUploadForm() {
   uploadLinkInput.value = ''
-  uploadDictionaryVerticalId.value = 'general'
+  uploadDictionaryVerticalId.value = DEFAULT_VERTICAL_ID
   uploadExcelFile.value = null
   uploadExcelRef.value?.clearFiles()
 }

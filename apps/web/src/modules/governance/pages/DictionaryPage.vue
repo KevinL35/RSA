@@ -202,7 +202,7 @@ const selectFallbackPlacementsBottom = SELECT_FALLBACK_PLACEMENTS_BOTTOM
 const loading = ref(true)
 const loadError = ref(false)
 const verticals = ref<DictionaryVerticalItem[]>([])
-const verticalId = ref('general')
+const verticalId = ref('electronics')
 const preview = ref<TaxonomyPreviewResponse | null>(null)
 
 const DICTIONARY_IMPORT_MAX_BYTES = 10 * 1024 * 1024
@@ -337,9 +337,6 @@ async function submitDictionaryImport() {
 }
 
 function verticalLabel(v: DictionaryVerticalItem) {
-  if (v.id === 'general') {
-    return locale.value === 'zh-CN' ? '默认词典' : 'Default dictionary'
-  }
   return locale.value === 'zh-CN' ? v.label_zh : v.label_en
 }
 

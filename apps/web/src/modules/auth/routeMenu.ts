@@ -6,7 +6,6 @@ export function pathRequiredMenuKey(path: string): string | null {
   if (path.startsWith('/dictionary')) return 'dictionary'
   if (path.startsWith('/system-settings/api-config')) return 'api-config'
   if (path.startsWith('/system-settings/audit-log')) return 'audit-log'
-  if (path.startsWith('/system-settings/account-permissions')) return 'account-permissions'
   return null
 }
 
@@ -14,9 +13,8 @@ const KEY_ORDER: { key: string; path: string }[] = [
   { key: 'insight', path: '/insight-analysis' },
   { key: 'pain-audit', path: '/dictionary-review' },
   { key: 'dictionary', path: '/dictionary' },
-  { key: 'api-config', path: '/system-settings/api-config' },
   { key: 'audit-log', path: '/system-settings/audit-log' },
-  { key: 'account-permissions', path: '/system-settings/account-permissions' },
+  { key: 'api-config', path: '/system-settings/api-config' },
 ]
 
 export function firstAllowedPath(menuKeys: string[]): string {

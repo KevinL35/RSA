@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from supabase import Client
+from app.modules.dictionary.verticals import DEFAULT_VERTICAL_ID
 
 
 def _count_reviews_for_task(sb: Client, task_id: UUID) -> int:
@@ -84,7 +85,7 @@ def build_insight_dashboard(
         "analysis_provider_id": task.get("analysis_provider_id"),
         "analyzed_at": task.get("updated_at"),
         "product_snapshot": task.get("product_snapshot"),
-        "dictionary_vertical_id": task.get("dictionary_vertical_id") or "general",
+        "dictionary_vertical_id": task.get("dictionary_vertical_id") or DEFAULT_VERTICAL_ID,
         "review_total_count": review_total_count,
         "matched_review_count": 0,
     }

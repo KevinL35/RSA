@@ -11,7 +11,6 @@ import PainAuditPage from '../../modules/governance/pages/PainAuditPage.vue'
 import DictionaryPage from '../../modules/governance/pages/DictionaryPage.vue'
 import ApiConfigPage from '../../modules/settings/pages/ApiConfigPage.vue'
 import AuditLogPage from '../../modules/settings/pages/AuditLogPage.vue'
-import AccountPermissionsPage from '../../modules/settings/pages/AccountPermissionsPage.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -35,13 +34,8 @@ const router = createRouter({
         { path: 'pain-audit', redirect: '/dictionary-review' },
         { path: 'dictionary', component: DictionaryPage, meta: { allowedRoles: ['admin'] } },
         { path: 'task-center', redirect: '/insight-analysis' },
-        { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
         { path: 'system-settings/audit-log', component: AuditLogPage, meta: { allowedRoles: ['admin'] } },
-        {
-          path: 'system-settings/account-permissions',
-          component: AccountPermissionsPage,
-          meta: { allowedRoles: ['admin'] },
-        },
+        { path: 'system-settings/api-config', component: ApiConfigPage, meta: { allowedRoles: ['admin'] } },
         { path: ':pathMatch(.*)*', redirect: '/insight-analysis' },
       ],
     },

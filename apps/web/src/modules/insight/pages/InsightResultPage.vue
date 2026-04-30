@@ -826,7 +826,7 @@ function highlightEvidence(ev: InsightEvidenceItem) {
 async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {
   taxonomyPreview.value = null
   if (!d?.dictionary_vertical_id) return
-  const vid = String(d.dictionary_vertical_id).trim() || 'general'
+  const vid = String(d.dictionary_vertical_id).trim() || 'electronics'
   try {
     taxonomyPreview.value = await fetchTaxonomyPreview(vid)
   } catch {

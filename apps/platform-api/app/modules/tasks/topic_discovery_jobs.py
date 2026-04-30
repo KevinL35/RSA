@@ -196,7 +196,7 @@ def import_topic_pool_to_review_queue(
     """把指定 batch 的 BERTopic 三池候选导入 dictionary_review_queue（status=pending），
     供「主题挖掘」页面审核入库。
     - 默认六维：highlight→pros / pain→cons / observation→usage_scenario，可在审核页修改。
-    - 默认词典类目 general。
+    - 默认词典类目 electronics（可在后续审核中再分配至其他词典）。
     - 同 batch + 同 canonical 去重，且与 dictionary_review_queue 中现有 pending 同名词条去重。
     返回成功插入条数。
     """
@@ -227,7 +227,7 @@ def import_topic_pool_to_review_queue(
                     "kind": "new_discovery",
                     "canonical": canonical,
                     "synonyms": aliases,
-                    "dictionary_vertical_id": "general",
+                    "dictionary_vertical_id": "electronics",
                     "dimension_6way": dim,
                     "batch_id": batch_id,
                     "source_topic_id": str(row.get("source_topic_id") or ""),
@@ -310,7 +310,15 @@ def _run_in_thread(
         return
 
     py = _resolve_topic_python()
-    cmd = [py, str(script), "--embedding-model", embedding_model]
+    cmd = [
+        py,
+        str(script),
+        "--embedding-model",
+        embedding_model,
+        # 与 bertopic_supabase_pools.py 默认一致；单任务情感桶较小时仍能跑
+        "--min-bucket-docs",
+        "8",
+    ]
     if insight_task_id:
         cmd.extend(["--insight-task-id", insight_task_id])
     if dry_run:

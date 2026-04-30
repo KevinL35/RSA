@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.modules.dictionary.verticals import DEFAULT_VERTICAL_ID
 
 from .normalize import build_canonical_response
 from .resolve import effective_analysis_provider_id, resolve_analysis_endpoint
@@ -68,7 +69,7 @@ def analyze_reviews(
 
     effective_id = effective_analysis_provider_id(cfg, task_analysis_provider_id)
 
-    dvid = (dictionary_vertical_id or "general").strip() or "general"
+    dvid = (dictionary_vertical_id or DEFAULT_VERTICAL_ID).strip() or DEFAULT_VERTICAL_ID
 
     if cfg.analysis_provider_mock:
         raw = _mock_payload(effective_id, reviews)

@@ -135,19 +135,22 @@ def _build_bertopic(
     from sklearn.feature_extraction.text import CountVectorizer
 
     n_docs = len(docs)
-    min_topic_size = int(cfg.get("min_topic_size", 10))
-    if min_topic_size >= n_docs:
-        raise ValueError(f"min_topic_size（{min_topic_size}）>= 文档数（{n_docs}）")
+    if n_docs < 3:
+        raise ValueError(f"文档数过少（{n_docs}），至少需要 3 条有效评论文本才能跑 BERTopic")
+    # yaml 里的 min_topic_size 往往按「大任务」调；单 ASIN / 小桶时必须压到 < n_docs，否则全是噪声簇或 0 主题
+    min_topic_size_cfg = int(cfg.get("min_topic_size", 10))
+    min_topic_size = max(2, min(min_topic_size_cfg, n_docs - 1))
     nr_topics = cfg.get("nr_topics")
     if nr_topics is not None:
         nr_topics = int(nr_topics)
 
     n_neighbors = min(15, max(2, n_docs - 1))
     n_components = min(5, max(2, n_docs - 1))
-    min_df = 2 if n_docs >= 20 else 1
-
+    # BERTopic 在 _c_tf_idf 阶段会把「每个主题」当成一条文档；min_df>1 时主题数一少就会触发
+    # ValueError: max_df corresponds to < documents than min_df。小样本统一用 min_df=1 更稳。
     vectorizer_model = CountVectorizer(
-        min_df=min_df,
+        min_df=1,
+        max_df=1.0,
         ngram_range=(1, 2),
         stop_words="english",
     )
@@ -291,20 +294,30 @@ def run_job(
                 "reason": f"文档数 < {min_bucket_docs}",
             }
             continue
-        tm = _build_bertopic(docs, embedding_model, cfg)
-        tm.fit_transform(docs)
         table_name = {
             "highlight": "topic_pool_highlight",
             "pain": "topic_pool_pain",
             "observation": "topic_pool_observation",
         }[table_kind]
-        rows = _topic_rows_for_pool(
-            tm,
-            batch_id=bid,
-            platform=platform,
-            product_id=product_id,
-            source_sentiment=sentiment_label,
-        )
+        try:
+            tm = _build_bertopic(docs, embedding_model, cfg)
+            tm.fit_transform(docs)
+            rows = _topic_rows_for_pool(
+                tm,
+                batch_id=bid,
+                platform=platform,
+                product_id=product_id,
+                source_sentiment=sentiment_label,
+            )
+        except Exception as e:  # noqa: BLE001
+            summary["pools"][sentiment_label] = {
+                "skipped": False,
+                "n_docs": len(docs),
+                "table": table_name,
+                "n_topics": 0,
+                "error": str(e)[:800],
+            }
+            continue
         summary["pools"][sentiment_label] = {
             "skipped": False,
             "n_docs": len(docs),
@@ -343,8 +356,8 @@ def main() -> None:
     p.add_argument(
         "--min-bucket-docs",
         type=int,
-        default=15,
-        help="单情感桶至少多少条才跑 BERTopic（需 > min_topic_size）",
+        default=8,
+        help="单情感桶至少多少条才跑 BERTopic（与 min_topic_size 配合；默认 8 便于单任务小样本）",
     )
     args = p.parse_args()
 

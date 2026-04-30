@@ -95,7 +95,7 @@ export function postDictionaryApproveEntry(body: ApproveDictionaryEntryBody) {
 
 export type DictionaryReviewQueueItem = {
   id: string
-  kind: 'new_discovery' | 'existing'
+  kind: 'new_discovery' | 'existing' | 'rejected'
   canonical: string
   synonyms: string[]
   vertical_id: string
@@ -103,6 +103,8 @@ export type DictionaryReviewQueueItem = {
   batch_id?: string | null
   source_topic_id?: string | null
   quality_score?: number | null
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export type PatchDictionaryReviewQueueBody = {
@@ -131,6 +133,110 @@ export type DictionaryReviewQueueResponse = {
 
 export function fetchDictionaryReviewQueue() {
   return apiGetJson<DictionaryReviewQueueResponse>('/api/v1/dictionary/review-queue')
+}
+
+export type PostDictionaryReviewQueueBody = {
+  canonical: string
+  synonyms: string[]
+  /** 省略时使用平台默认类目（与后端 DEFAULT_VERTICAL_ID 一致） */
+  vertical_id?: string | null
+}
+
+export type PostDictionaryReviewQueueResponse = {
+  ok: boolean
+  merged?: boolean
+  item: DictionaryReviewQueueItem
+}
+
+export function postDictionaryReviewQueue(body: PostDictionaryReviewQueueBody) {
+  return apiPostJson<PostDictionaryReviewQueueResponse>('/api/v1/dictionary/review-queue', body)
+}
+
+export type DictionaryAgentReviewResultItem = {
+  id: string
+  canonical?: string
+  before_dimension_6way?: string | null
+  suggested_dimension_6way?: string | null
+}
+
+export type DictionaryAgentReviewResponse = {
+  ok: boolean
+  total: number
+  reviewed: number
+  updated: number
+  items: DictionaryAgentReviewResultItem[]
+}
+
+export function postDictionaryAgentReview(limit = 50) {
+  return apiPostJson<DictionaryAgentReviewResponse>(
+    `/api/v1/dictionary/review-queue/agent-review?limit=${encodeURIComponent(String(limit))}`,
+    {},
+  )
+}
+
+export type DictionarySmartMergeBody = {
+  vertical_id: string
+  dimension_6way: string
+  queue_ids: string[]
+}
+
+export type DictionarySmartMergeResponse = {
+  ok: boolean
+  vertical_id?: string
+  dimension_6way?: string
+  merge_keeps?: number
+  merge_drops_deleted?: number
+  updates?: number
+  rejects?: number
+  /** 本次请求里带给模型的「已入库词条」条数（同词典同六维） */
+  existing_dictionary_context_sent?: number
+  existing_dictionary_context_total?: number
+  existing_dictionary_context_truncated?: boolean
+}
+
+export function postDictionarySmartMerge(body: DictionarySmartMergeBody) {
+  return apiPostJson<DictionarySmartMergeResponse>('/api/v1/dictionary/review-queue/smart-merge', body)
+}
+
+export type DictionaryReviewRecordsResponse = {
+  items: Array<{
+    review_queue_id?: string | null
+    canonical?: string | null
+    synonyms?: string[]
+    agent_reviewed_at?: string | null
+    suggested_dimension_6way?: string | null
+    approved_at?: string | null
+    approved_dimension_6way?: string | null
+    vertical_ids?: string[]
+    target_dictionary_table?: string | null
+  }>
+  limit: number
+}
+
+export function fetchDictionaryReviewRecords(limit = 100) {
+  return apiGetJson<DictionaryReviewRecordsResponse>(
+    `/api/v1/dictionary/review-records?limit=${encodeURIComponent(String(limit))}`,
+  )
+}
+
+export type DictionaryReviewMergeLogsResponse = {
+  items: Array<{
+    at?: string | null
+    action: 'approved' | 'rejected'
+    review_queue_id?: string | null
+    canonical?: string | null
+    vertical_id?: string | null
+    dimension_6way?: string | null
+    source?: string | null
+    reason_zh?: string | null
+  }>
+  limit: number
+}
+
+export function fetchDictionaryReviewMergeLogs(limit = 100) {
+  return apiGetJson<DictionaryReviewMergeLogsResponse>(
+    `/api/v1/dictionary/review-merge-logs?limit=${encodeURIComponent(String(limit))}`,
+  )
 }
 
 export type DictionaryImportExcelResponse = {

@@ -178,6 +178,13 @@ def run_analyze_for_task(
 
     if settings.insight_summary_auto_after_analyze:
         _spawn_ai_summary_async(sb, task_id)
+    if settings.topic_discovery_auto_after_analyze:
+        _spawn_topic_discovery_async(
+            sb,
+            task_id,
+            embedding_model=(settings.topic_discovery_auto_embedding_model or "").strip()
+            or "ml/all-MiniLM-L6-v2",
+        )
 
     out: dict = {
         "task": enrich_task_for_task_center(task_row),
@@ -204,5 +211,42 @@ def _spawn_ai_summary_async(sb: Client, task_id: UUID) -> None:
     threading.Thread(
         target=_runner,
         name=f"ai-summary-{str(task_id)[:8]}",
+        daemon=True,
+    ).start()
+
+
+def _spawn_topic_discovery_async(sb: Client, task_id: UUID, *, embedding_model: str) -> None:
+    """analyze 成功后后台触发单任务主题挖掘；若已有进行中任务则跳过。"""
+
+    def _runner() -> None:
+        try:
+            from app.modules.tasks.topic_discovery_jobs import create_job, get_latest_for_task
+
+            latest = get_latest_for_task(sb, task_id)
+            if latest and latest.get("status") in ("pending", "running"):
+                log.info(
+                    "topic_discovery auto-skip for task=%s: job already %s",
+                    task_id,
+                    latest.get("status"),
+                )
+                return
+
+            job = create_job(
+                sb,
+                insight_task_id=task_id,
+                embedding_model=embedding_model,
+                dry_run=False,
+            )
+            log.info(
+                "topic_discovery auto-triggered for task=%s job=%s",
+                task_id,
+                job.get("id"),
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("topic_discovery auto-trigger failed for task=%s: %s", task_id, e)
+
+    threading.Thread(
+        target=_runner,
+        name=f"topic-discovery-{str(task_id)[:8]}",
         daemon=True,
     ).start()

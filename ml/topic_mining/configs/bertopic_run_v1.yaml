@@ -4,7 +4,8 @@ version: "1.0.0"
 task: "bertopic_offline_discovery"
 
 embedding_model: "all-MiniLM-L6-v2"
-min_topic_size: 12
+# 单任务/单桶评论较少时过大易「全噪声簇」或 0 主题；脚本内会再压到 < 桶内文档数
+min_topic_size: 8
 # null = BERTopic 自动估计主题数
 nr_topics: null
 calculate_probabilities: false

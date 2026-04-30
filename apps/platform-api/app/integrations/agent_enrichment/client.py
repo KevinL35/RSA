@@ -19,6 +19,7 @@ from typing import Any
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.modules.dictionary.verticals import DEFAULT_VERTICAL_ID
 from app.integrations.analysis_provider.normalize import build_canonical_response
 
 from .merge import is_dictionary_gap, merge_gap_fill, merge_sample_keywords
@@ -73,7 +74,7 @@ def call_agent_enrichment_batch(
         "insight_task_id": insight_task_id,
         "platform": platform,
         "product_id": product_id,
-        "dictionary_vertical_id": (dictionary_vertical_id or "general").strip() or "general",
+        "dictionary_vertical_id": (dictionary_vertical_id or DEFAULT_VERTICAL_ID).strip() or DEFAULT_VERTICAL_ID,
         "reviews": [_review_payload_row(r) for r in reviews_subset],
     }
 

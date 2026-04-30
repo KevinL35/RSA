@@ -12,6 +12,9 @@ platform-api .env：
 Agent 补洞（可选，同一进程）：
   AGENT_ENRICHMENT_URL=http://127.0.0.1:9100/agent-enrich
 
+词典智能合并（platform-api 主题挖掘 / 智能体审核）：
+  POST /dictionary-smart-merge  （platform-api 默认 DEEPSEEK_ADAPTER_DICTIONARY_SMART_MERGE_URL）
+
 洞察摘要（可选，同一进程）：
   INSIGHT_SUMMARY_URL=http://127.0.0.1:9100/insight-summary
 """
@@ -38,6 +41,8 @@ class Settings(BaseSettings):
     # 摘要任务（/insight-summary）专用模型；默认 deepseek-chat
     # 摘要场景不需要思维链。可在 .env 单独覆盖 DEEPSEEK_SUMMARY_MODEL=deepseek-reasoner 强制走推理模型。
     deepseek_summary_model: str = "deepseek-chat"
+    # 词典智能合并：结构化 JSON，默认用 chat 避免 reasoner 输出夹杂思维链
+    deepseek_dictionary_merge_model: str = "deepseek-chat"
     deepseek_summary_request_timeout: float = 90.0
     deepseek_max_reviews_per_call: int = 25
     adapter_shared_secret: str = ""
@@ -47,6 +52,37 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     return Settings()
+
+
+DICTIONARY_SMART_MERGE_SYSTEM = """你是电商评论挖掘与词典治理专家。用户会给出 JSON：词典类目、六维维度、以及多条待审词条（每条含 queue_id、canonical 关键词、synonyms 同义词数组）。
+
+输入中除 `items` 外，还可能有 `existing_dictionary_entries`：该「词典 vertical + 六维 dimension」下**已正式收录**的词条（只读背景，用于去重、消歧、避免与同义词表冲突）。你**不得**对 `existing_dictionary_entries` 输出任何修改指令；只能利用它们来更好地规划对 `items` 的合并、删同义词与驳回。
+
+你的任务：
+1) 判断哪些词条适合进入该「词典 + 六维」正式收录；不适合的应标记为驳回（退回主题挖掘人工区，类型为已驳回）。
+2) 对适合收录的词条：可合并语义重复的多条关键词为一条（选一个更代表性的 canonical），去掉不自然、易歧义、或与该维度无关的同义词；若与 `existing_dictionary_entries` 中某条 canonical 或别名高度重复，应优先合并进更干净的一条或予以驳回并简述理由。
+3) 输出必须是**单个 JSON 对象**，不要 Markdown，不要解释性文字。键名固定如下：
+
+{
+  "updates": [ { "queue_id": "<uuid>", "canonical": "...", "synonyms": ["..."] } ],
+  "rejects": [ { "queue_id": "<uuid>", "reason_zh": "一句话" } ],
+  "merge_groups": [
+    {
+      "keep_queue_id": "<uuid>",
+      "drop_queue_ids": ["<uuid>"],
+      "canonical": "...",
+      "synonyms": ["..."]
+    }
+  ]
+}
+
+硬性规则：
+- 输入里出现的每个 queue_id 必须**恰好出现一次**：要么出现在某条 merge_groups 的 keep_queue_id 或 drop_queue_ids 里，要么出现在 updates 单独一行，要么出现在 rejects 里。不要遗漏、不要重复。
+- updates / merge_groups 里 synonyms 至少含 1 个字符串；不要输出空数组。
+- merge_groups：合并后只保留 keep_queue_id 对应行，语义上吸收 drop_queue_ids 的词条；canonical/synonyms 为合并后的结果。
+- rejects：表示不应收录进该词典该维度（用户会将其标为已驳回并回到主题挖掘列表）。
+- 尽量保留用户语言（中文/英文）与产品术语，不要随意翻译成无关词。
+"""
 
 
 INSIGHT_SUMMARY_SYSTEM = """你是一名资深电商商品分析师，正在为品牌 / 运营团队撰写简报。
@@ -239,6 +275,55 @@ def _run_tb3_body(body: dict[str, Any], authorization: str | None) -> dict[str, 
                 )
 
     return {"reviews": out_items, "_adapter": "deepseek", "_model": model}
+
+
+def _call_dictionary_smart_merge(
+    client: OpenAI,
+    model: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    user_content = (
+        "请严格按 system 要求只输出 JSON 对象，不要其它文字。\n\n输入：\n"
+        + json.dumps(payload, ensure_ascii=False)
+    )
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": DICTIONARY_SMART_MERGE_SYSTEM},
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.15,
+    )
+    msg = resp.choices[0].message.content
+    if not msg:
+        raise ValueError("empty model response")
+    return _extract_json_object(msg)
+
+
+@app.post("/dictionary-smart-merge")
+async def dictionary_smart_merge(request: Request, authorization: str | None = Header(default=None)) -> dict:
+    """词典智能合并：输入多条 queue 词条 JSON，返回 updates / rejects / merge_groups。"""
+    try:
+        body = await request.json()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"invalid json: {e!s}") from e
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be object")
+    s = get_settings()
+    if not (s.deepseek_api_key or "").strip():
+        raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY not set")
+    if not _auth_ok(authorization, s.adapter_shared_secret):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    client = OpenAI(
+        api_key=s.deepseek_api_key.strip(),
+        base_url=s.deepseek_base_url.strip().rstrip("/"),
+    )
+    model = (s.deepseek_dictionary_merge_model or "").strip() or "deepseek-chat"
+    try:
+        plan = _call_dictionary_smart_merge(client, model, body)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"dictionary smart merge failed: {e!s}") from e
+    return {"plan": plan, "_adapter": "deepseek", "_model": model}
 
 
 def _call_deepseek_insight_summary(

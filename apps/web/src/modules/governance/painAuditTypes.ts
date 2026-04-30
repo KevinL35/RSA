@@ -21,6 +21,8 @@ export interface PainAuditRow {
   batch_id?: string
   source_topic_id?: string
   quality_score?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export const SIX_DIMENSIONS: SixDimension[] = [
