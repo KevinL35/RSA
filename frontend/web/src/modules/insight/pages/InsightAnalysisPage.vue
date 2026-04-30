@@ -631,155 +631,14 @@ function reviewStatusLabel(status: 'fetching' | 'completed' | 'failed') {
   return t(`insight.reviewStatus.${status}`)
 }
 
-function pickFirstString(items: Array<unknown>): string | null {
-  for (const x of items) {
-    if (typeof x === 'string') {
-      const s = x.trim()
-      if (s) return s
-    }
-  }
-  return null
-}
-
-function parseCountryLabel(raw: string | null): string {
-  if (!raw) return '—'
-  const v = raw.trim()
-  if (!v) return '—'
-  const low = v.toLowerCase()
-  if (low === 'us' || low === 'usa') return 'United States'
-  if (low === 'uk' || low === 'gb') return 'United Kingdom'
-  return v
-}
-
-function parsePriceLabel(raw: string | null): string {
-  if (!raw) return '—'
-  const s = raw.trim()
-  return s || '—'
-}
-
-function avgRating(items: Array<{ rating?: number | null }>): number {
-  const nums = items.map((x) => x.rating).filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
-  if (nums.length === 0) return 0
-  const val = nums.reduce((a, b) => a + b, 0) / nums.length
-  return Math.round(val * 10) / 10
-}
-
-type ReviewExtra = Record<string, unknown>
-
-function pickFromExtra(extraList: ReviewExtra[], keys: string[]): string | null {
-  for (const extra of extraList) {
-    const found = pickFirstString(keys.map((k) => (extra[k] as string | undefined) ?? ''))
-    if (found) return found
-  }
-  return null
-}
-
-
-const HYDRATE_REVIEWS_CONCURRENCY = 3
-const HYDRATE_REVIEWS_RETRIES = 3
-
-function delay(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms))
-}
-
-async function fetchInsightTaskReviewsWithRetry(taskId: string, limit: number) {
-  let last: unknown
-  for (let attempt = 0; attempt < HYDRATE_REVIEWS_RETRIES; attempt++) {
-    try {
-      return await fetchInsightTaskReviews(taskId, limit)
-    } catch (e) {
-      last = e
-      if (attempt < HYDRATE_REVIEWS_RETRIES - 1) {
-        await delay(350 * (attempt + 1))
-      }
-    }
-  }
-  throw last
-}
-
-async function hydrateRowsWithReviewStats(taskRows: InsightTaskRow[]) {
-  const byId = new Map<string, InsightProductRow>()
-  for (const r of rows.value) {
-    if (r.taskId) byId.set(r.taskId, r)
-  }
-
-  async function hydrateOne(task: InsightTaskRow) {
-    try {
-      const res = await fetchInsightTaskReviewsWithRetry(task.id, 20000)
-      const row = byId.get(task.id)
-      if (!row) return
-      const items = res.items ?? []
-      const extras = items
-        .map((x) => ((x as unknown as { extra?: ReviewExtra | null }).extra ?? null))
-        .filter((x): x is ReviewExtra => !!x && typeof x === 'object')
-
-      const title = pickFirstString([
-        pickFromExtra(extras, ['productTitle', 'product_title', 'title', 'name']) ?? '',
-        row.title,
-      ])
-      const rawExtraImg = pickFromExtra(extras, [
-        'productImage',
-        'product_image',
-        'image',
-        'imageUrl',
-        'image_url',
-      ])
-      const extraImage =
-        rawExtraImg && isLikelyHttpImageUrl(rawExtraImg) ? rawExtraImg.trim() : null
-      const image = pickFirstString([extraImage ?? '', row.imageUrl])
-      const country = parseCountryLabel(
-        pickFromExtra(extras, ['country', 'marketplace', 'site', 'region']) ??
-          (task.platform === 'amazon' ? 'United States' : ''),
-      )
-      const rawPrice = pickFromExtra(extras, [
-        'price',
-        'productPrice',
-        'product_price',
-        'finalPrice',
-        'price_display',
-      ])
-
-      row.title = title ?? row.title
-      row.imageUrl = image ?? row.imageUrl
-      if (extraImage) {
-        row.imageThumbPhase = 'extra'
-      }
-      row.countryLabel = country
-
-      if (rawPrice && rawPrice.trim()) {
-        row.priceLabel = parsePriceLabel(rawPrice)
-      }
-      row.rating = avgRating(items)
-      row.reviewCount = items.length
-      const fs = (task.failure_stage || '').trim().toLowerCase()
-      if (items.length > 0) {
-        row.reviewStatus = 'completed'
-      } else if (task.status === 'failed' && fs === 'fetch') {
-        row.reviewStatus = 'failed'
-      } else {
-        row.reviewStatus = 'fetching'
-      }
-      row.reviewStatusLabel = reviewStatusLabel(row.reviewStatus)
-      row.statusLabel = flowInsightStatusLabel(task.status, row.aiSummaryReady)
-    } catch {
-
-    }
-  }
-
-  for (let i = 0; i < taskRows.length; i += HYDRATE_REVIEWS_CONCURRENCY) {
-    const chunk = taskRows.slice(i, i + HYDRATE_REVIEWS_CONCURRENCY)
-    await Promise.all(chunk.map((task) => hydrateOne(task)))
-  }
-}
-
 async function loadTasks(skipAutoRefresh = false) {
+  clearPendingAiSummaryRefresh()
   loading.value = true
   await ensureDictionaryVerticals()
   try {
     const res = await fetchInsightTasks({ limit: 50 })
     const taskRows = res.items ?? []
     rows.value = taskRows.map(mapTaskToRow)
-    await hydrateRowsWithReviewStats(taskRows)
     if (!skipAutoRefresh) {
       schedulePendingAiSummaryRefresh()
     }
@@ -796,8 +655,10 @@ async function loadTasks(skipAutoRefresh = false) {
 
 
 
-const AI_SUMMARY_LIST_POLL_INTERVAL_MS = 6000
+const AI_SUMMARY_LIST_POLL_INTERVAL_MS = 15000
+const AI_SUMMARY_LIST_POLL_MAX = 4
 let aiSummaryListPollTimer: number | null = null
+let aiSummaryListPollCount = 0
 
 function clearPendingAiSummaryRefresh() {
   if (aiSummaryListPollTimer != null) {
@@ -813,8 +674,10 @@ function hasSuccessWithoutAiSummary(): boolean {
 function schedulePendingAiSummaryRefresh() {
   clearPendingAiSummaryRefresh()
   if (!hasSuccessWithoutAiSummary()) return
+  if (aiSummaryListPollCount >= AI_SUMMARY_LIST_POLL_MAX) return
   aiSummaryListPollTimer = window.setTimeout(() => {
     aiSummaryListPollTimer = null
+    aiSummaryListPollCount += 1
     void loadTasks()
   }, AI_SUMMARY_LIST_POLL_INTERVAL_MS)
 }
@@ -951,6 +814,7 @@ async function submitAddProduct() {
     addDialogVisible.value = false
     resetAddForm()
     page.value = 1
+    aiSummaryListPollCount = 0
     ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
     await loadTasks(true)
 
@@ -1073,6 +937,7 @@ async function submitUploadReviews() {
     uploadDialogVisible.value = false
     resetUploadForm()
     page.value = 1
+    aiSummaryListPollCount = 0
     ElMessage.success(t('insight.uploadReviewsSuccess', { n }))
     await loadTasks()
     try {
@@ -1093,6 +958,7 @@ async function submitUploadReviews() {
 }
 
 async function onRefresh() {
+  aiSummaryListPollCount = 0
   await loadTasks()
   ElMessage.success(t('insight.refreshed'))
 }

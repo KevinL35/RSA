@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import errno
 import random
+import ssl
 import time
 from collections.abc import Callable
 from typing import TypeVar
@@ -18,11 +19,18 @@ _installed = False
 
 
 def _is_transient_network_error(exc: BaseException) -> bool:
+    if isinstance(exc, ssl.SSLError):
+        msg = str(exc).lower()
+        if "handshake operation timed out" in msg or "unexpected_eof_while_reading" in msg:
+            return True
     if isinstance(exc, OSError):
         en = getattr(exc, "errno", None)
         if en is not None and en in (errno.EAGAIN, errno.EWOULDBLOCK):
             return True
-        if "resource temporarily unavailable" in str(exc).lower():
+        msg = str(exc).lower()
+        if "resource temporarily unavailable" in msg:
+            return True
+        if "handshake operation timed out" in msg or "eof occurred in violation of protocol" in msg:
             return True
     try:
         import httpx

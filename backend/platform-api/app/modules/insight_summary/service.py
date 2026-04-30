@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
@@ -131,11 +132,25 @@ def _call_insight_summary_adapter(*, context: dict[str, Any]) -> tuple[str, str]
         headers["Authorization"] = f"Bearer {key}"
     timeout = float(settings.insight_summary_timeout_seconds or 120.0)
     body = {"context": context}
-    try:
-        with httpx.Client(timeout=timeout) as client:
-            resp = client.post(url, json=body, headers=headers)
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=502, detail=f"AI 摘要服务不可达：{e!s}") from e
+    resp: httpx.Response | None = None
+    last_error: httpx.RequestError | None = None
+    for attempt in range(2):
+        try:
+            with httpx.Client(timeout=timeout, trust_env=False) as client:
+                resp = client.post(url, json=body, headers=headers)
+        except httpx.RequestError as e:
+            last_error = e
+            if attempt == 0:
+                time.sleep(0.5)
+                continue
+            raise HTTPException(status_code=502, detail=f"AI 摘要服务不可达：{e!s}") from e
+        if resp.status_code in (500, 502, 503, 504) and attempt == 0:
+            time.sleep(0.5)
+            continue
+        break
+    if resp is None:
+        detail = str(last_error) if last_error else "未知错误"
+        raise HTTPException(status_code=502, detail=f"AI 摘要服务不可达：{detail}")
     if resp.status_code >= 400:
         raise HTTPException(
             status_code=502,

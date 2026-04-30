@@ -6,6 +6,8 @@ TB-2：Pangolin（Pangolinfo）Amazon Review API。
 from __future__ import annotations
 
 import json
+import random
+import time
 from typing import Any
 
 import httpx
@@ -14,6 +16,44 @@ from app.core.config import Settings
 
 from .errors import ReviewProviderError
 from .normalize import normalize_provider_item
+
+
+def _is_transient_pangolin_error(exc: BaseException) -> bool:
+    if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError, httpx.RemoteProtocolError)):
+        return True
+    msg = str(exc).lower()
+    if "unexpected_eof_while_reading" in msg or "eof occurred in violation of protocol" in msg:
+        return True
+    if "handshake operation timed out" in msg or "connection reset" in msg:
+        return True
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and cause is not exc:
+        return _is_transient_pangolin_error(cause)
+    return False
+
+
+def _post_pangolin_json(
+    *,
+    url: str,
+    body: dict[str, Any],
+    headers: dict[str, str],
+    timeout: httpx.Timeout,
+    attempts: int,
+) -> httpx.Response:
+    last: BaseException | None = None
+    total = max(1, attempts)
+    for i in range(total):
+        try:
+            with httpx.Client(timeout=timeout, trust_env=False) as client:
+                return client.post(url, json=body, headers=headers)
+        except httpx.RequestError as e:
+            last = e
+            if i < total - 1 and _is_transient_pangolin_error(e):
+                time.sleep(0.6 * (2**i) + random.uniform(0, 0.2))
+                continue
+            raise
+    assert last is not None
+    raise last
 
 
 def _extract_result_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -123,13 +163,19 @@ def fetch_reviews_via_pangolin(
     client_timeout = httpx.Timeout(timeout_sec, connect=30.0)
 
     try:
-        with httpx.Client(timeout=client_timeout) as client:
-            resp = client.post(scrape_url, json=body, headers=headers)
+        resp = _post_pangolin_json(
+            url=scrape_url,
+            body=body,
+            headers=headers,
+            timeout=client_timeout,
+            attempts=settings.review_fetch_max_retries,
+        )
     except httpx.TimeoutException as e:
         raise ReviewProviderError("REVIEW_PROVIDER_TIMEOUT", str(e) or "Pangolin 请求超时") from e
     except httpx.RequestError as e:
+        code = "REVIEW_PROVIDER_TRANSIENT" if _is_transient_pangolin_error(e) else "REVIEW_PROVIDER_HTTP_ERROR"
         raise ReviewProviderError(
-            "REVIEW_PROVIDER_HTTP_ERROR",
+            code,
             str(e) or "连接 Pangolin 失败",
         ) from e
 

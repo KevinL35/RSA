@@ -25,6 +25,7 @@ import json
 import re
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from openai import OpenAI
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,6 +50,16 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     return Settings()
+
+
+def _openai_client(s: Settings, *, timeout: float | None = None) -> OpenAI:
+    http_client = httpx.Client(trust_env=False, timeout=timeout)
+    return OpenAI(
+        api_key=s.deepseek_api_key.strip(),
+        base_url=s.deepseek_base_url.strip().rstrip("/"),
+        max_retries=2,
+        http_client=http_client,
+    )
 
 
 DICTIONARY_SMART_MERGE_SYSTEM = """你是电商评论挖掘与词典治理专家。用户会给出 JSON：词典类目、六维维度、以及多条待审词条（每条含 queue_id、canonical 关键词、synonyms 同义词数组）。
@@ -241,10 +252,7 @@ def _run_tb3_body(body: dict[str, Any], authorization: str | None) -> dict[str, 
     if not isinstance(reviews, list) or not reviews:
         return {"reviews": []}
 
-    client = OpenAI(
-        api_key=s.deepseek_api_key.strip(),
-        base_url=s.deepseek_base_url.strip().rstrip("/"),
-    )
+    client = _openai_client(s)
     model = s.deepseek_model.strip() or "deepseek-reasoner"
     chunk = max(1, min(50, int(s.deepseek_max_reviews_per_call or 25)))
 
@@ -310,10 +318,7 @@ async def dictionary_smart_merge(request: Request, authorization: str | None = H
         raise HTTPException(status_code=503, detail="DEEPSEEK_API_KEY not set")
     if not _auth_ok(authorization, s.adapter_shared_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    client = OpenAI(
-        api_key=s.deepseek_api_key.strip(),
-        base_url=s.deepseek_base_url.strip().rstrip("/"),
-    )
+    client = _openai_client(s)
     model = (s.deepseek_dictionary_merge_model or "").strip() or "deepseek-chat"
     try:
         plan = _call_dictionary_smart_merge(client, model, body)
@@ -369,13 +374,16 @@ async def insight_summary(request: Request, authorization: str | None = Header(d
     context = body.get("context")
     if not isinstance(context, dict):
         raise HTTPException(status_code=400, detail="body.context must be an object")
-    client = OpenAI(
-        api_key=s.deepseek_api_key.strip(),
-        base_url=s.deepseek_base_url.strip().rstrip("/"),
-    )
     model = (s.deepseek_summary_model or "").strip() or "deepseek-chat"
     timeout = float(s.deepseek_summary_request_timeout or 90.0)
-    text = _call_deepseek_insight_summary(client, model, context, timeout=timeout)
+    client = _openai_client(s, timeout=timeout)
+    try:
+        text = _call_deepseek_insight_summary(client, model, context, timeout=timeout)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"insight summary failed: {type(e).__name__}: {e!s}",
+        ) from e
     return {"summary": text, "model": model, "_adapter": "deepseek"}
 
 

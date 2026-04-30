@@ -264,9 +264,21 @@ import type {
   Dimension6Key,
   InsightDashboardResponse,
   InsightEvidenceItem,
-  PainRankItem,
   ReviewTimeseriesPoint,
 } from '../dashboardTypes'
+import {
+  buildCardRows,
+  keywordsAggregatedAllDimensions as aggregateKeywordsAllDimensions,
+  keywordsAggregatedForDimension as aggregateKeywordsForDimension,
+  painRankingDimensions,
+  pickWordCloudColor,
+  primaryDimensionForPainKeyword as resolvePrimaryDimensionForPainKeyword,
+  primaryDimensionFromRankDims,
+  primaryPainRankingDimension,
+  trendForKeyword,
+} from '../insightResultAggregations'
+import { evidenceDisplayPlainText, formatLocalDateTime, formatReviewDateTime, isHeaderImageUrl } from '../insightResultFormatters'
+import { highlightEvidence as renderHighlightedEvidence } from '../insightResultHighlight'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -286,53 +298,6 @@ const dimensionOrder: Dimension6Key[] = [
   'usage_scenario',
 ]
 
-
-const painRankingDimensions: Dimension6Key[] = ['cons', 'return_reasons']
-
-
-
-
-
-const WORDCLOUD_PALETTES: Record<Dimension6Key, string[]> = {
-  pros: ['#047857', '#059669', '#10b981', '#34d399', '#6ee7b7'],
-  cons: ['#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fcd34d'],
-  return_reasons: ['#be123c', '#e11d48', '#f43f5e', '#fb7185', '#fda4af'],
-  purchase_motivation: ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'],
-  user_expectation: ['#0e7490', '#0891b2', '#06b6d4', '#22d3ee', '#67e8f9'],
-  usage_scenario: ['#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd'],
-}
-
-function hashKeywordHue(keyword: string): number {
-  let h = 0
-  for (let i = 0; i < keyword.length; i++) h = (h * 31 + keyword.charCodeAt(i)) >>> 0
-  return h
-}
-
-
-function pickWordCloudColor(keyword: string, dim: Dimension6Key): string {
-  const palette = WORDCLOUD_PALETTES[dim]
-  if (!palette?.length) return '#047857'
-  return palette[hashKeywordHue(keyword) % palette.length]!
-}
-
-
-function primaryDimensionFromRankDims(dims: string[]): Dimension6Key {
-  for (const d of dimensionOrder) {
-    if (dims.includes(d)) return d
-  }
-  const first = dims[0]
-  if (first && dimensionOrder.includes(first as Dimension6Key)) return first as Dimension6Key
-  return 'pros'
-}
-
-function primaryDimensionForPainKeyword(keyword: string): Dimension6Key {
-  const dash = dashboard.value
-  if (!dash?.pain_ranking?.length) return 'pros'
-  const low = keyword.trim().toLowerCase()
-  const row = dash.pain_ranking.find((p) => p.keyword.trim().toLowerCase() === low)
-  if (!row?.dimensions?.length) return 'pros'
-  return primaryDimensionFromRankDims(row.dimensions)
-}
 
 const loading = ref(false)
 const errorMsg = ref('')
@@ -394,14 +359,6 @@ const aiSummaryLines = computed(() => {
 
 const storedAiSummaryText = computed(() => (dashboard.value?.ai_summary?.text || '').trim())
 
-function formatLocalDateTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso.replace('T', ' ').slice(0, 19)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-
 const mainAsinTitle = computed(() => {
   const d = dashboard.value
   if (d?.product_id) return d.product_id
@@ -423,12 +380,6 @@ const analyzedAtFormatted = computed(() => {
   if (q) return q
   return formatLocalDateTime(new Date().toISOString())
 })
-
-function isHeaderImageUrl(s: string): boolean {
-  const x = s.trim().toLowerCase()
-  return x.startsWith('https://') || x.startsWith('http://') || x.startsWith('data:image/')
-}
-
 
 const headerProductImageUrl = computed(() => {
   const snap = dashboard.value?.product_snapshot
@@ -516,80 +467,20 @@ async function onReanalyzeInsight() {
   }
 }
 
-function painForDimension(dim: Dimension6Key, list: PainRankItem[]) {
-  return list.filter((p) => p.dimensions.includes(dim))
-}
-
-
-
-
-
-
-
-
 function cardRows(dim: Dimension6Key): { label: string; count: number; pct: number }[] {
-  const dash = dashboard.value
-  if (!dash) return []
-  const counter = new Map<string, number>()
-  for (const ev of dash.evidence.items) {
-    if (String(ev.dimension) !== dim) continue
-    const kws = ev.keywords
-    if (!Array.isArray(kws) || kws.length === 0) continue
-    const seen = new Set<string>()
-    for (const raw of kws) {
-      const kw = String(raw).trim().toLowerCase()
-      if (!kw || seen.has(kw)) continue
-      seen.add(kw)
-      counter.set(kw, (counter.get(kw) || 0) + 1)
-    }
-  }
-  const denom = dash.evidence.items.length || 1
-  return [...counter.entries()]
-    .map(([keyword, count]) => ({
-      label: keyword,
-      count,
-      pct: Math.round((count / denom) * 100),
-    }))
-    .sort((a, b) => b.count - a.count)
+  return buildCardRows(dim, dashboard.value)
 }
 
-function primaryPainRankingDimension(dims: string[]): Dimension6Key {
-  for (const d of painRankingDimensions) {
-    if (dims.includes(d)) return d
-  }
-  return 'cons'
+function primaryDimensionForPainKeyword(keyword: string): Dimension6Key {
+  return resolvePrimaryDimensionForPainKeyword(keyword, dashboard.value, dimensionOrder)
 }
-
-function trendForKeyword(kw: string) {
-  let h = 0
-  for (let i = 0; i < kw.length; i++) h = (h + kw.charCodeAt(i) * (i + 1)) % 3
-  return h === 0 ? '↑' : h === 1 ? '→' : '↓'
-}
-
 
 function keywordsAggregatedForDimension(dim: Dimension6Key): { keyword: string; count: number }[] {
-  const dash = dashboard.value
-  if (!dash?.pain_ranking?.length) return []
-  const map = new Map<string, number>()
-  for (const p of dash.pain_ranking) {
-    if (!p.dimensions.includes(dim)) continue
-    const k = p.keyword.trim()
-    if (!k) continue
-    map.set(k, (map.get(k) || 0) + p.count)
-  }
-  return [...map.entries()]
-    .map(([keyword, count]) => ({ keyword, count }))
-    .sort((a, b) => b.count - a.count)
+  return aggregateKeywordsForDimension(dim, dashboard.value)
 }
 
-
 function keywordsAggregatedAllDimensions(): { keyword: string; count: number }[] {
-  const dash = dashboard.value
-  if (!dash?.pain_ranking?.length) return []
-  return dash.pain_ranking
-    .map((p) => ({ keyword: p.keyword.trim(), count: p.count }))
-    .filter((x) => x.keyword)
-    .sort((a, b) => b.count - a.count)
+  return aggregateKeywordsAllDimensions(dashboard.value)
 }
 
 const rankingTableRows = computed(() => {
@@ -670,12 +561,6 @@ watch(evidencePage, () => {
   evidenceExpandedIds.value = new Set()
 })
 
-function evidenceDisplayPlainText(ev: InsightEvidenceItem): string {
-  const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
-  const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
-  return (rawFull.trim() || quote.trim()) || ''
-}
-
 function evidenceHasQuoteText(ev: InsightEvidenceItem): boolean {
   return evidenceDisplayPlainText(ev).length > 0
 }
@@ -705,120 +590,8 @@ function openCardExpand(dim: Dimension6Key) {
   expandVisible.value = true
 }
 
-
-function formatReviewDateTime(ev: InsightEvidenceItem): string {
-  const raw = ev.review?.reviewed_at
-  if (typeof raw !== 'string' || !raw.trim()) return '—'
-  const s = raw.trim()
-  const day = s.slice(0, 10)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day
-  const t = s.split('T')[0] ?? ''
-  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : '—'
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function buildSynonymGroups(dim: Dimension6Key, preview: TaxonomyPreviewResponse | null): string[][] {
-  const block = preview?.dimensions?.[dim]
-  const entries = block?.entries
-  if (!entries?.length) return []
-  const out: string[][] = []
-  for (const e of entries) {
-    const can = String(e.canonical ?? '').trim()
-    const als = Array.isArray(e.aliases)
-      ? e.aliases.map((a) => String(a).trim()).filter(Boolean)
-      : []
-    const g = [...new Set([can, ...als].filter(Boolean))]
-    if (g.length) out.push(g)
-  }
-  return out
-}
-
-function expandKeywordWithSynonyms(kw: string, groups: string[][]): string[] {
-  const t = kw.trim()
-  if (!t) return []
-  const low = t.toLowerCase()
-  for (const g of groups) {
-    if (g.some((x) => x.toLowerCase() === low)) return [...g]
-  }
-  return [t]
-}
-
-function collectEvidenceHighlightTerms(ev: InsightEvidenceItem, groups: string[][]): string[] {
-  const acc = new Set<string>()
-  for (const k of ev.keywords ?? []) {
-    for (const x of expandKeywordWithSynonyms(String(k), groups)) {
-      if (x.trim()) acc.add(x.trim())
-    }
-  }
-  const picked = selectedKeyword.value?.trim()
-  if (picked) {
-    for (const x of expandKeywordWithSynonyms(picked, groups)) {
-      if (x.trim()) acc.add(x.trim())
-    }
-  }
-  return [...acc].sort((a, b) => b.length - a.length)
-}
-
-function highlightByMergedIntervals(escapedText: string, terms: string[]): string {
-  if (!terms.length) return escapedText
-  const intervals: [number, number][] = []
-  for (const term of terms) {
-    const piece = term.trim()
-    if (!piece) continue
-    const esc = escapeHtml(piece)
-    if (!esc) continue
-    const pattern = `(${escapeRegExp(esc)})`
-    let re: RegExp
-    try {
-      re = new RegExp(pattern, 'giu')
-    } catch {
-      re = new RegExp(pattern, 'gi')
-    }
-    re.lastIndex = 0
-    let m: RegExpExecArray | null
-    while ((m = re.exec(escapedText)) !== null) {
-      if (m.index === re.lastIndex) re.lastIndex++
-      intervals.push([m.index, m.index + m[0].length])
-    }
-  }
-  if (!intervals.length) return escapedText
-  intervals.sort((a, b) => a[0] - b[0] || b[1] - a[1])
-  const merged: [number, number][] = []
-  for (const iv of intervals) {
-    const last = merged[merged.length - 1]
-    if (!last || iv[0] >= last[1]) merged.push([iv[0], iv[1]])
-    else last[1] = Math.max(last[1], iv[1])
-  }
-  let out = ''
-  let cur = 0
-  for (const [s, e] of merged) {
-    out += escapedText.slice(cur, s) + '<mark>' + escapedText.slice(s, e) + '</mark>'
-    cur = e
-  }
-  out += escapedText.slice(cur)
-  return out
-}
-
 function highlightEvidence(ev: InsightEvidenceItem) {
-  const rawFull = typeof ev.review?.raw_text === 'string' ? ev.review.raw_text : ''
-  const quote = typeof ev.evidence_quote === 'string' ? ev.evidence_quote : ''
-  const raw = (rawFull.trim() || quote.trim()) || ''
-  if (!raw) return ''
-  const escaped = escapeHtml(raw)
-  const groups = buildSynonymGroups(painListDimension.value, taxonomyPreview.value)
-  const terms = collectEvidenceHighlightTerms(ev, groups)
-  return highlightByMergedIntervals(escaped, terms)
+  return renderHighlightedEvidence(ev, painListDimension.value, taxonomyPreview.value, selectedKeyword.value)
 }
 
 async function loadTaxonomyForDashboard(d: InsightDashboardResponse | null) {

@@ -13,7 +13,7 @@ import httpx
 from app.core.config import Settings
 
 from .errors import ReviewProviderError
-from .pangolin import _extract_result_rows
+from .pangolin import _extract_result_rows, _is_transient_pangolin_error, _post_pangolin_json
 
 
 def _pick_price_display(prod: dict[str, Any]) -> str | None:
@@ -138,13 +138,19 @@ def fetch_pangolin_product_snapshot(
     client_timeout = httpx.Timeout(timeout_sec, connect=30.0)
 
     try:
-        with httpx.Client(timeout=client_timeout) as client:
-            resp = client.post(scrape_url, json=body, headers=headers)
+        resp = _post_pangolin_json(
+            url=scrape_url,
+            body=body,
+            headers=headers,
+            timeout=client_timeout,
+            attempts=settings.review_fetch_max_retries,
+        )
     except httpx.TimeoutException as e:
         raise ReviewProviderError("REVIEW_PROVIDER_TIMEOUT", str(e) or "Pangolin 商品详情超时") from e
     except httpx.RequestError as e:
+        code = "REVIEW_PROVIDER_TRANSIENT" if _is_transient_pangolin_error(e) else "REVIEW_PROVIDER_HTTP_ERROR"
         raise ReviewProviderError(
-            "REVIEW_PROVIDER_HTTP_ERROR",
+            code,
             str(e) or "连接 Pangolin 失败",
         ) from e
 

@@ -126,7 +126,7 @@ def test_dictionary_approve_entry_ok_writes_db() -> None:
     }
     try:
         with patch(
-            "app.modules.dictionary.router.merge_entry_into_vertical_overlay",
+            "app.modules.dictionary.taxonomy_router.merge_entry_into_vertical_overlay",
             return_value=fake_write,
         ) as m:
             r = _client().post(
