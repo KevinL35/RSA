@@ -1,9 +1,9 @@
 {
   "include": [
-    "apps/platform-api/app",
-    "apps/platform-api/tests",
-    "apps/analysis-api/app",
-    "apps/deepseek-adapter"
+    "backend/platform-api/app",
+    "backend/platform-api/tests",
+    "backend/platform-api/analysis-engine/app",
+    "backend/deepseek-adapter"
   ],
   "exclude": ["**/.venv", "**/node_modules", "**/__pycache__"],
   "pythonVersion": "3.14",

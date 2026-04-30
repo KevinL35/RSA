@@ -4,16 +4,16 @@
 # Environment / secrets
 .env
 .env.local
-apps/platform-api/.env
-apps/analysis-api/.env
-apps/web/.env
+backend/platform-api/.env
+backend/platform-api/analysis-engine/.env
+frontend/web/.env
 
 # Python virtual environments
 .venv/
 .venv-topic/
 .venv-hf/
 venv/
-apps/platform-api/.venv/
+backend/platform-api/.venv/
 
 # Python cache
 __pycache__/
@@ -23,10 +23,10 @@ __pycache__/
 
 # Frontend dependencies/build caches
 node_modules/
-apps/web/node_modules/
-apps/web/dist/
-apps/web/.vite/
-apps/web/tsconfig.tsbuildinfo
+frontend/web/node_modules/
+frontend/web/dist/
+frontend/web/.vite/
+frontend/web/tsconfig.tsbuildinfo
 
 # ML artifacts/data (local large files)
 ml/sentiment/data/
@@ -51,6 +51,7 @@ ml/*.tar.gz
 
 # Vercel CLI（若本地再运行 `vercel link` 会生成，勿提交）
 .vercel/
+.vercel-topic/
 
 # Agent / Claude 技能（本机自备，不纳入版本库）
 .agents/

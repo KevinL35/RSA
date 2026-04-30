@@ -4,11 +4,28 @@
 
 ## 项目结构
 
-- `apps/web`：前端应用（Vite + Vue）
-- `apps/platform-api`：平台后端 API（用户权限、词典、主题审核等）
-- `apps/analysis-api`：分析相关 API
-- `apps/deepseek-adapter`：DeepSeek 适配服务
+- `frontend/web`：前端应用（Vite + Vue）
+- `backend/platform-api`：平台后端 API（用户权限、词典、主题审核等）
+- `backend/platform-api/analysis-engine`：分析相关能力服务（已并入 platform-api 目录）
+- `backend/deepseek-adapter`：DeepSeek 适配服务
 - `scripts/dev.sh`：本地一键启动脚本
+
+## 命名映射（代码标识名 vs 业务名称）
+
+为避免前后端、路由、权限和菜单文案出现歧义，项目统一采用“代码标识稳定、业务名称可迭代”的约定。
+
+- `smart-mining` / `smartMining`：智能挖掘（当前标准标识）
+- `dictionary`：词典管理
+- `insight`：评论洞察
+- `api-config` / `apiConfig`：系统设置
+- `account-permissions` / `accountPermissions`：用户权限
+- `audit-log` / `auditLog`：操作日志
+
+说明：
+
+- 代码中的 key（路由、权限、menu key、接口字段）以现有标识为准。
+- 页面展示文案（如“智能挖掘”）通过 i18n 维护，不直接修改底层 key。
+- 新增模块时，优先新增“映射说明”再开发，避免同义命名并存。
 
 ## 本地启动
 

@@ -148,7 +148,7 @@ VALUES (
   'admin',
   '$2b$12$ogCVFZuYrlHwt7RAPTEkeeIEafK2Op96WwPTddzJ9AY3Q94L9kUTG',
   'active',
-  '["insight","compare","pain-audit","dictionary","api-config","audit-log","account-permissions"]'::jsonb
+  '["insight","compare","smart-mining","dictionary","api-config","audit-log","account-permissions"]'::jsonb
 )
 ON CONFLICT (username) DO NOTHING;
 
@@ -226,7 +226,7 @@ COMMENT ON TABLE public.dictionary_review_queue IS 'Pending dictionary review ro
 -- );
 
 -- >>> infra/migrations/011_taxonomy_entries.sql
--- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-api 读路径以本表为准（seed 词条需在数据库中维护）。
+-- 已生效六维词典（seed 全局 + 各垂直 overlay）；API / analysis-engine 读路径以本表为准（seed 词条需在数据库中维护）。
 CREATE TABLE IF NOT EXISTS public.taxonomy_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_layer TEXT NOT NULL CHECK (source_layer IN ('seed', 'overlay')),

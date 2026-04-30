@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本地一键启动：analysis-api (8089) + platform-api (8000) + deepseek-adapter (9100, 可选) + Web (Vite)
+# 本地一键启动：analysis-engine (8089) + platform-api (8000) + deepseek-adapter (9100, 可选) + Web (Vite)
 # 用法：在仓库根目录执行  bash scripts/dev.sh
 # 可选：ANALYSIS_PORT=8089 API_PORT=8000 ADAPTER_PORT=9100 bash scripts/dev.sh
 # 跳过适配层：SKIP_DEEPSEEK_ADAPTER=1 bash scripts/dev.sh
@@ -8,12 +8,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# apps/platform-api 通过 pydantic 读 apps/platform-api/.env；analysis-api 不会自动读该文件。
+# backend/platform-api 通过 pydantic 读 backend/platform-api/.env；analysis-engine 不会自动读该文件。
 # 启动前注入同一 .env，避免分析阶段因缺 SUPABASE_* 读不到 taxonomy_entries 而 HTTP 500。
-if [[ -f "${ROOT}/apps/platform-api/.env" ]]; then
+if [[ -f "${ROOT}/backend/platform-api/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
-  source "${ROOT}/apps/platform-api/.env"
+  source "${ROOT}/backend/platform-api/.env"
   set +a
 fi
 
@@ -31,6 +31,7 @@ trap cleanup EXIT INT TERM
 ANALYSIS_PORT="${ANALYSIS_PORT:-8089}"
 API_PORT="${API_PORT:-8000}"
 ADAPTER_PORT="${ADAPTER_PORT:-9100}"
+ADAPTER_REUSED=0
 
 pick_shared_python() {
   if [[ -x "${ROOT}/.venv/bin/python" ]]; then
@@ -52,8 +53,8 @@ ensure_uvicorn() {
 
 ANALYSIS_PY="$(pick_shared_python)"
 API_PY="$(pick_shared_python)"
-ensure_uvicorn "apps/analysis-api" "${ANALYSIS_PY}"
-ensure_uvicorn "apps/platform-api" "${API_PY}"
+ensure_uvicorn "backend/platform-api/analysis-engine" "${ANALYSIS_PY}"
+ensure_uvicorn "backend/platform-api" "${API_PY}"
 
 # 主题挖掘子进程解释器（Platform API 子进程跑 bertopic_supabase_pools.py）：
 # 优先级：已有 TOPIC_MINING_PYTHON → 仓库根 .venv-topic →
@@ -100,21 +101,21 @@ if [[ -z "${TOPIC_MINING_PYTHON:-}" ]]; then
 fi
 
 (
-  cd apps/analysis-api
+  cd backend/platform-api/analysis-engine
   # 与 platform-api 一样启用 --reload：改词典/分析逻辑后无需手杀进程（否则易仍跑旧代码，例如已移除的 seed 非空校验）
   exec "${ANALYSIS_PY}" -m uvicorn app.main:app --reload --host 127.0.0.1 --port "${ANALYSIS_PORT}"
 ) &
 ANALYSIS_PID=$!
 
 (
-  cd apps/platform-api
+  cd backend/platform-api
   exec "${API_PY}" -m uvicorn app.main:app --reload --host 0.0.0.0 --port "${API_PORT}"
 ) &
 API_PID=$!
 
 # DeepSeek 适配层（TB-3 /analyze + AI 摘要 /insight-summary + Agent /agent-enrich）
 # 跳过：SKIP_DEEPSEEK_ADAPTER=1 bash scripts/dev.sh
-ADAPTER_DIR="${ROOT}/apps/deepseek-adapter"
+ADAPTER_DIR="${ROOT}/backend/deepseek-adapter"
 if [[ "${SKIP_DEEPSEEK_ADAPTER:-}" == "1" ]]; then
   echo "[dev] SKIP_DEEPSEEK_ADAPTER=1，未启动 deepseek-adapter（AI 摘要 / DeepSeek 路由不可用）"
 elif [[ ! -d "${ADAPTER_DIR}" ]]; then
@@ -122,7 +123,7 @@ elif [[ ! -d "${ADAPTER_DIR}" ]]; then
 else
   ADAPTER_PY="$(pick_shared_python)"
   if ! "${ADAPTER_PY}" -c "import uvicorn,openai" >/dev/null 2>&1; then
-    echo "[dev] deepseek-adapter 依赖缺失：当前仅使用根 .venv，不再自动创建 apps/deepseek-adapter/.venv"
+    echo "[dev] deepseek-adapter 依赖缺失：当前仅使用根 .venv，不再自动创建 backend/deepseek-adapter/.venv"
     echo "  请执行：${ROOT}/.venv/bin/pip install -r ${ADAPTER_DIR}/requirements.txt"
     exit 1
   fi
@@ -135,22 +136,33 @@ else
   if [[ "${ADAPTER_KEY_PRESENT}" != "1" ]]; then
     echo "[dev] 警告：未检测到 DEEPSEEK_API_KEY（环境变量或 ${ADAPTER_DIR}/.env），AI 摘要将返回 503"
   fi
-  (
-    cd "${ADAPTER_DIR}"
-    exec "${ADAPTER_PY}" -m uvicorn main:app --reload --host 127.0.0.1 --port "${ADAPTER_PORT}"
-  ) &
-  ADAPTER_PID=$!
+  # 9100 已有可用服务时直接复用，避免重复启动报 Address already in use
+  if lsof -nP -iTCP:"${ADAPTER_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+    if curl --max-time 2 -fsS "http://127.0.0.1:${ADAPTER_PORT}/health" >/dev/null 2>&1; then
+      ADAPTER_REUSED=1
+      echo "[dev] 检测到已有 deepseek-adapter 在 :${ADAPTER_PORT} 运行，复用该实例"
+    else
+      echo "[dev] :${ADAPTER_PORT} 已被占用且健康检查失败，请先释放端口后重试"
+      exit 1
+    fi
+  else
+    (
+      cd "${ADAPTER_DIR}"
+      exec "${ADAPTER_PY}" -m uvicorn main:app --reload --host 127.0.0.1 --port "${ADAPTER_PORT}"
+    ) &
+    ADAPTER_PID=$!
+  fi
 fi
 
 echo "[dev] Analysis API     http://127.0.0.1:${ANALYSIS_PORT}/health"
 echo "[dev] Platform API     http://127.0.0.1:${API_PORT}/docs"
-if [[ -n "${ADAPTER_PID}" ]]; then
+if [[ -n "${ADAPTER_PID}" || "${ADAPTER_REUSED}" == "1" ]]; then
   echo "[dev] DeepSeek adapter http://127.0.0.1:${ADAPTER_PORT}/health"
 fi
 echo "[dev] Web              见下方 Vite 地址（Ctrl+C 将结束全部服务）"
 sleep 1
 
-cd apps/web
+cd frontend/web
 if [[ ! -d node_modules ]]; then
   echo "[dev] 首次运行：npm install …"
   npm install
