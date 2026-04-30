@@ -17,11 +17,6 @@ if [[ -f "${ROOT}/apps/platform-api/.env" ]]; then
   set +a
 fi
 
-# 自动执行 Supabase 迁移（默认开启；无 SUPABASE_DB_URL 或无 psql 会自动跳过）
-if [[ "${SUPABASE_AUTO_MIGRATE:-1}" == "1" ]]; then
-  bash "${ROOT}/scripts/apply-supabase-migrations.sh" || true
-fi
-
 ANALYSIS_PID=""
 API_PID=""
 ADAPTER_PID=""
