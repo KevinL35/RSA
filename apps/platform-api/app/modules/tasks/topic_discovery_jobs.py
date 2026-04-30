@@ -34,15 +34,12 @@ def _utc_now_iso() -> str:
 
 
 def _resolve_topic_python() -> str:
-    """优先 TOPIC_MINING_PYTHON；否则尝试常见 venv；否则 sys.executable。"""
+    """优先 TOPIC_MINING_PYTHON；否则尝试仓库根 .venv-topic；否则 sys.executable。"""
     env = (os.environ.get("TOPIC_MINING_PYTHON") or "").strip()
     if env:
         return env
     candidates = [
         _REPO_ROOT / ".venv-topic" / "bin" / "python",
-        _REPO_ROOT / ".venv-bertopic" / "bin" / "python",
-        _REPO_ROOT / "ml" / ".venv-topic" / "bin" / "python",
-        _REPO_ROOT / "ml" / ".venv-bertopic" / "bin" / "python",
     ]
     for p in candidates:
         try:

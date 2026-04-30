@@ -10,9 +10,10 @@ apps/web/.env
 
 # Python virtual environments
 .venv/
+.venv-topic/
+.venv-hf/
 venv/
 apps/platform-api/.venv/
-ml/.venv-bertopic/
 
 # Python cache
 __pycache__/

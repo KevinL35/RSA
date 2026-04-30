@@ -631,8 +631,8 @@ def post_topic_discovery(
     ml/topic_mining/scripts/bertopic_supabase_pools.py，将三分类结果写入
     topic_pool_highlight / topic_pool_pain / topic_pool_observation。
 
-    解释器优先级：环境变量 TOPIC_MINING_PYTHON > 仓库根 .venv-topic / .venv-bertopic
-    > 当前 Python（建议在该 venv 安装 ml/requirements-topic-pools.txt）。
+    解释器优先级：环境变量 TOPIC_MINING_PYTHON > 仓库根 .venv-topic
+    > 当前 Python（建议在 .venv-topic 安装 ml/requirements-topic-pools.txt）。
     """
     try:
         sb = require_supabase()

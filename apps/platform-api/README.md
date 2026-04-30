@@ -65,7 +65,7 @@ pytest
 - `POST /api/v1/insight-tasks/{id}/topic-discovery/jobs/{job_id}/cancel`：按 `pgid`（fallback `pid`）`SIGTERM` 杀子进程并将 job 置 `cancelled`。
 - `POST /api/v1/topic-discovery/global`：**全局**主题挖掘——跨所有任务在 `review_analysis` 三总表上跑 BERTopic，写入 `topic_pool_*`（`platform/product_id` 写为 `_all`）；任意 `pending/running` 任务存在时返回 **409**。
 - `GET /api/v1/topic-discovery/jobs/latest` / `POST /api/v1/topic-discovery/jobs/{job_id}/cancel`：全局任务轮询与取消。
-- `TOPIC_MINING_PYTHON`：解释器优先级 = 该环境变量 > 仓库根 `.venv-topic` / `.venv-bertopic` > 默认 Python（`scripts/dev.sh` 自动探测前两者）。需已 `pip install -r ml/requirements-topic-pools.txt`。
+- `TOPIC_MINING_PYTHON`：解释器优先级 = 该环境变量 > 仓库根 `.venv-topic` > 默认 Python（`scripts/dev.sh` 自动探测）。需已 `pip install -r ml/requirements-topic-pools.txt`。
 - `GET /api/v1/insight-tasks/{id}/analysis`：TB-4 按任务读取已落库分析结果，每条带 `review` 原文片段字段便于证据反查
 - `GET /api/v1/analysis/by-product?platform=&product_id=`：TB-4 按商品拉取六维命中行（可选 `dimension=`），每项附带 `review` 原文
 - `GET /api/v1/insight-tasks/{id}/dashboard`：TB-5 洞察聚合（`dimension_counts`、`pain_ranking` 关键词频次、`evidence` 分页）；`evidence_limit` / `evidence_offset` / `evidence_dimension`；未就绪时 `empty_state` 说明原因

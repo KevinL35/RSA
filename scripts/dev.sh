@@ -37,10 +37,9 @@ ANALYSIS_PORT="${ANALYSIS_PORT:-8089}"
 API_PORT="${API_PORT:-8000}"
 ADAPTER_PORT="${ADAPTER_PORT:-9100}"
 
-pick_python() {
-  local app_dir="$1"
-  if [[ -x "${ROOT}/${app_dir}/.venv/bin/python" ]]; then
-    echo "${ROOT}/${app_dir}/.venv/bin/python"
+pick_shared_python() {
+  if [[ -x "${ROOT}/.venv/bin/python" ]]; then
+    echo "${ROOT}/.venv/bin/python"
   else
     echo "python3"
   fi
@@ -56,14 +55,14 @@ ensure_uvicorn() {
   fi
 }
 
-ANALYSIS_PY="$(pick_python "apps/analysis-api")"
-API_PY="$(pick_python "apps/platform-api")"
+ANALYSIS_PY="$(pick_shared_python)"
+API_PY="$(pick_shared_python)"
 ensure_uvicorn "apps/analysis-api" "${ANALYSIS_PY}"
 ensure_uvicorn "apps/platform-api" "${API_PY}"
 
 # 主题挖掘子进程解释器（Platform API 子进程跑 bertopic_supabase_pools.py）：
-# 优先级：已有 TOPIC_MINING_PYTHON → 仓库内 .venv-topic/.venv-bertopic →
-# platform-api 解释器已含 bertopic →（可选）自动创建 ROOT/.venv-topic 并 pip install
+# 优先级：已有 TOPIC_MINING_PYTHON → 仓库根 .venv-topic →
+#（可选）自动创建 ROOT/.venv-topic 并 pip install
 # 跳过自动安装：SKIP_TOPIC_VENV_BOOTSTRAP=1 bash scripts/dev.sh
 _topic_python_imports_bertopic() {
   local py="$1"
@@ -71,22 +70,13 @@ _topic_python_imports_bertopic() {
 }
 
 if [[ -z "${TOPIC_MINING_PYTHON:-}" ]]; then
-  for cand in \
-    "${ROOT}/.venv-topic/bin/python" \
-    "${ROOT}/.venv-bertopic/bin/python" \
-    "${ROOT}/ml/.venv-topic/bin/python" \
-    "${ROOT}/ml/.venv-bertopic/bin/python"; do
+  for cand in "${ROOT}/.venv-topic/bin/python"; do
     if [[ -x "${cand}" ]] && _topic_python_imports_bertopic "${cand}"; then
       export TOPIC_MINING_PYTHON="${cand}"
       echo "[dev] TOPIC_MINING_PYTHON=${TOPIC_MINING_PYTHON}"
       break
     fi
   done
-fi
-
-if [[ -z "${TOPIC_MINING_PYTHON:-}" ]] && _topic_python_imports_bertopic "${API_PY}"; then
-  export TOPIC_MINING_PYTHON="${API_PY}"
-  echo "[dev] TOPIC_MINING_PYTHON=${TOPIC_MINING_PYTHON}（与 platform-api 共用，已含 BERTopic）"
 fi
 
 if [[ -z "${TOPIC_MINING_PYTHON:-}" ]] && [[ "${SKIP_TOPIC_VENV_BOOTSTRAP:-}" != "1" ]]; then
@@ -135,7 +125,7 @@ if [[ "${SKIP_DEEPSEEK_ADAPTER:-}" == "1" ]]; then
 elif [[ ! -d "${ADAPTER_DIR}" ]]; then
   echo "[dev] 未发现 ${ADAPTER_DIR}，跳过 deepseek-adapter"
 else
-  ADAPTER_PY="$(pick_python "apps/deepseek-adapter")"
+  ADAPTER_PY="$(pick_shared_python)"
   if ! "${ADAPTER_PY}" -c "import uvicorn,openai" >/dev/null 2>&1; then
     echo "[dev] deepseek-adapter 依赖缺失，自动安装到 ${ADAPTER_DIR}/.venv …"
     if [[ ! -x "${ADAPTER_DIR}/.venv/bin/python" ]]; then
