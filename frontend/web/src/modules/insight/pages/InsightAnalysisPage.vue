@@ -297,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -318,6 +318,7 @@ const BUILTIN_ANALYSIS_PROVIDER_ID = 'ins_builtin'
 import {
   createInsightTask,
   fetchInsightTaskReviews,
+  postInsightAiSummary,
   postInsightTaskAnalyze,
   postInsightTaskFetchReviews,
   postInsightTaskImportReviews,
@@ -631,17 +632,13 @@ function reviewStatusLabel(status: 'fetching' | 'completed' | 'failed') {
   return t(`insight.reviewStatus.${status}`)
 }
 
-async function loadTasks(skipAutoRefresh = false) {
-  clearPendingAiSummaryRefresh()
+async function loadTasks() {
   loading.value = true
   await ensureDictionaryVerticals()
   try {
     const res = await fetchInsightTasks({ limit: 50 })
     const taskRows = res.items ?? []
     rows.value = taskRows.map(mapTaskToRow)
-    if (!skipAutoRefresh) {
-      schedulePendingAiSummaryRefresh()
-    }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     ElMessage.warning(`${t('insight.listLoadFailed')} — ${detail}`)
@@ -655,39 +652,8 @@ async function loadTasks(skipAutoRefresh = false) {
 
 
 
-const AI_SUMMARY_LIST_POLL_INTERVAL_MS = 15000
-const AI_SUMMARY_LIST_POLL_MAX = 4
-let aiSummaryListPollTimer: number | null = null
-let aiSummaryListPollCount = 0
-
-function clearPendingAiSummaryRefresh() {
-  if (aiSummaryListPollTimer != null) {
-    window.clearTimeout(aiSummaryListPollTimer)
-    aiSummaryListPollTimer = null
-  }
-}
-
-function hasSuccessWithoutAiSummary(): boolean {
-  return rows.value.some((r) => r.taskStatus === 'success' && r.aiSummaryReady !== true)
-}
-
-function schedulePendingAiSummaryRefresh() {
-  clearPendingAiSummaryRefresh()
-  if (!hasSuccessWithoutAiSummary()) return
-  if (aiSummaryListPollCount >= AI_SUMMARY_LIST_POLL_MAX) return
-  aiSummaryListPollTimer = window.setTimeout(() => {
-    aiSummaryListPollTimer = null
-    aiSummaryListPollCount += 1
-    void loadTasks()
-  }, AI_SUMMARY_LIST_POLL_INTERVAL_MS)
-}
-
 onMounted(() => {
   void loadTasks()
-})
-
-onBeforeUnmount(() => {
-  clearPendingAiSummaryRefresh()
 })
 
 watch(locale, () => {
@@ -814,42 +780,37 @@ async function submitAddProduct() {
     addDialogVisible.value = false
     resetAddForm()
     page.value = 1
-    aiSummaryListPollCount = 0
     ElMessage.success(t('insight.addProductSuccessCount', { n: ok }))
-    await loadTasks(true)
+    await loadTasks()
 
-    void (async () => {
-      const failed: string[] = []
-      const fetchedTaskIds: string[] = []
-      await Promise.all(
-        createdTaskIds.map(async (taskId) => {
-          try {
-            await postInsightTaskFetchReviews(taskId)
-            fetchedTaskIds.push(taskId)
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            failed.push(msg)
-          }
-        }),
-      )
-      await loadTasks(true)
-
-      await Promise.all(
-        fetchedTaskIds.map(async (taskId) => {
-          try {
-            await postInsightTaskAnalyze(taskId)
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            failed.push(msg)
-          }
-        }),
-      )
-      await loadTasks(true)
-
-      if (failed.length > 0) {
-        ElMessage.warning(`${t('insight.addProductPipelineFailed')}: ${failed[0]}`)
+    // 顺序抓评：避免去掉轮询后仍并行 N 次请求压垮 Pangolin；每步后刷新列表，不依赖定时轮询。
+    const failed: string[] = []
+    const fetchedTaskIds: string[] = []
+    for (const taskId of createdTaskIds) {
+      try {
+        await postInsightTaskFetchReviews(taskId)
+        fetchedTaskIds.push(taskId)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        failed.push(msg)
       }
-    })()
+      await loadTasks()
+    }
+
+    for (const taskId of fetchedTaskIds) {
+      try {
+        await postInsightTaskAnalyze(taskId)
+        await postInsightAiSummary(taskId, { regenerate: false })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        failed.push(msg)
+      }
+      await loadTasks()
+    }
+
+    if (failed.length > 0) {
+      ElMessage.warning(`${t('insight.addProductPipelineFailed')}: ${failed[0]}`)
+    }
   } catch (e) {
     ElMessage.error(
       e instanceof Error ? `${t('insight.addProductPipelineFailed')}: ${e.message}` : t('insight.addProductPipelineFailed'),
@@ -937,11 +898,11 @@ async function submitUploadReviews() {
     uploadDialogVisible.value = false
     resetUploadForm()
     page.value = 1
-    aiSummaryListPollCount = 0
     ElMessage.success(t('insight.uploadReviewsSuccess', { n }))
     await loadTasks()
     try {
       await postInsightTaskAnalyze(taskId)
+      await postInsightAiSummary(taskId, { regenerate: false })
       await loadTasks()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -958,7 +919,6 @@ async function submitUploadReviews() {
 }
 
 async function onRefresh() {
-  aiSummaryListPollCount = 0
   await loadTasks()
   ElMessage.success(t('insight.refreshed'))
 }

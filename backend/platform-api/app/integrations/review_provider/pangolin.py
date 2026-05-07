@@ -6,6 +6,7 @@ TB-2：Pangolin（Pangolinfo）Amazon Review API。
 from __future__ import annotations
 
 import json
+import logging
 import random
 import time
 from typing import Any
@@ -16,6 +17,11 @@ from app.core.config import Settings
 
 from .errors import ReviewProviderError
 from .normalize import normalize_provider_item
+
+log = logging.getLogger(__name__)
+
+# 网关 / 源站过载时单次 pageCount 越大越容易触发 Cloudflare 504；在仍可降级时减半重试。
+_GATEWAY_DEGRADE_STATUS = frozenset({500, 502, 503, 504})
 
 
 def _is_transient_pangolin_error(exc: BaseException) -> bool:
@@ -140,20 +146,9 @@ def fetch_reviews_via_pangolin(
     scrape_url = f"{base}/api/v1/scrape"
     amazon_url = (settings.pangolin_amazon_url or "https://www.amazon.com").strip()
     cap = max(1, int(settings.pangolin_page_count_max))
-    page_count = max(1, min(int(settings.pangolin_page_count), cap))
+    initial_pages = max(1, min(int(settings.pangolin_page_count), cap))
+    pages = initial_pages
 
-    body: dict[str, Any] = {
-        "url": amazon_url,
-        "bizContext": {
-            "bizKey": "review",
-            "pageCount": page_count,
-            "asin": asin,
-            "filterByStar": (settings.pangolin_filter_by_star or "all_stars").strip(),
-            "sortBy": (settings.pangolin_sort_by or "recent").strip(),
-        },
-        "format": "json",
-        "parserName": (settings.pangolin_parser_name or "amzReviewV2").strip(),
-    }
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -161,61 +156,126 @@ def fetch_reviews_via_pangolin(
     }
     timeout_sec = max(30.0, float(settings.pangolin_timeout_seconds))
     client_timeout = httpx.Timeout(timeout_sec, connect=30.0)
+    parser_name = (settings.pangolin_parser_name or "amzReviewV2").strip()
+    filter_star = (settings.pangolin_filter_by_star or "all_stars").strip()
+    sort_by = (settings.pangolin_sort_by or "recent").strip()
 
-    try:
-        resp = _post_pangolin_json(
-            url=scrape_url,
-            body=body,
-            headers=headers,
-            timeout=client_timeout,
-            attempts=settings.review_fetch_max_retries,
-        )
-    except httpx.TimeoutException as e:
-        raise ReviewProviderError("REVIEW_PROVIDER_TIMEOUT", str(e) or "Pangolin 请求超时") from e
-    except httpx.RequestError as e:
-        code = "REVIEW_PROVIDER_TRANSIENT" if _is_transient_pangolin_error(e) else "REVIEW_PROVIDER_HTTP_ERROR"
-        raise ReviewProviderError(
-            code,
-            str(e) or "连接 Pangolin 失败",
-        ) from e
+    while True:
+        body: dict[str, Any] = {
+            "url": amazon_url,
+            "bizContext": {
+                "bizKey": "review",
+                "pageCount": pages,
+                "asin": asin,
+                "filterByStar": filter_star,
+                "sortBy": sort_by,
+            },
+            "format": "json",
+            "parserName": parser_name,
+        }
+        try:
+            resp = _post_pangolin_json(
+                url=scrape_url,
+                body=body,
+                headers=headers,
+                timeout=client_timeout,
+                attempts=settings.review_fetch_max_retries,
+            )
+        except httpx.TimeoutException as e:
+            if pages > 1:
+                nxt = max(1, pages // 2)
+                log.warning(
+                    "pangolin read/connect timeout asin=%s pageCount %s -> %s",
+                    asin,
+                    pages,
+                    nxt,
+                )
+                pages = nxt
+                time.sleep(0.45 + random.uniform(0, 0.25))
+                continue
+            raise ReviewProviderError("REVIEW_PROVIDER_TIMEOUT", str(e) or "Pangolin 请求超时") from e
+        except httpx.RequestError as e:
+            if pages > 1 and _is_transient_pangolin_error(e):
+                nxt = max(1, pages // 2)
+                log.warning(
+                    "pangolin request error asin=%s pageCount %s -> %s: %s",
+                    asin,
+                    pages,
+                    nxt,
+                    e,
+                )
+                pages = nxt
+                time.sleep(0.45 + random.uniform(0, 0.25))
+                continue
+            code = "REVIEW_PROVIDER_TRANSIENT" if _is_transient_pangolin_error(e) else "REVIEW_PROVIDER_HTTP_ERROR"
+            raise ReviewProviderError(
+                code,
+                str(e) or "连接 Pangolin 失败",
+            ) from e
 
-    if resp.status_code in (429, 500, 502, 503, 504):
-        raise ReviewProviderError(
-            "REVIEW_PROVIDER_TRANSIENT",
-            f"Pangolin HTTP {resp.status_code}: {resp.text[:500]}",
-        )
-    if resp.status_code >= 400:
-        raise ReviewProviderError(
-            "REVIEW_PROVIDER_HTTP_ERROR",
-            f"Pangolin HTTP {resp.status_code}: {resp.text[:800]}",
-        )
+        if resp.status_code == 429:
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_TRANSIENT",
+                f"Pangolin HTTP 429: {resp.text[:500]}",
+            )
+        if resp.status_code in _GATEWAY_DEGRADE_STATUS:
+            if pages > 1:
+                nxt = max(1, pages // 2)
+                log.warning(
+                    "pangolin HTTP %s asin=%s pageCount %s -> %s",
+                    resp.status_code,
+                    asin,
+                    pages,
+                    nxt,
+                )
+                pages = nxt
+                time.sleep(0.55 + random.uniform(0, 0.25))
+                continue
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_TRANSIENT",
+                f"Pangolin HTTP {resp.status_code}: {resp.text[:500]}",
+            )
+        if resp.status_code >= 400:
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_HTTP_ERROR",
+                f"Pangolin HTTP {resp.status_code}: {resp.text[:800]}",
+            )
 
-    try:
-        payload = resp.json()
-    except ValueError as e:
-        raise ReviewProviderError(
-            "REVIEW_PROVIDER_PARSE_ERROR",
-            f"Pangolin 响应非 JSON：{e!s}",
-        ) from e
+        try:
+            payload = resp.json()
+        except ValueError as e:
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_PARSE_ERROR",
+                f"Pangolin 响应非 JSON：{e!s}",
+            ) from e
 
-    if not isinstance(payload, dict):
-        raise ReviewProviderError("REVIEW_PROVIDER_PARSE_ERROR", "Pangolin 响应应为 JSON 对象")
+        if not isinstance(payload, dict):
+            raise ReviewProviderError("REVIEW_PROVIDER_PARSE_ERROR", "Pangolin 响应应为 JSON 对象")
 
-    api_code = payload.get("code")
-    if api_code != 0:
-        msg = payload.get("message") or str(api_code)
-        raise ReviewProviderError(
-            "REVIEW_PROVIDER_HTTP_ERROR",
-            f"Pangolin 业务错误 code={api_code}: {msg}",
-        )
+        api_code = payload.get("code")
+        if api_code != 0:
+            msg = payload.get("message") or str(api_code)
+            raise ReviewProviderError(
+                "REVIEW_PROVIDER_HTTP_ERROR",
+                f"Pangolin 业务错误 code={api_code}: {msg}",
+            )
 
-    raw_reviews = _extract_result_rows(payload)
-    normalized: list[dict[str, Any]] = []
-    for r in raw_reviews:
-        mapped = _map_pangolin_review(r)
-        if not mapped:
-            continue
-        row = normalize_provider_item(mapped)
-        if row:
-            normalized.append(row)
-    return normalized
+        raw_reviews = _extract_result_rows(payload)
+        normalized: list[dict[str, Any]] = []
+        for r in raw_reviews:
+            mapped = _map_pangolin_review(r)
+            if not mapped:
+                continue
+            row = normalize_provider_item(mapped)
+            if row:
+                normalized.append(row)
+
+        if pages < initial_pages:
+            log.info(
+                "pangolin fetch ok asin=%s pageCount_used=%s (requested_max=%s) rows=%s",
+                asin,
+                pages,
+                initial_pages,
+                len(normalized),
+            )
+        return normalized

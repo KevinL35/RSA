@@ -77,7 +77,7 @@ pytest
 
 - `REVIEW_PROVIDER_MODE`：`http`（默认）或 `pangolin`
 - **`http`**：`REVIEW_PROVIDER_URL` 为完整 `POST` URL，JSON body：`platform`, `product_id`；可选 `REVIEW_PROVIDER_API_KEY` → `Authorization: Bearer`；响应须为顶层数组或 `reviews`/`items`/`data`/`results`/`records`；元素字段兼容 `raw_text`/`text`/`body`/`content`/`reviewText` 等
-- **`pangolin`**：[Pangolinfo Amazon Review API](https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI)：`POST …/api/v1/scrape`，需 `PANGOLIN_TOKEN`（`POST …/api/v1/auth` 返回的 `data`）；可选 `PANGOLIN_AMAZON_URL`（默认 `https://www.amazon.com`，英亚等可改域名）、`PANGOLIN_PAGE_COUNT`、`PANGOLIN_PAGE_COUNT_MAX`（Amazon 评论单次常见约 ~100 条上限，积点见对方文档）、`PANGOLIN_FILTER_BY_STAR`、`PANGOLIN_SORT_BY`、`PANGOLIN_PARSER_NAME`、`PANGOLIN_TIMEOUT_SECONDS`；详见 `docs/runbooks/pangolin-amazon-reviews.md`
+- **`pangolin`**：[Pangolinfo Amazon Review API](https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI)：`POST …/api/v1/scrape`，需 `PANGOLIN_TOKEN`（`POST …/api/v1/auth` 返回的 `data`）；可选 `PANGOLIN_AMAZON_URL`（默认 `https://www.amazon.com`，英亚等可改域名）、`PANGOLIN_PAGE_COUNT`、`PANGOLIN_PAGE_COUNT_MAX`（Amazon 评论单次常见约 ~100 条上限，积点见对方文档）、`PANGOLIN_FILTER_BY_STAR`、`PANGOLIN_SORT_BY`、`PANGOLIN_PARSER_NAME`、`PANGOLIN_TIMEOUT_SECONDS`；字段说明以 [Pangolin 文档](https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI) 为准
 - `REVIEW_PROVIDER_TIMEOUT_SECONDS`：`http` 模式下的客户端超时（秒）
 - `REVIEW_FETCH_MAX_RETRIES`：默认 3（429/5xx 等可重试错误）
 - `REVIEW_PROVIDER_MOCK=true`：不请求外网，返回两条占位评论

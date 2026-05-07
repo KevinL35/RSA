@@ -53,7 +53,9 @@ def fetch_reviews_normalized(
     if mode == "apify":
         raise ReviewProviderError(
             "REVIEW_PROVIDER_NOT_CONFIGURED",
-            "REVIEW_PROVIDER_MODE=apify 已移除，请改用 pangolin（见 docs/runbooks/pangolin-amazon-reviews.md）或 http + REVIEW_PROVIDER_URL",
+            "REVIEW_PROVIDER_MODE=apify 已移除，请改用 REVIEW_PROVIDER_MODE=pangolin（见 "
+            "https://docs.pangolinfo.com/cn-api-reference/amazonReviewAPI/amazonReviewAPI ）"
+            "或 REVIEW_PROVIDER_MODE=http 并配置 REVIEW_PROVIDER_URL",
         )
     if mode == "pangolin":
         from .pangolin import fetch_reviews_via_pangolin
@@ -95,7 +97,7 @@ def fetch_reviews_normalized(
 
     for attempt in range(attempts):
         try:
-            with httpx.Client(timeout=timeout) as client:
+            with httpx.Client(timeout=timeout, trust_env=False) as client:
                 resp = client.post(url, json=body, headers=headers)
             if resp.status_code in (429, 500, 502, 503, 504):
                 last_detail = f"HTTP {resp.status_code}: {resp.text[:500]}"

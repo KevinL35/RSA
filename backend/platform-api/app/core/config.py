@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     pangolin_base_url: str = "https://scrapeapi.pangolinfo.com"
     pangolin_amazon_url: str = "https://www.amazon.com"
     pangolin_page_count: int = 10
-    pangolin_page_count_max: int = 100
+    pangolin_page_count_max: int = 10
     pangolin_filter_by_star: str = "all_stars"
     pangolin_sort_by: str = "recent"
     pangolin_parser_name: str = "amzReviewV2"

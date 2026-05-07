@@ -262,7 +262,7 @@ def run_import_reviews_from_excel(
     if status == "failed":
         raise HTTPException(
             status_code=400,
-            detail="任务已失败：请使用 PATCH 将状态改为 pending 后再导入",
+            detail="任务已失败：请先 POST /api/v1/insight-tasks/{id}/retry 重置为 pending，再导入评论",
         )
 
     platform = task["platform"]

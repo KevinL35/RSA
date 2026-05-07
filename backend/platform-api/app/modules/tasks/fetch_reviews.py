@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import threading
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,6 +12,8 @@ from app.core.config import get_settings
 from app.integrations.review_provider import ReviewProviderError, fetch_reviews_normalized
 from app.modules.tasks import state_machine
 from app.modules.tasks.listing import enrich_task_for_task_center
+
+log = logging.getLogger("rsa.fetch_reviews")
 
 
 def _utc_now_iso() -> str:
@@ -38,7 +42,7 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
     if status == "failed":
         raise HTTPException(
             status_code=400,
-            detail="任务已失败：请使用 PATCH 将状态改为 pending 后再抓取",
+            detail="任务已失败：请先 POST /api/v1/insight-tasks/{id}/retry 重置为 pending，再抓取评论",
         )
 
     platform = task["platform"]
@@ -71,6 +75,14 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
     try:
         normalized = fetch_reviews_normalized(platform, product_id, settings=settings)
     except ReviewProviderError as e:
+        log.warning(
+            "fetch_reviews failed task=%s platform=%s product_id=%s code=%s detail=%s",
+            task_id,
+            platform,
+            product_id,
+            e.code,
+            (e.message or "")[:800],
+        )
         sb.table("insight_tasks").update(
             {
                 "status": "failed",
@@ -84,6 +96,15 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
             status_code=502,
             detail=f"{e.code}: {e.message}",
         ) from e
+
+    if not normalized:
+        log.warning(
+            "fetch_reviews zero rows after provider ok task=%s platform=%s product_id=%s "
+            "(响应成功但无可入库评论，可能是 ASIN/站点无评论或解析字段不匹配)",
+            task_id,
+            platform,
+            product_id,
+        )
 
     sb.table("reviews").delete().eq("insight_task_id", str(task_id)).execute()
 
@@ -108,27 +129,7 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
     if insert_rows:
         sb.table("reviews").insert(insert_rows).execute()
 
-    mode = (settings.review_provider_mode or "http").strip().lower()
-    if (
-        mode == "pangolin"
-        and platform.strip().lower() == "amazon"
-        and settings.pangolin_fetch_product_detail
-        and not settings.review_provider_mock
-    ):
-        from app.integrations.review_provider.pangolin_product import (
-            try_fetch_pangolin_product_snapshot_optional,
-        )
-
-        product_snapshot = try_fetch_pangolin_product_snapshot_optional(
-            platform, product_id, settings=settings
-        )
-        if product_snapshot:
-            sb.table("insight_tasks").update(
-                {
-                    "product_snapshot": product_snapshot,
-                    "updated_at": _utc_now_iso(),
-                }
-            ).eq("id", str(task_id)).execute()
+    _spawn_product_snapshot_async(sb, task_id, platform, product_id, settings)
 
     fresh = (
         sb.table("insight_tasks")
@@ -142,3 +143,48 @@ def run_fetch_reviews_for_task(sb: Client, task_id: UUID) -> dict:
         "task": enrich_task_for_task_center(task_row),
         "reviews_inserted": len(insert_rows),
     }
+
+
+def _spawn_product_snapshot_async(
+    sb: Client,
+    task_id: UUID,
+    platform: str,
+    product_id: str,
+    settings: object,
+) -> None:
+    mode = (getattr(settings, "review_provider_mode", "") or "http").strip().lower()
+    if (
+        mode != "pangolin"
+        or platform.strip().lower() != "amazon"
+        or not getattr(settings, "pangolin_fetch_product_detail", False)
+        or getattr(settings, "review_provider_mock", False)
+    ):
+        return
+
+    def _runner() -> None:
+        try:
+            from app.integrations.review_provider.pangolin_product import (
+                try_fetch_pangolin_product_snapshot_optional,
+            )
+
+            product_snapshot = try_fetch_pangolin_product_snapshot_optional(
+                platform,
+                product_id,
+                settings=settings,  # type: ignore[arg-type]
+            )
+            if not product_snapshot:
+                return
+            sb.table("insight_tasks").update(
+                {
+                    "product_snapshot": product_snapshot,
+                    "updated_at": _utc_now_iso(),
+                }
+            ).eq("id", str(task_id)).execute()
+        except Exception as e:
+            log.warning("product snapshot async fetch failed for task=%s: %s", task_id, e)
+
+    threading.Thread(
+        target=_runner,
+        name=f"product-snapshot-{str(task_id)[:8]}",
+        daemon=True,
+    ).start()

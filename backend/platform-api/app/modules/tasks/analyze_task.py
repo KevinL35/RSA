@@ -76,7 +76,7 @@ def run_analyze_for_task(
     if status == "failed":
         raise HTTPException(
             status_code=400,
-            detail="任务已失败：请用 PATCH 将状态改为 pending 后重新抓取与分析",
+            detail="任务已失败：请先 POST /api/v1/insight-tasks/{id}/retry 重置为 pending，再抓取并分析",
         )
     if status != "running":
         raise HTTPException(status_code=400, detail=f"当前状态 {status!r} 不可触发分析")
